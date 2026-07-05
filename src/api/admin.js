@@ -37,7 +37,8 @@ export const getPlanningCycles = () => api.get('/api/admin/planning-cycles').the
 export const createPlanningCycle = (payload) =>
   api.post('/api/admin/planning-cycles', payload).then(unwrap)
 export const updatePlanningCycle = (id, payload) =>
-  api.put(`/api/admin/planning-cycles/${id}`, payload).then(unwrap)
+  api.put(`/api/admin/planning-cycles/${id}`, payload).then((r) => r.data)
+export const deletePlanningCycle = (id) => api.delete(`/api/admin/planning-cycles/${id}`).then((r) => r.data)
 export const getPlanningCyclePeriods = (cycleId) =>
   api.get(`/api/admin/planning-cycles/${cycleId}/periods`).then(unwrap)
 export const createPeriod = (cycleId, payload) =>
@@ -45,8 +46,11 @@ export const createPeriod = (cycleId, payload) =>
 export const deletePeriod = (id) => api.delete(`/api/admin/periods/${id}`).then(unwrap)
 
 // Strategies (admin view)
+export const createAdminUniversityStrategy = (payload) =>
+  api.post('/api/admin/strategies/university', payload).then(unwrap)
 export const getAdminStrategies = () => api.get('/api/admin/strategies').then(unwrap)
 export const getAdminStrategy = (id) => api.get(`/api/admin/strategies/${id}`).then(unwrap)
+export const deleteAdminStrategy = (id) => api.delete(`/api/admin/strategies/${id}`).then((r) => r.data)
 export const adminOverrideState = (id, state) =>
   api.patch(`/api/admin/strategies/${id}/state`, { state }).then(unwrap)
 export const getStrategyAssignments = (id) =>
@@ -69,6 +73,12 @@ export const getAchievementTypesPublic = () =>
   api.get('/api/admin/achievement-types/all').then(unwrap)
 export const getPlanningCyclesPublic = () =>
   api.get('/api/admin/planning-cycles/all').then(unwrap)
+
+// Academic Years (admin manage)
+export const createAcademicYear = (payload) =>
+  api.post('/api/admin/academic-years', payload).then(unwrap)
+export const closeAcademicYear = (id) =>
+  api.patch(`/api/academic-years/${id}/close`).then(unwrap)
 
 // Audit Logs
 export const getAuditLogs = (params) =>

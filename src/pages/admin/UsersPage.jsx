@@ -10,6 +10,7 @@ import {
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { getUsers, createUser, updateUser, getDepartments, importUsers } from '../../api/admin'
 import { useNavigate } from 'react-router-dom'
+import { useTablePrefs, compareStrings } from '../../hooks/useTablePrefs'
 
 const { Dragger } = Upload
 const { Text } = Typography
@@ -26,12 +27,20 @@ function downloadTemplate() {
   URL.revokeObjectURL(url)
 }
 
+const TABLE_PREFS_KEY = 'spms.adminUsersTable.prefs'
+
+// Admin console page listing every app_user: create/edit users one at a time,
+// bulk-import via CSV, and jump to a user's per-strategy role assignments.
+// Table sort + page size are persisted (see useTablePrefs) so the admin's
+// preferred view survives navigating away and coming back.
 export default function UsersPage() {
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState(null)
   const [form] = Form.useForm()
   const qc = useQueryClient()
   const navigate = useNavigate()
+
+  const { prefs, sortOrderFor, handleTableChange } = useTablePrefs(TABLE_PREFS_KEY)
 
   // CSV import state
   const [importOpen, setImportOpen] = useState(false)
@@ -70,6 +79,8 @@ export default function UsersPage() {
     setModalOpen(true)
   }
 
+  // `editing` (set by openEdit) decides create vs. update; both share one
+  // modal/form, so the mutation just branches on whether it's populated.
   const saveMutation = useMutation({
     mutationFn: (values) =>
       editing ? updateUser(editing.id, values) : createUser(values),
@@ -89,6 +100,9 @@ export default function UsersPage() {
     setImportOpen(true)
   }
 
+  // Server matches rows by email: existing users are updated in place, unknown
+  // emails are created fresh with a default password. See importResult.errors
+  // for any rows the server rejected (rendered in the modal's results view below).
   const importMutation = useMutation({
     mutationFn: () => importUsers(selectedFile),
     onSuccess: (result) => {
@@ -109,24 +123,52 @@ export default function UsersPage() {
   const columns = [
     {
       title: 'Name',
+      key: 'name',
       render: (_, r) => (
         <span style={{ fontWeight: 500 }}>
           {r.fname} {r.lname}
         </span>
       ),
+      sorter: (a, b) => compareStrings(`${a.fname} ${a.lname}`, `${b.fname} ${b.lname}`),
+      sortOrder: sortOrderFor('name'),
     },
-    { title: 'Email', dataIndex: 'email' },
-    { title: 'Title', dataIndex: 'title', render: (v) => v || '—' },
-    { title: 'Department', render: (_, r) => r.department?.name || '—' },
+    {
+      title: 'Email',
+      key: 'email',
+      dataIndex: 'email',
+      sorter: (a, b) => compareStrings(a.email, b.email),
+      sortOrder: sortOrderFor('email'),
+    },
+    {
+      title: 'Title',
+      key: 'title',
+      dataIndex: 'title',
+      render: (v) => v || '—',
+      sorter: (a, b) => compareStrings(a.title, b.title),
+      sortOrder: sortOrderFor('title'),
+    },
+    {
+      title: 'Department',
+      key: 'department',
+      render: (_, r) => r.department?.name || '—',
+      sorter: (a, b) => compareStrings(a.department?.name, b.department?.name),
+      sortOrder: sortOrderFor('department'),
+    },
     {
       title: 'Role',
+      key: 'role',
       render: (_, r) =>
         r.isAdmin ? <Tag color="purple">Admin</Tag> : <Tag color="default">User</Tag>,
+      sorter: (a, b) => Number(a.isAdmin) - Number(b.isAdmin),
+      sortOrder: sortOrderFor('role'),
     },
     {
       title: 'Status',
+      key: 'status',
       render: (_, r) =>
         r.active ? <Tag color="green">Active</Tag> : <Tag color="default">Inactive</Tag>,
+      sorter: (a, b) => Number(a.active) - Number(b.active),
+      sortOrder: sortOrderFor('status'),
     },
     {
       title: 'Actions',
@@ -167,7 +209,13 @@ export default function UsersPage() {
         columns={columns}
         rowKey="id"
         loading={isLoading}
-        pagination={{ pageSize: 20 }}
+        pagination={{
+          current: prefs.current,
+          pageSize: prefs.pageSize,
+          showSizeChanger: true,
+          pageSizeOptions: ['20', '50', '100'],
+        }}
+        onChange={handleTableChange}
         size="middle"
       />
 

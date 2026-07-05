@@ -9,10 +9,12 @@ import {
   MenuFoldOutlined,
   MenuUnfoldOutlined,
   SettingOutlined,
+  RocketOutlined,
 } from '@ant-design/icons'
 import { useQuery } from '@tanstack/react-query'
 import { useAuth } from '../auth/AuthContext'
 import { getMyPendingApprovals } from '../api/approvals'
+import { getMySwotPendingActions } from '../api/swot'
 
 const { Sider, Header, Content } = Layout
 
@@ -29,23 +31,47 @@ export default function MemberLayout() {
   })
   const pendingCount = pending.length
 
+  const { data: swotPending = [] } = useQuery({
+    queryKey: ['swot-pending'],
+    queryFn: getMySwotPendingActions,
+    refetchInterval: 60_000,
+  })
+  const swotPendingCount = swotPending.length
+
   const menuItems = [
     {
       key: '/dashboard',
       icon: <DashboardOutlined />,
       label: <Link to="/dashboard">My Strategies</Link>,
     },
-    {
-      key: '/approvals',
-      icon: <CheckSquareOutlined />,
-      label: (
-        <Link to="/approvals">
-          Approvals{pendingCount > 0 && (
-            <Badge count={pendingCount} size="small" style={{ marginLeft: 6 }} />
-          )}
-        </Link>
-      ),
-    },
+    ...(pendingCount > 0
+      ? [
+          {
+            key: '/approvals',
+            icon: <CheckSquareOutlined />,
+            label: (
+              <Link to="/approvals">
+                Approvals
+                <Badge count={pendingCount} size="small" style={{ marginLeft: 6 }} />
+              </Link>
+            ),
+          },
+        ]
+      : []),
+    ...(swotPendingCount > 0
+      ? [
+          {
+            key: `/strategies/${swotPending[0].strategyId}/swot`,
+            icon: <RocketOutlined />,
+            label: (
+              <Link to={`/strategies/${swotPending[0].strategyId}/swot`}>
+                SWOT Action Needed
+                <Badge count={swotPendingCount} size="small" style={{ marginLeft: 6 }} />
+              </Link>
+            ),
+          },
+        ]
+      : []),
     ...(user?.isAdmin
       ? [
           {
@@ -78,13 +104,14 @@ export default function MemberLayout() {
   }
 
   return (
-    <Layout style={{ minHeight: '100vh' }}>
+    <Layout style={{ height: '100vh' }}>
       <Sider
         className="app-sidebar"
         collapsible
         collapsed={collapsed}
         trigger={null}
         width={220}
+        style={{ overflow: 'auto', height: '100vh', position: 'sticky', top: 0 }}
       >
         <div className="sidebar-logo">
           {!collapsed && (
@@ -104,7 +131,7 @@ export default function MemberLayout() {
         />
       </Sider>
 
-      <Layout>
+      <Layout style={{ overflow: 'hidden' }}>
         <Header
           style={{
             background: '#fff',
@@ -114,6 +141,7 @@ export default function MemberLayout() {
             justifyContent: 'space-between',
             borderBottom: '1px solid #e8eef6',
             height: 56,
+            flexShrink: 0,
           }}
         >
           <Button
@@ -140,7 +168,7 @@ export default function MemberLayout() {
           </Dropdown>
         </Header>
 
-        <Content style={{ padding: '24px', background: '#f5f7fa', minHeight: 'calc(100vh - 56px)' }}>
+        <Content style={{ padding: '24px', background: '#f5f7fa', flex: 1, overflow: 'auto' }}>
           <Outlet />
         </Content>
       </Layout>

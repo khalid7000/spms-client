@@ -7,12 +7,16 @@ import {
   deactivateDepartment, reactivateDepartment, getOrgGroups,
 } from '../../api/admin'
 import { getUsers } from '../../api/admin'
+import { useTablePrefs, compareStrings } from '../../hooks/useTablePrefs'
+
+const TABLE_PREFS_KEY = 'spms.adminDepartmentsTable.prefs'
 
 export default function DepartmentsPage() {
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState(null)
   const [form] = Form.useForm()
   const qc = useQueryClient()
+  const { sortOrderFor, handleTableChange } = useTablePrefs(TABLE_PREFS_KEY)
 
   const { data: departments = [], isLoading } = useQuery({
     queryKey: ['admin-departments'],
@@ -73,21 +77,55 @@ export default function DepartmentsPage() {
   })
 
   const columns = [
-    { title: 'Name', dataIndex: 'name', render: (v) => <span style={{ fontWeight: 500 }}>{v}</span> },
+    {
+      title: 'Name',
+      dataIndex: 'name',
+      key: 'name',
+      render: (v) => <span style={{ fontWeight: 500 }}>{v}</span>,
+      sorter: (a, b) => compareStrings(a.name, b.name),
+      sortOrder: sortOrderFor('name'),
+    },
     {
       title: 'Code',
       dataIndex: 'code',
+      key: 'code',
       render: (v) => (
         <span style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: 13 }}>{v}</span>
       ),
+      sorter: (a, b) => compareStrings(a.code, b.code),
+      sortOrder: sortOrderFor('code'),
     },
-    { title: 'Head Title', dataIndex: 'headTitle', render: (v) => v || '—' },
-    { title: 'Head', dataIndex: 'headUserName', render: (v) => v || '—' },
-    { title: 'Group', dataIndex: 'orgGroupTitle', render: (v) => v || '—' },
+    {
+      title: 'Head Title',
+      dataIndex: 'headTitle',
+      key: 'headTitle',
+      render: (v) => v || '—',
+      sorter: (a, b) => compareStrings(a.headTitle, b.headTitle),
+      sortOrder: sortOrderFor('headTitle'),
+    },
+    {
+      title: 'Head',
+      dataIndex: 'headUserName',
+      key: 'headUserName',
+      render: (v) => v || '—',
+      sorter: (a, b) => compareStrings(a.headUserName, b.headUserName),
+      sortOrder: sortOrderFor('headUserName'),
+    },
+    {
+      title: 'Group',
+      dataIndex: 'orgGroupTitle',
+      key: 'orgGroupTitle',
+      render: (v) => v || '—',
+      sorter: (a, b) => compareStrings(a.orgGroupTitle, b.orgGroupTitle),
+      sortOrder: sortOrderFor('orgGroupTitle'),
+    },
     {
       title: 'Status',
       dataIndex: 'active',
+      key: 'active',
       render: (v) => (v ? <Tag color="green">Active</Tag> : <Tag>Inactive</Tag>),
+      sorter: (a, b) => Number(a.active) - Number(b.active),
+      sortOrder: sortOrderFor('active'),
     },
     {
       title: 'Actions',
@@ -137,6 +175,7 @@ export default function DepartmentsPage() {
         rowKey="id"
         loading={isLoading}
         pagination={false}
+        onChange={handleTableChange}
       />
 
       <Modal

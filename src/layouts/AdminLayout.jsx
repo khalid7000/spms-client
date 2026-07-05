@@ -7,19 +7,23 @@ import {
   ApartmentOutlined,
   ClusterOutlined,
   CalendarOutlined,
+  BookOutlined,
   OrderedListOutlined,
   AuditOutlined,
   LogoutOutlined,
   UserOutlined,
   MenuFoldOutlined,
   MenuUnfoldOutlined,
+  HomeOutlined,
 } from '@ant-design/icons'
+import { useQuery } from '@tanstack/react-query'
 import { useAuth } from '../auth/AuthContext'
+import { getDashboard } from '../api/dashboard'
 
 const { Sider, Header, Content } = Layout
 
-const menuItems = [
-  { key: '/admin', icon: <DashboardOutlined />, label: <Link to="/admin">Dashboard</Link> },
+const ADMIN_MENU_ITEMS = [
+  { key: '/admin', icon: <DashboardOutlined />, label: <Link to="/admin">Admin Dashboard</Link> },
   { key: '/admin/users', icon: <TeamOutlined />, label: <Link to="/admin/users">Users</Link> },
   {
     key: '/admin/org-groups',
@@ -35,6 +39,11 @@ const menuItems = [
     key: '/admin/planning-cycles',
     icon: <CalendarOutlined />,
     label: <Link to="/admin/planning-cycles">Planning Cycles</Link>,
+  },
+  {
+    key: '/admin/academic-years',
+    icon: <BookOutlined />,
+    label: <Link to="/admin/academic-years">Academic Years</Link>,
   },
   {
     key: '/admin/strategies',
@@ -53,6 +62,18 @@ export default function AdminLayout() {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
+
+  const { data: dashboardItems = [] } = useQuery({
+    queryKey: ['dashboard'],
+    queryFn: getDashboard,
+  })
+
+  const menuItems = [
+    ...(dashboardItems.length > 0
+      ? [{ key: '/dashboard', icon: <HomeOutlined />, label: <Link to="/dashboard">My Strategies</Link> }]
+      : []),
+    ...ADMIN_MENU_ITEMS,
+  ]
 
   const selectedKey =
     menuItems
@@ -75,13 +96,14 @@ export default function AdminLayout() {
   }
 
   return (
-    <Layout style={{ minHeight: '100vh' }}>
+    <Layout style={{ height: '100vh' }}>
       <Sider
         className="app-sidebar"
         collapsible
         collapsed={collapsed}
         trigger={null}
         width={220}
+        style={{ overflow: 'auto', height: '100vh', position: 'sticky', top: 0 }}
       >
         <div className="sidebar-logo">
           {!collapsed && (
@@ -105,7 +127,7 @@ export default function AdminLayout() {
         />
       </Sider>
 
-      <Layout>
+      <Layout style={{ overflow: 'hidden' }}>
         <Header
           style={{
             background: '#fff',
@@ -115,6 +137,7 @@ export default function AdminLayout() {
             justifyContent: 'space-between',
             borderBottom: '1px solid #e8eef6',
             height: 56,
+            flexShrink: 0,
           }}
         >
           <Button
@@ -141,7 +164,7 @@ export default function AdminLayout() {
           </Dropdown>
         </Header>
 
-        <Content style={{ padding: '24px', background: '#f5f7fa', minHeight: 'calc(100vh - 56px)' }}>
+        <Content style={{ padding: '24px', background: '#f5f7fa', flex: 1, overflow: 'auto' }}>
           <Outlet />
         </Content>
       </Layout>

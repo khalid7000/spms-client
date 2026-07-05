@@ -3,7 +3,7 @@ import {
   Card, Tabs, Button, Select, Table, Modal, Form, message,
   Popconfirm, Tag, Descriptions, Space
 } from 'antd'
-import { ArrowLeftOutlined, PlusOutlined, DeleteOutlined } from '@ant-design/icons'
+import { ArrowLeftOutlined, PlusOutlined, DeleteOutlined, EditOutlined } from '@ant-design/icons'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
@@ -21,6 +21,8 @@ export default function StrategyDetailAdminPage() {
   const navigate = useNavigate()
   const qc = useQueryClient()
   const [assignModalOpen, setAssignModalOpen] = useState(false)
+  const [editingAssignment, setEditingAssignment] = useState(null)
+  const [editForm] = Form.useForm()
   const [form] = Form.useForm()
 
   const { data: strategy, isLoading } = useQuery({
@@ -58,6 +60,16 @@ export default function StrategyDetailAdminPage() {
     onError: (err) => message.error(err.response?.data?.message || 'Failed'),
   })
 
+  const editRoleMutation = useMutation({
+    mutationFn: (values) => assignRole(id, values),
+    onSuccess: () => {
+      message.success('Role updated')
+      setEditingAssignment(null)
+      qc.invalidateQueries({ queryKey: ['strategy-assignments', id] })
+    },
+    onError: (err) => message.error(err.response?.data?.message || 'Failed'),
+  })
+
   const removeMutation = useMutation({
     mutationFn: deleteAssignment,
     onSuccess: () => {
@@ -81,9 +93,19 @@ export default function StrategyDetailAdminPage() {
     {
       title: '',
       render: (_, r) => (
-        <Popconfirm title="Remove assignment?" onConfirm={() => removeMutation.mutate(r.id)}>
-          <Button size="small" danger icon={<DeleteOutlined />} />
-        </Popconfirm>
+        <Space>
+          <Button
+            size="small"
+            icon={<EditOutlined />}
+            onClick={() => {
+              setEditingAssignment(r)
+              editForm.setFieldsValue({ role: r.role })
+            }}
+          />
+          <Popconfirm title="Remove assignment?" onConfirm={() => removeMutation.mutate(r.id)}>
+            <Button size="small" danger icon={<DeleteOutlined />} />
+          </Popconfirm>
+        </Space>
       ),
     },
   ]
@@ -208,6 +230,27 @@ export default function StrategyDetailAdminPage() {
               placeholder="Select a user"
             />
           </Form.Item>
+          <Form.Item name="role" label="Role" rules={[{ required: true }]}>
+            <Select options={ROLES.map((r) => ({ value: r, label: r }))} />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      <Modal
+        title={`Change Role — ${editingAssignment?.userName ?? ''}`}
+        open={!!editingAssignment}
+        onCancel={() => setEditingAssignment(null)}
+        onOk={() => editForm.submit()}
+        confirmLoading={editRoleMutation.isPending}
+        destroyOnClose
+      >
+        <Form
+          form={editForm}
+          layout="vertical"
+          onFinish={(values) =>
+            editRoleMutation.mutate({ userId: editingAssignment.userId, role: values.role })
+          }
+        >
           <Form.Item name="role" label="Role" rules={[{ required: true }]}>
             <Select options={ROLES.map((r) => ({ value: r, label: r }))} />
           </Form.Item>

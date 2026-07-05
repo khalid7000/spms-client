@@ -3,7 +3,8 @@ import api from './axios'
 const unwrap = (r) => r.data.data
 
 // Strategy CRUD
-export const getStrategy = (id) => api.get(`/api/strategies/${id}`).then(unwrap)
+export const getStrategy = (id, academicYearId) =>
+  api.get(`/api/strategies/${id}`, { params: { academicYearId } }).then(unwrap)
 export const createUniversityStrategy = (payload) =>
   api.post('/api/strategies/university', payload).then(unwrap)
 export const createDepartmentStrategy = (payload) =>
@@ -62,6 +63,14 @@ export const recordAchievement = (measurementId, payload) =>
   api.post(`/api/measurements/${measurementId}/achievements`, payload).then(unwrap)
 export const updateAchievement = (id, payload) =>
   api.put(`/api/achievements/${id}`, payload).then(unwrap)
+export const deleteAchievement = (id) =>
+  api.delete(`/api/achievements/${id}`).then(unwrap)
+
+// Achievement types & assessment periods (reference data)
+export const getAchievementTypes = () =>
+  api.get('/api/admin/achievement-types/all').then(unwrap)
+export const getAssessmentPeriods = (cycleId) =>
+  api.get(`/api/admin/planning-cycles/${cycleId}/periods/all`).then(unwrap)
 
 // Exports
 export const downloadPdf = (id) =>
@@ -72,3 +81,19 @@ export const downloadExcel = (id) =>
 // Coverage report
 export const getCoverageReport = (strategyId) =>
   api.get(`/api/reports/coverage/${strategyId}`).then(unwrap)
+
+// Member management (owner only)
+export const getMembers = (id) =>
+  api.get(`/api/strategies/${id}/members`).then(unwrap)
+export const assignMember = (id, payload) =>
+  api.put(`/api/strategies/${id}/members`, payload).then(unwrap)
+export const revokeMember = (id, userId) =>
+  api.delete(`/api/strategies/${id}/members/${userId}`).then(unwrap)
+
+// User search (authenticated, used for member assignment)
+export const searchUsers = (q) =>
+  api.get('/api/users', { params: { q } }).then(unwrap)
+
+// Audit log (owner or admin)
+export const getStrategyAuditLog = (strategyId, params) =>
+  api.get(`/api/strategies/${strategyId}/audit-log`, { params }).then((r) => r.data.data)
