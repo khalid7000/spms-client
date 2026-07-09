@@ -1,3 +1,5 @@
+// Forced/self-service password change; on success redirects to the admin console for
+// ADMIN-role users, otherwise the member dashboard.
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Form, Input, Button, Card, Alert, Typography } from 'antd'
@@ -19,7 +21,7 @@ export default function ChangePasswordPage() {
     try {
       const data = await changePassword(currentPassword, newPassword)
       updateUser(data)
-      navigate(user?.isAdmin ? '/admin' : '/dashboard', { replace: true })
+      navigate(user?.systemRoles?.includes('ADMIN') ? '/admin' : '/dashboard', { replace: true })
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to change password')
     } finally {

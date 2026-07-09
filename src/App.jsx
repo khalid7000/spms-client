@@ -5,7 +5,6 @@ import { ProtectedRoute } from './auth/ProtectedRoute'
 import LoginPage from './pages/LoginPage'
 import ChangePasswordPage from './pages/ChangePasswordPage'
 
-import AdminLayout from './layouts/AdminLayout'
 import AdminDashboard from './pages/admin/AdminDashboard'
 import UsersPage from './pages/admin/UsersPage'
 import UserDetailPage from './pages/admin/UserDetailPage'
@@ -16,6 +15,8 @@ import StrategyDetailAdminPage from './pages/admin/StrategyDetailAdminPage'
 import AuditLogPage from './pages/admin/AuditLogPage'
 import OrgGroupsPage from './pages/admin/OrgGroupsPage'
 import AcademicYearsPage from './pages/admin/AcademicYearsPage'
+import CategoryManagementPage from './pages/admin/CategoryManagementPage'
+import EvaluationReportsPage from './pages/admin/EvaluationReportsPage'
 
 import MemberLayout from './layouts/MemberLayout'
 import MemberDashboard from './pages/member/MemberDashboard'
@@ -29,6 +30,13 @@ import SwotVotePage from './pages/member/swot/SwotVotePage'
 import SwotResultsPage from './pages/member/swot/SwotResultsPage'
 import SwotSuggestionsReviewPage from './pages/member/swot/SwotSuggestionsReviewPage'
 import SwotFinalizationPage from './pages/member/swot/SwotFinalizationPage'
+import GoalSettingPage from './pages/member/GoalSettingPage'
+import GoalReviewPage from './pages/member/GoalReviewPage'
+import AchievementLoggingPage from './pages/member/AchievementLoggingPage'
+import AnnualEvaluationPage from './pages/member/AnnualEvaluationPage'
+import TeamEvaluationsPage from './pages/member/TeamEvaluationsPage'
+import OrgEvaluationsPage from './pages/member/OrgEvaluationsPage'
+import StrategyCreationConsolePage from './pages/member/StrategyCreationConsolePage'
 
 function RootRedirect() {
   const { user } = useAuth()
@@ -54,28 +62,9 @@ export default function App() {
 
       <Route path="/" element={<RootRedirect />} />
 
-      {/* Admin routes */}
-      <Route
-        path="/admin"
-        element={
-          <ProtectedRoute adminOnly>
-            <AdminLayout />
-          </ProtectedRoute>
-        }
-      >
-        <Route index element={<AdminDashboard />} />
-        <Route path="users" element={<UsersPage />} />
-        <Route path="users/:id" element={<UserDetailPage />} />
-        <Route path="departments" element={<DepartmentsPage />} />
-        <Route path="planning-cycles" element={<PlanningCyclesPage />} />
-        <Route path="org-groups" element={<OrgGroupsPage />} />
-        <Route path="academic-years" element={<AcademicYearsPage />} />
-        <Route path="strategies" element={<StrategiesAdminPage />} />
-        <Route path="strategies/:id" element={<StrategyDetailAdminPage />} />
-        <Route path="audit-logs" element={<AuditLogPage />} />
-      </Route>
-
-      {/* Member routes */}
+      {/* Single shared shell (sidebar/header) for every authenticated route -- member and admin
+          pages alike -- so switching between consoles never remounts the layout. Role gating for
+          admin-only / HR-only pages happens per-route below instead of at the layout level. */}
       <Route
         path="/"
         element={
@@ -86,6 +75,7 @@ export default function App() {
       >
         <Route path="dashboard" element={<MemberDashboard />} />
         <Route path="approvals" element={<ApprovalsPage />} />
+        <Route path="strategy-creation" element={<StrategyCreationConsolePage />} />
         <Route path="strategies/:strategyId" element={<StrategyDetailPage />} />
         <Route path="strategies/:strategyId/report" element={<ReportPage />} />
         <Route path="strategies/:strategyId/swot" element={<SwotLandingPage />} />
@@ -95,6 +85,28 @@ export default function App() {
         <Route path="strategies/:strategyId/swot/results" element={<SwotResultsPage />} />
         <Route path="strategies/:strategyId/swot/review" element={<SwotSuggestionsReviewPage />} />
         <Route path="strategies/:strategyId/swot/finalize" element={<SwotFinalizationPage />} />
+        <Route path="portfolio/team-goals" element={<GoalSettingPage />} />
+        <Route path="portfolio/goals" element={<GoalReviewPage />} />
+        <Route path="portfolio/achievements" element={<AchievementLoggingPage />} />
+        <Route path="portfolio/my-evaluation" element={<AnnualEvaluationPage />} />
+        <Route path="portfolio/team-evaluations" element={<TeamEvaluationsPage />} />
+        <Route path="portfolio/org-evaluations" element={<OrgEvaluationsPage />} />
+
+        {/* Admin console -- ADMIN only */}
+        <Route path="admin" element={<ProtectedRoute adminOnly><AdminDashboard /></ProtectedRoute>} />
+        <Route path="admin/users" element={<ProtectedRoute adminOnly><UsersPage /></ProtectedRoute>} />
+        <Route path="admin/users/:id" element={<ProtectedRoute adminOnly><UserDetailPage /></ProtectedRoute>} />
+        <Route path="admin/departments" element={<ProtectedRoute adminOnly><DepartmentsPage /></ProtectedRoute>} />
+        <Route path="admin/planning-cycles" element={<ProtectedRoute adminOnly><PlanningCyclesPage /></ProtectedRoute>} />
+        <Route path="admin/org-groups" element={<ProtectedRoute adminOnly><OrgGroupsPage /></ProtectedRoute>} />
+        <Route path="admin/academic-years" element={<ProtectedRoute adminOnly><AcademicYearsPage /></ProtectedRoute>} />
+        <Route path="admin/strategies" element={<ProtectedRoute adminOnly><StrategiesAdminPage /></ProtectedRoute>} />
+        <Route path="admin/strategies/:id" element={<ProtectedRoute adminOnly><StrategyDetailAdminPage /></ProtectedRoute>} />
+        <Route path="admin/audit-logs" element={<ProtectedRoute adminOnly><AuditLogPage /></ProtectedRoute>} />
+        <Route path="admin/portfolio/categories" element={<ProtectedRoute adminOnly><CategoryManagementPage /></ProtectedRoute>} />
+
+        {/* Reachable by ADMIN or HR -- unlike the rest of the admin console, which is ADMIN-only */}
+        <Route path="evaluation-reports" element={<ProtectedRoute requiredRoles={['ADMIN', 'HR']}><EvaluationReportsPage /></ProtectedRoute>} />
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />

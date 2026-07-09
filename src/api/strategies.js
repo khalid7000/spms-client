@@ -42,6 +42,14 @@ export const deleteObjective = (id) => api.delete(`/api/objectives/${id}`).then(
 export const setObjectiveFrozen = (id, frozen) =>
   api.patch(`/api/objectives/${id}/freeze`, { frozen }).then(unwrap)
 
+// University objective/initiative mapping (department strategies only) -- feeds the
+// "map to university objective/initiative" selects shown when creating/editing department
+// objectives and initiatives.
+export const getUniversityObjectives = (deptStrategyId) =>
+  api.get(`/api/strategies/${deptStrategyId}/university-objectives`).then(unwrap)
+export const getAvailableUniversityInitiatives = (deptObjectiveId) =>
+  api.get(`/api/objectives/${deptObjectiveId}/available-university-initiatives`).then(unwrap)
+
 // Initiatives
 export const createInitiative = (objectiveId, payload) =>
   api.post(`/api/objectives/${objectiveId}/initiatives`, payload).then(unwrap)
@@ -59,6 +67,13 @@ export const deleteMeasurement = (id) => api.delete(`/api/measurements/${id}`).t
 // Achievements
 export const getAchievements = (measurementId) =>
   api.get(`/api/measurements/${measurementId}/achievements`).then(unwrap)
+// Union of a base initiative's own achievements plus every academic-year copy's -- used for the
+// "Base Plan" (no year selected) view so achievements recorded against a specific year's copy
+// still show up instead of looking like they've disappeared. When a selected academic year turns
+// out to have no frozen copies, the backend falls back to this same base+union view but narrowed
+// to that year's matching period (periodName) -- see InitiativeResponse.assessmentPeriodName.
+export const getAchievementsAcrossYears = (initiativeId, periodName) =>
+  api.get(`/api/initiatives/${initiativeId}/achievements/across-years`, { params: { periodName } }).then(unwrap)
 export const recordAchievement = (measurementId, payload) =>
   api.post(`/api/measurements/${measurementId}/achievements`, payload).then(unwrap)
 export const updateAchievement = (id, payload) =>

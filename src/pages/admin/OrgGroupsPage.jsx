@@ -3,6 +3,8 @@ import { Table, Button, Modal, Form, Input, Select, Tag, message, Popconfirm } f
 import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { getOrgGroups, createOrgGroup, updateOrgGroup, deleteOrgGroup, getUsers } from '../../api/admin'
+import TableTotal from '../../components/TableTotal'
+import { compareStrings } from '../../hooks/useTablePrefs'
 
 export default function OrgGroupsPage() {
   const [modalOpen, setModalOpen] = useState(false)
@@ -66,6 +68,7 @@ export default function OrgGroupsPage() {
       title: 'Group Name',
       dataIndex: 'title',
       render: (v) => <span style={{ fontWeight: 500 }}>{v}</span>,
+      sorter: (a, b) => compareStrings(a.title, b.title),
     },
     {
       title: 'Head Title',
@@ -104,6 +107,7 @@ export default function OrgGroupsPage() {
         </Button>
       </div>
 
+      <TableTotal count={groups.length} />
       <Table
         dataSource={groups}
         columns={columns}

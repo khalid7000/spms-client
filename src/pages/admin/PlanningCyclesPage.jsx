@@ -13,6 +13,8 @@ import {
   createAdminUniversityStrategy, getAdminStrategies,
 } from '../../api/admin'
 import { useNavigate } from 'react-router-dom'
+import TableTotal from '../../components/TableTotal'
+import { compareStrings } from '../../hooks/useTablePrefs'
 
 const { Panel } = Collapse
 
@@ -207,13 +209,14 @@ function CyclePanel({ cycle, allStrategies, users, usersLoading }) {
           <div style={{ marginBottom: 6 }}>
             <span style={{ fontSize: 12, color: '#6b7280', fontWeight: 600 }}>Assessment Periods</span>
           </div>
+          <TableTotal count={periods.length} />
           <Table
             dataSource={periods}
             rowKey="id"
             size="small"
             pagination={false}
             columns={[
-              { title: 'Name', dataIndex: 'name' },
+              { title: 'Name', dataIndex: 'name', sorter: (a, b) => compareStrings(a.name, b.name) },
               { title: 'Start', dataIndex: 'startDate' },
               { title: 'End', dataIndex: 'endDate' },
               {

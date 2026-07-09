@@ -1,9 +1,11 @@
 import { useState } from 'react'
-import { Table, Button, Modal, Form, Input, Tag, Popconfirm, message, DatePicker } from 'antd'
+import { Table, Button, Modal, Form, Input, Select, Tag, Popconfirm, message, DatePicker } from 'antd'
 import { PlusOutlined, LockOutlined } from '@ant-design/icons'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { createAcademicYear, closeAcademicYear } from '../../api/admin'
+import { createAcademicYear, closeAcademicYear, getAdminStrategies } from '../../api/admin'
 import { getAcademicYears } from '../../api/academicYears'
+import TableTotal from '../../components/TableTotal'
+import { compareStrings } from '../../hooks/useTablePrefs'
 import dayjs from 'dayjs'
 
 export default function AcademicYearsPage() {
@@ -16,12 +18,19 @@ export default function AcademicYearsPage() {
     queryFn: getAcademicYears,
   })
 
+  const { data: strategies = [] } = useQuery({
+    queryKey: ['admin-strategies'],
+    queryFn: getAdminStrategies,
+  })
+  const universityStrategies = strategies.filter((s) => s.strategyType === 'UNIVERSITY')
+
   const createMutation = useMutation({
     mutationFn: (values) =>
       createAcademicYear({
         name: values.name,
         startDate: values.startDate?.format('YYYY-MM-DD'),
         endDate: values.endDate?.format('YYYY-MM-DD'),
+        universityStrategyId: values.universityStrategyId,
       }),
     onSuccess: () => {
       message.success('Academic year created')
@@ -46,6 +55,7 @@ export default function AcademicYearsPage() {
       title: 'Name',
       dataIndex: 'name',
       render: (v) => <span style={{ fontWeight: 600 }}>{v}</span>,
+      sorter: (a, b) => compareStrings(a.name, b.name),
     },
     {
       title: 'Start Date',
@@ -56,6 +66,11 @@ export default function AcademicYearsPage() {
       title: 'End Date',
       dataIndex: 'endDate',
       render: (v) => (v ? dayjs(v).format('MMM D, YYYY') : '—'),
+    },
+    {
+      title: 'University Strategy',
+      dataIndex: 'universityStrategyTitle',
+      render: (v) => v || '—',
     },
     {
       title: 'Status',
@@ -96,6 +111,7 @@ export default function AcademicYearsPage() {
         </Button>
       </div>
 
+      <TableTotal count={years.length} />
       <Table
         dataSource={years}
         rowKey="id"
@@ -115,6 +131,16 @@ export default function AcademicYearsPage() {
         <Form form={form} layout="vertical" onFinish={createMutation.mutate}>
           <Form.Item name="name" label="Name" rules={[{ required: true, message: 'Required' }]}>
             <Input placeholder="e.g. 2023-2024" />
+          </Form.Item>
+          <Form.Item
+            name="universityStrategyId" label="University Strategy"
+            rules={[{ required: true, message: 'A university-level strategy must be selected' }]}
+            extra="Initiatives/measurements and Annual Evaluations for this year are scoped to this strategy's cycle"
+          >
+            <Select
+              placeholder="Select the university-level strategy this year belongs to"
+              options={universityStrategies.map((s) => ({ value: s.id, label: s.title }))}
+            />
           </Form.Item>
           <Form.Item name="startDate" label="Start Date">
             <DatePicker style={{ width: '100%' }} />

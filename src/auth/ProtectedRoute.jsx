@@ -1,7 +1,8 @@
 import { Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from './AuthContext'
 
-export function ProtectedRoute({ children, adminOnly = false }) {
+// requiredRoles: role name, or array of role names - user needs at least one (ignored if adminOnly is set)
+export function ProtectedRoute({ children, adminOnly = false, requiredRoles }) {
   const { user } = useAuth()
   const location = useLocation()
 
@@ -14,8 +15,17 @@ export function ProtectedRoute({ children, adminOnly = false }) {
     return <Navigate to="/change-password" replace />
   }
 
-  if (adminOnly && !user.isAdmin) {
+  const roles = user.systemRoles || []
+
+  if (adminOnly && !roles.includes('ADMIN')) {
     return <Navigate to="/dashboard" replace />
+  }
+
+  if (requiredRoles) {
+    const allowed = Array.isArray(requiredRoles) ? requiredRoles : [requiredRoles]
+    if (!allowed.some((r) => roles.includes(r))) {
+      return <Navigate to="/dashboard" replace />
+    }
   }
 
   return children

@@ -1,9 +1,10 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Spin, Empty, Tabs, Tag, Segmented } from 'antd'
 import { BarChartOutlined, UnorderedListOutlined } from '@ant-design/icons'
 import { useQuery, useQueries } from '@tanstack/react-query'
-import { useParams } from 'react-router-dom'
+import { useParams, useSearchParams } from 'react-router-dom'
 import { getStrategy, getAchievements } from '../../api/strategies'
+import { getAcademicYears, getMostRecentAcademicYear } from '../../api/academicYears'
 import StateChip from '../../components/StateChip'
 import StrategySummaryChart from './StrategySummaryChart'
 
@@ -193,16 +194,54 @@ function PeriodReport({ strategy, countMap, threshold, breakdownMap }) {
 export default function ReportPage({ strategy: propStrategy, embedded = false }) {
   const params = useParams()
   const strategyId = propStrategy?.id ?? params?.strategyId
+  const [searchParams] = useSearchParams()
+  const initialPeriod = searchParams.get('period')
   const [view, setView] = useState('summary')
 
+  // Standalone mode (no propStrategy, e.g. reached directly via /strategies/:id/report -- such as
+  // from the My Strategies dashboard) needs to resolve an academic year itself, exactly like
+  // StrategyDetailPage does for its embedded Report tab -- otherwise it always fetches the Base
+  // Plan structure, which for a strategy that's actually being tracked per-year comes back empty
+  // even though the embedded tab (which reuses StrategyDetailPage's already-resolved year) shows
+  // real data. yearManagedRef guards against re-triggering once either the auto-pick's fallback or
+  // a manual choice has taken over -- see the identical pattern (and why) in StrategyDetailPage.jsx.
+  const [academicYearId, setAcademicYearId] = useState(null)
+  const yearManagedRef = useRef(false)
+
   const { data: fetchedStrategy, isLoading } = useQuery({
-    queryKey: ['strategy', strategyId],
-    queryFn: () => getStrategy(strategyId),
+    queryKey: ['strategy', strategyId, academicYearId],
+    queryFn: () => getStrategy(strategyId, academicYearId),
     enabled: !propStrategy,
   })
 
   const strategy = propStrategy ?? fetchedStrategy
   const isUniversity = strategy?.strategyType === 'UNIVERSITY'
+
+  const { data: allAcademicYears = [] } = useQuery({
+    queryKey: ['academic-years'],
+    queryFn: getAcademicYears,
+    enabled: !propStrategy && !!strategy && (strategy.state === 'DEPLOYED' || strategy.state === 'FROZEN'),
+  })
+  const academicYears = allAcademicYears.filter((y) => y.planningCycleId === strategy?.planningCycleId)
+
+  useEffect(() => {
+    if (!propStrategy && !academicYearId && !yearManagedRef.current && academicYears.length > 0) {
+      setAcademicYearId(getMostRecentAcademicYear(academicYears).id)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [propStrategy, academicYearId, academicYears.length])
+
+  useEffect(() => {
+    if (!propStrategy && !yearManagedRef.current && academicYearId && strategy) {
+      const hasAnyInitiative = (strategy.goals ?? []).some((g) =>
+        (g.objectives ?? []).some((o) => (o.initiatives ?? []).length > 0)
+      )
+      if (!hasAnyInitiative) {
+        yearManagedRef.current = true
+        setAcademicYearId(null)
+      }
+    }
+  }, [propStrategy, academicYearId, strategy])
 
   // ── UNIVERSITY PATH ───────────────────────────────────────────────────────
   // departmentBreakdown is already embedded on each initiative in the strategy
@@ -447,6 +486,7 @@ export default function ReportPage({ strategy: propStrategy, embedded = false })
           countMaps={countMaps}
           breakdownMaps={isUniversity ? univBreakdownMaps : undefined}
           threshold={achievementThreshold}
+          initialPeriod={initialPeriod}
         />
       </div>
     )
@@ -470,7 +510,7 @@ export default function ReportPage({ strategy: propStrategy, embedded = false })
       {header}
       {viewToggle}
       {legend}
-      <Tabs items={tabItems} defaultActiveKey={allPeriods[0]} />
+      <Tabs items={tabItems} defaultActiveKey={allPeriods.includes(initialPeriod) ? initialPeriod : allPeriods[0]} />
     </div>
   )
 }

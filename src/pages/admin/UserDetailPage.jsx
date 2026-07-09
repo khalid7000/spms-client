@@ -1,3 +1,5 @@
+// Read-only user detail view: profile info (incl. system roles) plus their per-strategy
+// role assignments, with the ability to remove an assignment.
 import { Button, Card, Descriptions, Table, Tag, Popconfirm, message } from 'antd'
 import { ArrowLeftOutlined, DeleteOutlined } from '@ant-design/icons'
 import { useParams, useNavigate } from 'react-router-dom'
@@ -5,6 +7,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { getUsers, getUserAssignments, deleteAssignment } from '../../api/admin'
 import StateChip from '../../components/StateChip'
 import RoleChip from '../../components/RoleChip'
+import TableTotal from '../../components/TableTotal'
+import { compareStrings } from '../../hooks/useTablePrefs'
 
 export default function UserDetailPage() {
   const { id } = useParams()
@@ -39,6 +43,7 @@ export default function UserDetailPage() {
           {r.strategyTitle}
         </span>
       ),
+      sorter: (a, b) => compareStrings(a.strategyTitle, b.strategyTitle),
     },
     { title: 'Role', render: (_, r) => <RoleChip role={r.role} /> },
     {
@@ -76,7 +81,9 @@ export default function UserDetailPage() {
               {user.department?.name || '—'}
             </Descriptions.Item>
             <Descriptions.Item label="Role">
-              {user.isAdmin ? <Tag color="purple">Admin</Tag> : <Tag>User</Tag>}
+              {user.systemRoles?.includes('ADMIN') && <Tag color="purple">Admin</Tag>}
+              {user.systemRoles?.includes('HR') && <Tag color="blue">HR</Tag>}
+              {!user.systemRoles?.length && <Tag>Employee</Tag>}
             </Descriptions.Item>
             <Descriptions.Item label="Status">
               {user.active ? <Tag color="green">Active</Tag> : <Tag>Inactive</Tag>}
@@ -86,6 +93,7 @@ export default function UserDetailPage() {
       )}
 
       <Card title="Strategy Assignments">
+        <TableTotal count={assignments.length} />
         <Table
           dataSource={assignments}
           columns={columns}

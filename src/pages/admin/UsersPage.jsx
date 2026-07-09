@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import {
-  Table, Button, Modal, Form, Input, Select, Switch, Tag, message,
+  Table, Button, Modal, Form, Input, Select, Checkbox, Tag, message,
   Upload, Alert, Statistic, Row, Col, Divider, Typography,
 } from 'antd'
 import {
@@ -74,7 +74,7 @@ export default function UsersPage() {
       email: user.email,
       title: user.title,
       departmentId: user.department?.id,
-      isAdmin: user.isAdmin,
+      systemRoles: user.systemRoles || [],
     })
     setModalOpen(true)
   }
@@ -155,11 +155,16 @@ export default function UsersPage() {
       sortOrder: sortOrderFor('department'),
     },
     {
-      title: 'Role',
+      title: 'Roles',
       key: 'role',
-      render: (_, r) =>
-        r.isAdmin ? <Tag color="purple">Admin</Tag> : <Tag color="default">User</Tag>,
-      sorter: (a, b) => Number(a.isAdmin) - Number(b.isAdmin),
+      render: (_, r) => (
+        <>
+          {r.systemRoles?.includes('ADMIN') && <Tag color="purple">Admin</Tag>}
+          {r.systemRoles?.includes('HR') && <Tag color="blue">HR</Tag>}
+          {!r.systemRoles?.length && <Tag color="default">Employee</Tag>}
+        </>
+      ),
+      sorter: (a, b) => (a.systemRoles?.length || 0) - (b.systemRoles?.length || 0),
       sortOrder: sortOrderFor('role'),
     },
     {
@@ -214,6 +219,7 @@ export default function UsersPage() {
           pageSize: prefs.pageSize,
           showSizeChanger: true,
           pageSizeOptions: ['20', '50', '100'],
+          showTotal: (total) => `Total: ${total}`,
         }}
         onChange={handleTableChange}
         size="middle"
@@ -251,8 +257,13 @@ export default function UsersPage() {
           <Form.Item name="departmentId" label="Department">
             <Select options={deptOptions} allowClear placeholder="No department" />
           </Form.Item>
-          <Form.Item name="isAdmin" label="Admin" valuePropName="checked">
-            <Switch />
+          <Form.Item name="systemRoles" label="Roles">
+            <Checkbox.Group
+              options={[
+                { label: 'Admin', value: 'ADMIN' },
+                { label: 'HR', value: 'HR' },
+              ]}
+            />
           </Form.Item>
         </Form>
       </Modal>

@@ -1,4 +1,5 @@
-import { Card, Row, Col, Spin, Empty, Typography } from 'antd'
+import { Card, Row, Col, Spin, Empty, Typography, Tooltip } from 'antd'
+import { TeamOutlined, BellOutlined, FlagOutlined, AimOutlined } from '@ant-design/icons'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { getDashboard } from '../../api/dashboard'
@@ -8,6 +9,11 @@ import RoleChip from '../../components/RoleChip'
 const { Text } = Typography
 
 const ROLE_ORDER = ['OWNER', 'EDITOR', 'COMMENTER', 'VIEWER']
+
+function reportPath(item) {
+  const base = `/strategies/${item.strategyId}/report`
+  return item.mostRecentPeriodName ? `${base}?period=${encodeURIComponent(item.mostRecentPeriodName)}` : base
+}
 
 export default function MemberDashboard() {
   const navigate = useNavigate()
@@ -99,6 +105,48 @@ export default function MemberDashboard() {
                   >
                     <span>{item.planningCycleName}</span>
                     {item.departmentName && <span>{item.departmentName}</span>}
+                  </div>
+                  <div
+                    style={{
+                      marginTop: 10,
+                      paddingTop: 10,
+                      borderTop: '1px solid #f0f0f0',
+                      display: 'flex',
+                      flexWrap: 'wrap',
+                      gap: '6px 14px',
+                      fontSize: 12,
+                      color: '#6b7280',
+                    }}
+                  >
+                    <Tooltip title="People with a role on this strategy -- click to view Members">
+                      <span
+                        className="strategy-card-stat-link"
+                        onClick={(e) => { e.stopPropagation(); navigate(`/strategies/${item.strategyId}?tab=members`) }}
+                      >
+                        <TeamOutlined /> {item.involvedUserCount}
+                      </span>
+                    </Tooltip>
+                    <Tooltip title="Unread notifications needing your attention">
+                      <span style={item.unreadNotificationCount > 0 ? { color: '#c0871a', fontWeight: 600 } : undefined}>
+                        <BellOutlined /> {item.unreadNotificationCount}
+                      </span>
+                    </Tooltip>
+                    <Tooltip title={`Goals on track${item.mostRecentPeriodName ? ` (${item.mostRecentPeriodName})` : ''} -- click to view Report`}>
+                      <span
+                        className="strategy-card-stat-link"
+                        onClick={(e) => { e.stopPropagation(); navigate(reportPath(item)) }}
+                      >
+                        <FlagOutlined /> {item.goalsOnTrack}/{item.totalGoals} goals
+                      </span>
+                    </Tooltip>
+                    <Tooltip title={`Objectives on track${item.mostRecentPeriodName ? ` (${item.mostRecentPeriodName})` : ''} -- click to view Report`}>
+                      <span
+                        className="strategy-card-stat-link"
+                        onClick={(e) => { e.stopPropagation(); navigate(reportPath(item)) }}
+                      >
+                        <AimOutlined /> {item.objectivesOnTrack}/{item.totalObjectives} objectives
+                      </span>
+                    </Tooltip>
                   </div>
                 </div>
               </Col>

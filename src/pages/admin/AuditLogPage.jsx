@@ -31,6 +31,7 @@ export default function AuditLogPage() {
           {dayjs(v).format('YYYY-MM-DD HH:mm')}
         </span>
       ),
+      sorter: (a, b) => new Date(a.createdAt) - new Date(b.createdAt),
     },
     {
       title: 'Action',

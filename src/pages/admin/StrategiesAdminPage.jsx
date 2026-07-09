@@ -182,6 +182,7 @@ export default function StrategiesAdminPage() {
           pageSize: prefs.pageSize,
           showSizeChanger: true,
           pageSizeOptions: ['20', '50', '100'],
+          showTotal: (total) => `Total: ${total}`,
         }}
         onChange={handleTableChange}
         size="middle"

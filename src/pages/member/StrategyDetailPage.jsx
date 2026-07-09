@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import {
   Tabs, Button, Card, Modal, Form, Input, InputNumber, Select,
   Descriptions, message, Tag, Space, Spin, Popconfirm, Table,
@@ -8,14 +8,14 @@ import {
   DeleteOutlined, DownloadOutlined, LockOutlined, UnlockOutlined,
   TeamOutlined, RocketOutlined,
 } from '@ant-design/icons'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   getStrategy, changeState, setThreshold, createGoal, createArea, updateArea, deleteArea,
   downloadPdf, downloadExcel, getMembers, assignMember, revokeMember, searchUsers,
   getStrategyAuditLog,
 } from '../../api/strategies'
-import { getAcademicYears, lockAcademicYear, unlockAcademicYear } from '../../api/academicYears'
+import { getAcademicYears, getMostRecentAcademicYear, lockAcademicYear, unlockAcademicYear } from '../../api/academicYears'
 import { getComments } from '../../api/comments'
 import { getDashboard } from '../../api/dashboard'
 import { getStrategyApprovalStatus, approveStrategy } from '../../api/approvals'
@@ -23,6 +23,8 @@ import { getSwotStatus } from '../../api/swot'
 import { useAuth } from '../../auth/AuthContext'
 import StateChip from '../../components/StateChip'
 import RoleChip from '../../components/RoleChip'
+import TableTotal from '../../components/TableTotal'
+import { compareStrings } from '../../hooks/useTablePrefs'
 import StrategyTree from './StrategyTree'
 import CommentDrawer from '../../components/CommentDrawer'
 import ReportPage from './ReportPage'
@@ -147,6 +149,7 @@ function AuditLogTab({ strategyId }) {
           {v ? new Date(v).toLocaleString() : '—'}
         </span>
       ),
+      sorter: (a, b) => new Date(a.createdAt) - new Date(b.createdAt),
     },
     {
       title: 'Action',
@@ -246,7 +249,7 @@ function MembersTab({ strategyId }) {
   }
 
   const columns = [
-    { title: 'Name', dataIndex: 'userName', key: 'name' },
+    { title: 'Name', dataIndex: 'userName', key: 'name', sorter: (a, b) => compareStrings(a.userName, b.userName) },
     { title: 'Email', dataIndex: 'userEmail', key: 'email' },
     {
       title: 'Role',
@@ -299,6 +302,7 @@ function MembersTab({ strategyId }) {
           Add Member
         </Button>
       </div>
+      <TableTotal count={members.length} />
       <Table
         dataSource={members}
         columns={columns}
@@ -338,6 +342,8 @@ function MembersTab({ strategyId }) {
 
 export default function StrategyDetailPage() {
   const { strategyId } = useParams()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const requestedTab = searchParams.get('tab')
   const navigate = useNavigate()
   const qc = useQueryClient()
   const { user } = useAuth()
@@ -370,17 +376,64 @@ export default function StrategyDetailPage() {
     enabled: !!strategy,
   })
 
+  // Deliberately does NOT touch showValidation: computeValidationErrors is recomputed live from
+  // `strategy` on every render while showValidation is true, so once the user has attempted a
+  // CREATION -> REVIEW transition and been blocked, the missing-item highlights should track
+  // reality on their own as items get created — this used to unconditionally clear
+  // showValidation, wiping every row's highlight (even unrelated ones) after any single create.
   const refreshStrategy = () => {
     qc.invalidateQueries({ queryKey: stratKey })
     qc.invalidateQueries({ queryKey: commentsKey })
-    setShowValidation(false)
   }
 
-  const { data: academicYears = [] } = useQuery({
+  const { data: allAcademicYears = [] } = useQuery({
     queryKey: ['academic-years'],
     queryFn: getAcademicYears,
     enabled: !!strategy && (strategy.state === 'DEPLOYED' || strategy.state === 'FROZEN'),
   })
+  // Academic years belong to one university strategy's cycle -- only years under this strategy's
+  // own planning cycle apply here (a department strategy shares its cycle with the university
+  // strategy overseeing it). Without this, every strategy's picker would list every academic year
+  // in the system, including ones from unrelated cycles with nothing actually copied for it.
+  const academicYears = allAcademicYears.filter((y) => y.planningCycleId === strategy?.planningCycleId)
+
+  // Default to the most recent year instead of leaving the tree on "Base Plan (no year)" --
+  // achievements/initiatives added while no year is selected attach to the year-less base
+  // structure and become invisible under every specific year filter afterward (see
+  // AcademicYearService.backfillInitiativeCopiesForNewlyDeployedStrategy for the backend half of
+  // this fix). The user still has full control to switch back to "Base Plan" manually.
+  //
+  // yearManagedRef guards BOTH effects below against looping: it's a ref (not state), so flipping
+  // it never itself triggers a re-render/re-run, and once it's true neither effect touches
+  // academicYearId again -- whether because the user picked a year themselves (see the Select's
+  // onChange) or because the auto-pick's fallback below already ran once.
+  const yearManagedRef = useRef(false)
+  useEffect(() => {
+    if (!academicYearId && !yearManagedRef.current && academicYears.length > 0) {
+      setAcademicYearId(getMostRecentAcademicYear(academicYears).id)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [academicYearId, academicYears.length])
+
+  // Safety net for strategies that were never actually frozen/copied for any academic year (e.g.
+  // seeded directly rather than through the normal deploy flow): if the year we auto-picked above
+  // comes back with zero initiatives anywhere in the tree, that's not "nothing to show for this
+  // year" -- it's "this strategy has no year-scoped copies at all", and its real plan/achievements
+  // live entirely in the Base Plan. Fall back there once, rather than silently rendering an empty
+  // tree that looks like the whole plan vanished. Only applies to the auto-pick -- a year the user
+  // deliberately chose themselves (yearManagedRef already true by then) is left alone even if
+  // it's genuinely empty.
+  useEffect(() => {
+    if (!yearManagedRef.current && academicYearId && strategy) {
+      const hasAnyInitiative = (strategy.goals ?? []).some((g) =>
+        (g.objectives ?? []).some((o) => (o.initiatives ?? []).length > 0)
+      )
+      if (!hasAnyInitiative) {
+        yearManagedRef.current = true
+        setAcademicYearId(null)
+      }
+    }
+  }, [academicYearId, strategy])
 
   const assessmentPeriods = strategy?.assessmentPeriods ?? []
 
@@ -409,7 +462,7 @@ export default function StrategyDetailPage() {
   })
 
   const iAmPendingApprover = approvalStatus.some(
-    (a) => !a.approved && a.ownerEmail !== user?.email
+    (a) => !a.approved && a.requiredApproverEmail === user?.email
   )
 
   const approveMut = useMutation({
@@ -650,6 +703,8 @@ export default function StrategyDetailPage() {
       )}
 
       <Tabs
+        defaultActiveKey={requestedTab || 'plan'}
+        onChange={(key) => setSearchParams(key === 'plan' ? {} : { tab: key }, { replace: true })}
         items={[
           {
             key: 'plan',
@@ -730,7 +785,7 @@ export default function StrategyDetailPage() {
                       placeholder="Base plan (no year)"
                       allowClear
                       value={academicYearId ?? undefined}
-                      onChange={(v) => setAcademicYearId(v ?? null)}
+                      onChange={(v) => { yearManagedRef.current = true; setAcademicYearId(v ?? null) }}
                       style={{ width: 240 }}
                       options={academicYears.map((y) => ({
                         value: y.id,

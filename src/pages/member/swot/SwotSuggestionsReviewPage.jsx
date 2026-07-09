@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import {
-  Card, Radio, Input, Button, Space, message, Popconfirm, List, Form, Modal, Spin, Typography, Divider, Alert,
+  Card, Button, Space, message, Popconfirm, List, Form, Modal, Spin, Typography, Divider, Alert, Input,
 } from 'antd'
 import { ArrowLeftOutlined, DeleteOutlined, PlusOutlined } from '@ant-design/icons'
 import { useParams, useNavigate } from 'react-router-dom'
@@ -10,15 +10,12 @@ import {
   getSwotAlternatives, proposeSwotAlternative, deleteSwotAlternative, submitSwotReview,
   getSwotGoalAdditions, proposeSwotGoalAddition, deleteSwotGoalAddition,
 } from '../../../api/swot'
+import ReviewControl, { ALL_REVIEW_ACTIONS } from '../../../components/ReviewControl'
 
 const { Paragraph, Text } = Typography
 
-const ACTIONS = [
-  { value: 'REJECT', label: 'Reject' },
-  { value: 'APPROVE_AS_IS', label: 'Approve as-is' },
-  { value: 'APPROVE_WITH_EDITS', label: 'Approve with edits' },
-  { value: 'PROPOSE_ALTERNATIVE', label: 'Prefer a different area' },
-]
+const SWOT_ACTIONS = ALL_REVIEW_ACTIONS.map((a) =>
+  a.value === 'PROPOSE_ALTERNATIVE' ? { ...a, label: 'Prefer a different area' } : a)
 
 // submitFullReview's validation errors always end in "(missing: <name>)" and name either an area
 // or a goal by its exact title — matched back against `suggestions` here so the UI can point at
@@ -38,53 +35,6 @@ function findMissingTarget(errorMessage, suggestions) {
     }
   }
   return null
-}
-
-function ReviewControl({ targetType, targetId, defaultTitle, defaultDescription, draft, onSave }) {
-  const current = draft || {}
-  const [title, setTitle] = useState(current.editedTitle ?? defaultTitle)
-  const [description, setDescription] = useState(current.editedDescription ?? defaultDescription)
-
-  useEffect(() => {
-    setTitle(current.editedTitle ?? defaultTitle)
-    setDescription(current.editedDescription ?? defaultDescription)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [current.actionType])
-
-  return (
-    <div style={{ marginTop: 8 }}>
-      <Radio.Group
-        size="small"
-        value={current.actionType}
-        options={ACTIONS}
-        optionType="button"
-        onChange={(e) => onSave(targetType, targetId, { actionType: e.target.value, editedTitle: title, editedDescription: description })}
-      />
-      {current.actionType === 'APPROVE_WITH_EDITS' && (
-        <div style={{ marginTop: 8, maxWidth: 480 }}>
-          <Input
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            onBlur={() => onSave(targetType, targetId, { actionType: current.actionType, editedTitle: title, editedDescription: description })}
-            placeholder="Edited title"
-            style={{ marginBottom: 6 }}
-          />
-          <Input.TextArea
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            onBlur={() => onSave(targetType, targetId, { actionType: current.actionType, editedTitle: title, editedDescription: description })}
-            rows={2}
-            placeholder="Edited description"
-          />
-        </div>
-      )}
-      {current.actionType === 'PROPOSE_ALTERNATIVE' && (
-        <Text type="secondary" style={{ display: 'block', marginTop: 6, fontSize: 12 }}>
-          Use "Propose a Different Area" below to submit your alternative.
-        </Text>
-      )}
-    </div>
-  )
 }
 
 export default function SwotSuggestionsReviewPage() {
@@ -108,6 +58,10 @@ export default function SwotSuggestionsReviewPage() {
     queryFn: () => getSwotStatus(strategyId),
   })
   const isOwner = !!status?.owner
+  // Once a non-owner reviewer has submitted, the backend rejects any further review/alternative/
+  // goal-addition writes for them (assertCanReview) -- mirror that here so the UI shows a locked
+  // read-only state instead of controls that silently error when clicked.
+  const reviewSubmitted = !isOwner && !!status?.myReviewSubmitted
 
   const { data: suggestions = [], isLoading: loadingSuggestions } = useQuery({
     queryKey: ['swot-suggestions', strategyId],
@@ -220,6 +174,14 @@ export default function SwotSuggestionsReviewPage() {
           message="Read-only preview"
           description="You're the strategy owner — this is a preview of what your Editors are reviewing. You'll make the final call yourself on the Finalization page once every Editor has submitted their review."
         />
+      ) : reviewSubmitted ? (
+        <Alert
+          type="success"
+          showIcon
+          style={{ marginBottom: 16 }}
+          message="Your review is submitted"
+          description="Your choices below are locked in and can no longer be changed. The strategy owner will finalize the areas and goals once every reviewer has submitted."
+        />
       ) : (
         <>
           <Paragraph>
@@ -268,6 +230,9 @@ export default function SwotSuggestionsReviewPage() {
                 defaultDescription={area.rationale}
                 draft={areaDraft}
                 onSave={handleSave}
+                disabled={reviewSubmitted}
+                actions={SWOT_ACTIONS}
+                alternativeLabel='Use "Propose a Different Area" below to submit your alternative.'
               />
             )}
 
@@ -302,6 +267,9 @@ export default function SwotSuggestionsReviewPage() {
                         defaultDescription={goal.description}
                         draft={drafts[`GOAL:${goal.id}`]}
                         onSave={handleSave}
+                        disabled={reviewSubmitted}
+                        actions={SWOT_ACTIONS}
+                        alternativeLabel='Use "Propose a Different Area" below to submit your alternative.'
                       />
                     )}
                   </div>
@@ -319,17 +287,21 @@ export default function SwotSuggestionsReviewPage() {
                           <div style={{ fontWeight: 500 }}>{g.title} <Text type="secondary" style={{ fontWeight: 400, fontSize: 12 }}>(your proposed goal)</Text></div>
                           {g.description && <Paragraph type="secondary" style={{ marginBottom: 0 }}>{g.description}</Paragraph>}
                         </div>
-                        <Button type="text" danger size="small" icon={<DeleteOutlined />}
-                          onClick={() => deleteGoalAdditionMut.mutate(g.id)} />
+                        {!reviewSubmitted && (
+                          <Button type="text" danger size="small" icon={<DeleteOutlined />}
+                            onClick={() => deleteGoalAdditionMut.mutate(g.id)} />
+                        )}
                       </div>
                     ))}
-                    <Button
-                      type="dashed" size="small" icon={<PlusOutlined />}
-                      style={{ marginTop: 12 }}
-                      onClick={() => setGoalModalAreaId(area.id)}
-                    >
-                      Propose a Goal for this Area
-                    </Button>
+                    {!reviewSubmitted && (
+                      <Button
+                        type="dashed" size="small" icon={<PlusOutlined />}
+                        style={{ marginTop: 12 }}
+                        onClick={() => setGoalModalAreaId(area.id)}
+                      >
+                        Propose a Goal for this Area
+                      </Button>
+                    )}
                   </>
                 )}
               </>
@@ -342,7 +314,9 @@ export default function SwotSuggestionsReviewPage() {
         <>
           <Card
             title="Propose a Different Area"
-            extra={<Button size="small" icon={<PlusOutlined />} onClick={() => setAltOpen(true)}>Add Alternative</Button>}
+            extra={!reviewSubmitted && (
+              <Button size="small" icon={<PlusOutlined />} onClick={() => setAltOpen(true)}>Add Alternative</Button>
+            )}
             style={{ marginBottom: 16 }}
           >
             {myAlternatives.length === 0 ? (
@@ -352,7 +326,7 @@ export default function SwotSuggestionsReviewPage() {
                 size="small"
                 dataSource={myAlternatives}
                 renderItem={(p) => (
-                  <List.Item actions={[
+                  <List.Item actions={reviewSubmitted ? [] : [
                     <Button key="del" type="text" danger size="small" icon={<DeleteOutlined />}
                       onClick={() => deleteAltMut.mutate(p.id)} />,
                   ]}>
@@ -373,25 +347,27 @@ export default function SwotSuggestionsReviewPage() {
             )}
           </Card>
 
-          <Space>
-            <Popconfirm
-              title="Submit your review?"
-              description="You won't be able to change your review after this."
-              onConfirm={() => submitReviewMut.mutate()}
-            >
-              <Button type="primary" loading={submitReviewMut.isPending} style={{ background: '#13223a' }}>
-                Submit My Review
+          {!reviewSubmitted && (
+            <Space>
+              <Popconfirm
+                title="Submit your review?"
+                description="You won't be able to change your review after this."
+                onConfirm={() => submitReviewMut.mutate()}
+              >
+                <Button type="primary" loading={submitReviewMut.isPending} style={{ background: '#13223a' }}>
+                  Submit My Review
+                </Button>
+              </Popconfirm>
+              {/* Nothing left to actually save here — every choice above already persisted on selection.
+                  This just gives users an explicit, reassuring way to step away mid-review. */}
+              <Button onClick={() => {
+                message.success('Your progress is saved — come back anytime to finish')
+                navigate(`/strategies/${strategyId}/swot`)
+              }}>
+                Save & Exit
               </Button>
-            </Popconfirm>
-            {/* Nothing left to actually save here — every choice above already persisted on selection.
-                This just gives users an explicit, reassuring way to step away mid-review. */}
-            <Button onClick={() => {
-              message.success('Your progress is saved — come back anytime to finish')
-              navigate(`/strategies/${strategyId}/swot`)
-            }}>
-              Save & Exit
-            </Button>
-          </Space>
+            </Space>
+          )}
         </>
       )}
 

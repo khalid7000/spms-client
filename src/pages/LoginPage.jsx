@@ -1,8 +1,11 @@
+// Login form; on success redirects back to wherever the user was headed, or the admin
+// console for ADMIN-role users, otherwise the member dashboard.
 import { useState } from 'react'
 import { Form, Input, Button, Card, message, Alert } from 'antd'
 import { MailOutlined, LockOutlined } from '@ant-design/icons'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
+import Logo from '../components/Logo'
 
 export default function LoginPage() {
   const { login } = useAuth()
@@ -20,7 +23,7 @@ export default function LoginPage() {
       const user = await login(email, password)
       if (from) {
         navigate(from, { replace: true })
-      } else if (user.isAdmin) {
+      } else if (user.systemRoles?.includes('ADMIN')) {
         navigate('/admin', { replace: true })
       } else {
         navigate('/dashboard', { replace: true })
@@ -52,17 +55,8 @@ export default function LoginPage() {
         bodyStyle={{ padding: '36px 32px' }}
       >
         <div style={{ textAlign: 'center', marginBottom: 32 }}>
-          <div
-            style={{
-              fontSize: 28,
-              fontWeight: 700,
-              color: '#13223a',
-              letterSpacing: '-0.5px',
-            }}
-          >
-            StratAlign
-          </div>
-          <div style={{ color: '#6b7280', fontSize: 14, marginTop: 4 }}>
+          <Logo size={44} textSize={28} textColor="#13223a" style={{ justifyContent: 'center' }} />
+          <div style={{ color: '#6b7280', fontSize: 14, marginTop: 8 }}>
             Strategic Planning Management
           </div>
         </div>

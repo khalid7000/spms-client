@@ -1,5 +1,8 @@
+// Auth session context: holds the logged-in user (id, email, systemRoles, mustChangePassword)
+// in state + localStorage, and exposes login/logout/updateUser to the rest of the app.
 import { createContext, useContext, useState, useCallback } from 'react'
 import { login as apiLogin } from '../api/auth'
+import { queryClient } from '../queryClient'
 
 const AuthContext = createContext(null)
 
@@ -7,7 +10,7 @@ function buildUserInfo(data) {
   return {
     userId: data.userId,
     email: data.email,
-    isAdmin: data.isAdmin,
+    systemRoles: data.systemRoles || [],
     mustChangePassword: !!data.mustChangePassword,
   }
 }
@@ -25,6 +28,10 @@ export function AuthProvider({ children }) {
   const login = useCallback(async (email, password) => {
     const data = await apiLogin(email, password)
     const userInfo = buildUserInfo(data)
+    // Purge any cached data from a previous session in this tab (role/permission-gated
+    // queries share the same keys regardless of user, so a stale cache here would render
+    // the wrong person's permissions until it happens to refetch).
+    queryClient.clear()
     localStorage.setItem('token', data.token)
     localStorage.setItem('user', JSON.stringify(userInfo))
     setUser(userInfo)
@@ -43,6 +50,7 @@ export function AuthProvider({ children }) {
     localStorage.removeItem('token')
     localStorage.removeItem('user')
     setUser(null)
+    queryClient.clear()
   }, [])
 
   return (

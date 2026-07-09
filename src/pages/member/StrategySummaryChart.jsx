@@ -290,8 +290,11 @@ export default function StrategySummaryChart({
   countMaps,
   breakdownMaps,
   threshold,
+  initialPeriod,
 }) {
-  const [selectedPeriod, setSelectedPeriod] = useState(allPeriods[0] ?? null)
+  const [selectedPeriod, setSelectedPeriod] = useState(
+    initialPeriod && allPeriods.includes(initialPeriod) ? initialPeriod : (allPeriods[0] ?? null)
+  )
   const [activeGoal, setActiveGoal] = useState(null)
 
   const goals = useMemo(() => strategy?.goals ?? [], [strategy])

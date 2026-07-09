@@ -3,6 +3,8 @@ import { Table, Button, Tag, message, Popconfirm, Typography, Empty } from 'antd
 import { CheckOutlined } from '@ant-design/icons'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { getMyPendingApprovals, approveStrategy } from '../../api/approvals'
+import TableTotal from '../../components/TableTotal'
+import { compareStrings } from '../../hooks/useTablePrefs'
 
 const { Text } = Typography
 
@@ -32,6 +34,7 @@ export default function ApprovalsPage() {
           {v}
         </Link>
       ),
+      sorter: (a, b) => compareStrings(a.strategyTitle, b.strategyTitle),
     },
     {
       title: 'Department',
@@ -82,13 +85,16 @@ export default function ApprovalsPage() {
       {pending.length === 0 && !isLoading ? (
         <Empty description="No strategies awaiting your approval" style={{ marginTop: 48 }} />
       ) : (
-        <Table
-          dataSource={pending}
-          columns={columns}
-          rowKey="id"
-          loading={isLoading}
-          pagination={false}
-        />
+        <>
+          <TableTotal count={pending.length} />
+          <Table
+            dataSource={pending}
+            columns={columns}
+            rowKey="id"
+            loading={isLoading}
+            pagination={false}
+          />
+        </>
       )}
     </div>
   )

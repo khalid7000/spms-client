@@ -8,6 +8,7 @@ import {
 } from '../../api/admin'
 import { getUsers } from '../../api/admin'
 import { useTablePrefs, compareStrings } from '../../hooks/useTablePrefs'
+import TableTotal from '../../components/TableTotal'
 
 const TABLE_PREFS_KEY = 'spms.adminDepartmentsTable.prefs'
 
@@ -169,6 +170,7 @@ export default function DepartmentsPage() {
         </Button>
       </div>
 
+      <TableTotal count={departments.length} />
       <Table
         dataSource={departments}
         columns={columns}

@@ -12,6 +12,7 @@ import {
 } from '../../api/admin'
 import StateChip from '../../components/StateChip'
 import RoleChip from '../../components/RoleChip'
+import { compareStrings } from '../../hooks/useTablePrefs'
 
 const STATES = ['CREATION', 'REVIEW', 'DEPLOYED', 'FROZEN']
 const ROLES = ['OWNER', 'EDITOR', 'COMMENTER', 'VIEWER']
@@ -88,6 +89,7 @@ export default function StrategyDetailAdminPage() {
           <span style={{ fontSize: 12, color: '#6b7280' }}>{r.userEmail}</span>
         </span>
       ),
+      sorter: (a, b) => compareStrings(a.userName, b.userName),
     },
     { title: 'Role', render: (_, r) => <RoleChip role={r.role} /> },
     {
@@ -201,7 +203,10 @@ export default function StrategyDetailAdminPage() {
                 rowKey="id"
                 pagination={false}
                 columns={[
-                  { title: 'Name', dataIndex: 'name', render: (v) => <span style={{ fontWeight: 500 }}>{v}</span> },
+                  {
+                    title: 'Name', dataIndex: 'name', render: (v) => <span style={{ fontWeight: 500 }}>{v}</span>,
+                    sorter: (a, b) => compareStrings(a.name, b.name),
+                  },
                   { title: 'Sort Order', dataIndex: 'sortOrder', align: 'center' },
                 ]}
               />
