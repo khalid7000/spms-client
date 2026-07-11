@@ -327,6 +327,8 @@ export default function StrategySummaryChart({
     return oInis.length > 0 && rollupColor(oInis.map((i) => initiativeColor(countMap[i.id] ?? 0, threshold))) === 'green'
   }).length
 
+  const iniOnTrack = allInis.filter((i) => initiativeColor(countMap[i.id] ?? 0, threshold) === 'green').length
+
   return (
     <div>
       {/* Period selector */}
@@ -350,7 +352,7 @@ export default function StrategySummaryChart({
 
       {/* Stat cards */}
       <Row gutter={16} style={{ marginBottom: 24 }}>
-        <Col span={8}>
+        <Col span={6}>
           <Card
             size="small"
             style={{ textAlign: 'center', borderColor: '#e8eef6', borderRadius: 8 }}
@@ -362,7 +364,7 @@ export default function StrategySummaryChart({
             />
           </Card>
         </Col>
-        <Col span={8}>
+        <Col span={6}>
           <Card
             size="small"
             style={{
@@ -387,7 +389,7 @@ export default function StrategySummaryChart({
             />
           </Card>
         </Col>
-        <Col span={8}>
+        <Col span={6}>
           <Card
             size="small"
             style={{
@@ -406,6 +408,31 @@ export default function StrategySummaryChart({
                   objOnTrack === allObjectives.length
                     ? '#52c41a'
                     : objOnTrack === 0
+                    ? '#ff4d4f'
+                    : '#fa8c16',
+              }}
+            />
+          </Card>
+        </Col>
+        <Col span={6}>
+          <Card
+            size="small"
+            style={{
+              textAlign: 'center',
+              borderRadius: 8,
+              borderColor: iniOnTrack === allInis.length ? '#b7eb8f' : '#e8eef6',
+              background: iniOnTrack === allInis.length ? '#f6ffed' : undefined,
+            }}
+          >
+            <Statistic
+              title="Initiatives On Track"
+              value={`${iniOnTrack} / ${allInis.length}`}
+              valueStyle={{
+                fontSize: 32,
+                color:
+                  iniOnTrack === allInis.length
+                    ? '#52c41a'
+                    : iniOnTrack === 0
                     ? '#ff4d4f'
                     : '#fa8c16',
               }}

@@ -12,7 +12,9 @@ import {
   getMyEvaluation, updateEntryDesignation, updateSelfRank, updateGoalsSelfRank, markCriteriaNothingToReport,
   markGoalNothingToReport, submitEmployeeSelfAssessment, signAsEmployee, refuseToSign, downloadEvaluationPdf,
 } from '../../api/annualEvaluations'
-import { orderedCategoryResults, categoryColor, AchievementList, rankLabelText, GoalsSection } from './evaluationDisplay'
+import {
+  orderedCategoryResults, categoryColor, AchievementList, rankLabelText, GoalsSection, HeadCommentsBlock, NextCycleGoalsSection,
+} from './evaluationDisplay'
 
 const { Text, Paragraph } = Typography
 
@@ -294,10 +296,7 @@ export default function AnnualEvaluationPage() {
                   )}
                   {!isDraft && (
                     <div style={{ marginTop: catCriteria.length > 0 ? 0 : 8 }}>
-                      <Text strong style={{ display: 'block', marginBottom: 4 }}>Head Comments</Text>
-                      <Paragraph style={{ whiteSpace: 'pre-wrap' }}>
-                        {cat.headComments || <Text type="secondary">No comments yet</Text>}
-                      </Paragraph>
+                      <HeadCommentsBlock strengths={cat.headCommentsStrengths} improvements={cat.headCommentsImprovements} />
                     </div>
                   )}
                 </Card>
@@ -310,6 +309,12 @@ export default function AnnualEvaluationPage() {
                 ? (goalId, nothingToReport) => goalNtrMut.mutate({ goalId, nothingToReport })
                 : undefined}
               onSelfRankChange={isDraft ? (rank) => goalsSelfRankMut.mutate(rank) : undefined}
+            />
+
+            <NextCycleGoalsSection
+              evaluationId={evaluation.id} evaluation={evaluation} canHeadEdit={false}
+              canEmployeeReview={isHeadSubmitted && !employeeHasActed}
+              onAfterMutate={invalidate}
             />
 
             {isDraft && (

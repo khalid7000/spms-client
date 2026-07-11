@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Card, Form, Button, Input, Select, Table, Modal, Space, Tag, message, Empty, Spin, Alert, Divider, Typography, Popconfirm } from 'antd'
+import { Card, Form, Button, Input, Select, Table, Modal, Space, Tag, message, Empty, Spin, Alert, Divider, Typography, Popconfirm, Checkbox } from 'antd'
 import { PlusOutlined, DeleteOutlined, BulbOutlined, SendOutlined } from '@ant-design/icons'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import * as api from '../../api/portfolio'
@@ -107,6 +107,38 @@ export default function GoalSettingPage() {
     refetchInterval: 10_000,
   })
 
+  // Before auto-opening a fresh DRAFT cycle, check whether this employee has unused Next Cycle
+  // Goals from a past, concluded Annual Evaluation (drafted/reviewed by both head and employee
+  // during that evaluation's own review exchange -- see AnnualEvaluationNextCycleGoal) and offer to
+  // deploy them directly instead of starting from scratch.
+  const [reuseDismissed, setReuseDismissed] = useState(false)
+  const [selectedReuseIds, setSelectedReuseIds] = useState([])
+  useEffect(() => { setReuseDismissed(false) }, [selectedEmployee, academicYear])
+
+  const { data: reusableGroups = [], isFetched: reusableFetched } = useQuery({
+    queryKey: ['reusable-next-cycle-goals', selectedEmployee],
+    queryFn: () => api.getReusableNextCycleGoals(selectedEmployee),
+    enabled: !!selectedEmployee && !!academicYear && !cycleId,
+  })
+
+  useEffect(() => {
+    if (reusableFetched && reusableGroups.length > 0 && !reuseDismissed && !cycleId) {
+      setSelectedReuseIds(reusableGroups.flatMap((g) => g.goals.map((x) => x.id)))
+    }
+  }, [reusableFetched, reusableGroups, reuseDismissed, cycleId])
+
+  const reuseModalOpen = reusableFetched && reusableGroups.length > 0 && !reuseDismissed && !cycleId
+
+  const useReuseGoalsMut = useMutation({
+    mutationFn: () => api.useNextCycleGoals(selectedEmployee, academicYear, selectedReuseIds),
+    onSuccess: (created) => {
+      message.success('Deployed goals from the prior evaluation')
+      setReuseDismissed(true)
+      setCycleId(created.id)
+    },
+    onError: (err) => message.error(err.response?.data?.message || 'Could not use these goals'),
+  })
+
   // AI goal-suggestion generation runs in the background (a model call can take a minute or
   // more) -- same shape as the SWOT suggestion workflow. "Generating" has no dedicated state of
   // its own (the cycle just stays DRAFT), so it's derived from the timestamps: requested but not
@@ -154,13 +186,15 @@ export default function GoalSettingPage() {
 
   // Opening the cycle is a no-op once one already exists for this employee/year (createOrGetCycle
   // just returns it), so there's no reason to make the head click a separate button for it --
-  // picking both fields is enough.
+  // picking both fields is enough. Held off until the reuse check above has resolved, so the
+  // reuse modal (if any) gets first say instead of a race between the two.
   useEffect(() => {
-    if (academicYear && selectedEmployee && !cycleId && !openCycleMut.isPending) {
+    if (academicYear && selectedEmployee && !cycleId && !openCycleMut.isPending
+        && reusableFetched && (reusableGroups.length === 0 || reuseDismissed)) {
       openCycleMut.mutate()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [academicYear, selectedEmployee, cycleId])
+  }, [academicYear, selectedEmployee, cycleId, reusableFetched, reusableGroups.length, reuseDismissed])
 
   const [notesForm] = Form.useForm()
 
@@ -267,6 +301,29 @@ export default function GoalSettingPage() {
   const isEmployeeSubmitted = cycle?.state === 'EMPLOYEE_SUBMITTED'
   const allSuggestionsReviewed = suggestions.length > 0 && suggestions.every((s) => (drafts[s.id]?.actionType ?? s.leaderActionType))
 
+  // Batch version of the single-employee reuse check above -- runs it across every direct report
+  // at once instead of one at a time.
+  const [batchModalOpen, setBatchModalOpen] = useState(false)
+  const [batchForm] = Form.useForm()
+  const [batchResults, setBatchResults] = useState(null)
+
+  const batchMut = useMutation({
+    mutationFn: ({ targetAcademicYearId, sourceAcademicYearId }) => api.batchUseNextCycleGoals(targetAcademicYearId, sourceAcademicYearId),
+    onSuccess: (results) => {
+      setBatchResults(results)
+      qc.invalidateQueries({ queryKey: ['goal-cycle'] })
+      const deployedCount = results.filter((r) => r.status === 'DEPLOYED').length
+      message.success(`Batch check complete -- ${deployedCount} employee${deployedCount !== 1 ? 's' : ''} updated`)
+    },
+    onError: (err) => message.error(err.response?.data?.message || 'Batch check failed'),
+  })
+
+  const closeBatchModal = () => {
+    setBatchModalOpen(false)
+    setBatchResults(null)
+    batchForm.resetFields()
+  }
+
   return (
     <div style={{ padding: 24 }}>
       <Card>
@@ -289,6 +346,10 @@ export default function GoalSettingPage() {
               notFoundContent={<Empty description="No direct reports found -- you must head a department to set goals" image={Empty.PRESENTED_IMAGE_SIMPLE} />} />
           </Form.Item>
         </Form>
+
+        <Button style={{ marginBottom: 24 }} onClick={() => setBatchModalOpen(true)}>
+          Batch Check for Reusable Goals
+        </Button>
 
         {!cycleId && (openCycleMut.isPending ? <Spin /> : <Empty description="Select an academic year and employee to view their goals" />)}
 
@@ -476,6 +537,96 @@ export default function GoalSettingPage() {
           </>
         )}
       </Card>
+
+      <Modal
+        title="Next Cycle Goals found from a prior evaluation"
+        open={reuseModalOpen}
+        onCancel={() => setReuseDismissed(true)}
+        footer={[
+          <Button key="not-now" onClick={() => setReuseDismissed(true)}>Not Now</Button>,
+          <Button key="use" type="primary" disabled={selectedReuseIds.length === 0}
+            loading={useReuseGoalsMut.isPending} onClick={() => useReuseGoalsMut.mutate()}>
+            Use Selected Goals
+          </Button>,
+        ]}
+      >
+        <Paragraph type="secondary">
+          This employee has goals drafted and approved during a prior Annual Evaluation that haven't been assigned
+          to a cycle yet. Deselect any you don't want, or choose "Not Now" to start this year's goals from scratch --
+          these will still be offered again next time.
+        </Paragraph>
+        {reusableGroups.map((group) => (
+          <div key={group.evaluationId} style={{ marginBottom: 16 }}>
+            <Text strong>From the {group.academicYearName} evaluation</Text>
+            <div style={{ marginTop: 8 }}>
+              {group.goals.map((g) => (
+                <Card key={g.id} size="small" style={{ marginBottom: 8 }}>
+                  <Checkbox
+                    checked={selectedReuseIds.includes(g.id)}
+                    onChange={(e) => setSelectedReuseIds((prev) => e.target.checked
+                      ? [...prev, g.id] : prev.filter((id) => id !== g.id))}
+                  >
+                    <Text strong>{g.title}</Text> <Tag>{g.categoryName}</Tag>
+                  </Checkbox>
+                  {g.description && <Paragraph type="secondary" style={{ marginLeft: 24, marginBottom: 0 }}>{g.description}</Paragraph>}
+                </Card>
+              ))}
+            </div>
+          </div>
+        ))}
+      </Modal>
+
+      <Modal
+        title="Batch Check for Reusable Goals"
+        open={batchModalOpen}
+        onCancel={closeBatchModal}
+        destroyOnClose
+        footer={batchResults ? [
+          <Button key="close" onClick={closeBatchModal}>Close</Button>,
+        ] : [
+          <Button key="cancel" onClick={closeBatchModal}>Cancel</Button>,
+          <Button key="run" type="primary" loading={batchMut.isPending} onClick={() => batchForm.submit()}>Run Check</Button>,
+        ]}
+      >
+        {!batchResults ? (
+          <Form form={batchForm} layout="vertical" onFinish={(values) => batchMut.mutate(values)}>
+            <Paragraph type="secondary">
+              For every direct report, checks whether they have a concluded evaluation (signed by you, and signed
+              or refused by them) from the year below with unassigned Next Cycle Goals, and no goals set yet for
+              the year you're deploying to. When both hold, those goals are deployed automatically -- employees
+              who already have goals for that year, or have no eligible goals to reuse, are skipped and reported below.
+            </Paragraph>
+            <Form.Item label="Set goals for academic year" name="targetAcademicYearId" rules={[{ required: true }]}>
+              <Select placeholder="The year with no goals yet" options={academicYears.map((y) => ({ value: y.id, label: y.name }))} />
+            </Form.Item>
+            <Form.Item label="Check concluded evaluations from academic year" name="sourceAcademicYearId" rules={[{ required: true }]}>
+              <Select placeholder="The year to check for concluded evaluations" options={academicYears.map((y) => ({ value: y.id, label: y.name }))} />
+            </Form.Item>
+          </Form>
+        ) : (
+          <Table
+            dataSource={batchResults}
+            rowKey="employeeId"
+            pagination={false}
+            size="small"
+            columns={[
+              { title: 'Employee', dataIndex: 'employeeName', key: 'employeeName' },
+              {
+                title: 'Result', key: 'status',
+                render: (_, r) => {
+                  if (r.status === 'DEPLOYED') {
+                    return <Tag color="green">Deployed {r.goalsDeployed} goal{r.goalsDeployed !== 1 ? 's' : ''}</Tag>
+                  }
+                  if (r.status === 'ALREADY_HAS_GOALS') {
+                    return <Tag>Already has goals for that year</Tag>
+                  }
+                  return <Tag>No eligible goals found</Tag>
+                },
+              },
+            ]}
+          />
+        )}
+      </Modal>
 
       <Modal title="Add a New Goal" open={addGoalOpen} onCancel={() => setAddGoalOpen(false)} destroyOnClose
         onOk={() => addGoalForm.submit()} confirmLoading={addSuggestionMut.isPending || addGoalDirectMut.isPending}>

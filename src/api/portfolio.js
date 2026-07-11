@@ -130,6 +130,18 @@ export const acceptCycle = (cycleId, signatureName) =>
 export const submitCycleBack = (cycleId) =>
   api.post(`/api/portfolio/cycles/${cycleId}/submit-back`).then(unwrap)
 
+// Reuse of Next Cycle Goals drafted/approved during a past, concluded Annual Evaluation -- see
+// AnnualEvaluationNextCycleGoal. Grouped by the evaluation each batch came from.
+export const getReusableNextCycleGoals = (employeeId) =>
+  api.get(`/api/portfolio/cycles/reusable-next-cycle-goals?employeeId=${employeeId}`).then(unwrap)
+
+export const useNextCycleGoals = (employeeId, academicYearId, nextCycleGoalIds) =>
+  api.post('/api/portfolio/cycles/use-next-cycle-goals', { employeeId, academicYearId, nextCycleGoalIds }).then(unwrap)
+
+// Runs the reuse check across every direct report at once instead of one employee at a time.
+export const batchUseNextCycleGoals = (targetAcademicYearId, sourceAcademicYearId) =>
+  api.post('/api/portfolio/cycles/batch-use-next-cycle-goals', { targetAcademicYearId, sourceAcademicYearId }).then(unwrap)
+
 // ============ Portfolio Entries (Achievements + evaluation) ============
 
 export const logAchievement = (payload) =>

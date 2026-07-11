@@ -1,9 +1,16 @@
 // Shared display helpers for Annual Evaluation views (head's Team Evaluations page and the
 // read-only Organization Evaluations rollup) -- kept in one place so both pages render
 // categories/goals/achievements with the same color language instead of drifting apart.
-import { useEffect, useMemo, useState } from 'react'
-import { Alert, Button, Card, Checkbox, Col, Input, Modal, Popover, Row, Select, Space, Tag, Typography } from 'antd'
-import { InfoCircleOutlined } from '@ant-design/icons'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { Alert, Button, Card, Checkbox, Col, Empty, Form, Input, Modal, Popover, Row, Select, Space, Tag, Typography } from 'antd'
+import { InfoCircleOutlined, PlusOutlined, DeleteOutlined, BulbOutlined } from '@ant-design/icons'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import ReviewControl from '../../components/ReviewControl'
+import {
+  getNextCycleGoals, updateNextCycleGoalNotes, generateNextCycleGoalSuggestions, addNextCycleGoal,
+  updateNextCycleGoalRubric, reviewNextCycleGoalAsLeader, reviewNextCycleGoalAsEmployee, deleteNextCycleGoal,
+} from '../../api/annualEvaluations'
+import { getCategoriesByTitle } from '../../api/portfolio'
 
 const { Text, Paragraph } = Typography
 
@@ -70,39 +77,71 @@ export function rankLabelText(rankLabels, rank) {
 }
 
 // Saves on blur rather than on every keystroke -- avoids firing a mutation per character while
-// the head is still typing their remarks. Shared by category and goal head-comments fields.
-export function CommentsInput({ initialValue, onSave }) {
-  const [value, setValue] = useState(initialValue || '')
-  useEffect(() => { setValue(initialValue || '') }, [initialValue])
+// the head is still typing their remarks. Shared by category and goal head-comments fields, split
+// into two required parts: Strengths and Potential Improvements.
+// `onChange` (if given) fires on every keystroke, live -- used to mirror these comments into the
+// Next Cycle Goals notes as the head types, ahead of `onSave`, which only persists on blur.
+export function CommentsInput({ initialStrengths, initialImprovements, onSave, onChange }) {
+  const [strengths, setStrengths] = useState(initialStrengths || '')
+  const [improvements, setImprovements] = useState(initialImprovements || '')
+  useEffect(() => { setStrengths(initialStrengths || '') }, [initialStrengths])
+  useEffect(() => { setImprovements(initialImprovements || '') }, [initialImprovements])
+
+  const save = (nextStrengths, nextImprovements) => {
+    if (nextStrengths !== (initialStrengths || '') || nextImprovements !== (initialImprovements || '')) {
+      onSave(nextStrengths, nextImprovements)
+    }
+  }
+
   return (
-    <Input.TextArea
-      rows={2} value={value}
-      placeholder="Required: your comments"
-      onChange={(e) => setValue(e.target.value)}
-      onBlur={() => { if (value !== (initialValue || '')) onSave(value) }}
-    />
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <div>
+        <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 2 }}>Strengths</Text>
+        <Input.TextArea rows={2} value={strengths} placeholder="Required: strengths"
+          onChange={(e) => { setStrengths(e.target.value); onChange?.(e.target.value, improvements) }}
+          onBlur={() => save(strengths, improvements)} />
+      </div>
+      <div>
+        <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 2 }}>Potential Improvements</Text>
+        <Input.TextArea rows={2} value={improvements} placeholder="Required: potential improvements"
+          onChange={(e) => { setImprovements(e.target.value); onChange?.(strengths, e.target.value) }}
+          onBlur={() => save(strengths, improvements)} />
+      </div>
+    </div>
   )
 }
 
-// The head's written comments for a category/goal -- editable (required, flagged red until
-// filled in) when `onSave` is provided, otherwise a read-only paragraph (or nothing, if `show`
-// is false -- e.g. the employee's own page hides this while still in DRAFT, before the head has
-// even started rating).
-export function HeadCommentsBlock({ comments, onSave, show = true }) {
+// The head's written comments for a category/goal, split into Strengths / Potential Improvements
+// -- editable (required, flagged red until both are filled in) when `onSave` is provided,
+// otherwise read-only (or nothing, if `show` is false -- e.g. the employee's own page hides this
+// while still in DRAFT, before the head has even started rating).
+export function HeadCommentsBlock({ strengths, improvements, onSave, onChange, show = true }) {
   if (!show) {
     return null
   }
+  const missing = onSave && (!strengths?.trim() || !improvements?.trim())
   return (
     <div>
       <Text strong style={{ display: 'block', marginBottom: 4 }}>
-        Head Comments {onSave && !comments?.trim() && <Tag color="red" style={{ marginLeft: 6 }}>Required</Tag>}
+        Head Comments {missing && <Tag color="red" style={{ marginLeft: 6 }}>Required</Tag>}
       </Text>
       {onSave ? (
-        <CommentsInput initialValue={comments} onSave={onSave} />
+        <CommentsInput initialStrengths={strengths} initialImprovements={improvements} onSave={onSave} onChange={onChange} />
       ) : (
-        <Paragraph style={{ whiteSpace: 'pre-wrap' }}>
-          {comments || <Text type="secondary">No comments</Text>}
-        </Paragraph>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <div>
+            <Text strong style={{ fontSize: 12 }}>Strengths: </Text>
+            <Paragraph style={{ whiteSpace: 'pre-wrap', display: 'inline' }}>
+              {strengths || <Text type="secondary">No comments</Text>}
+            </Paragraph>
+          </div>
+          <div>
+            <Text strong style={{ fontSize: 12 }}>Potential Improvements: </Text>
+            <Paragraph style={{ whiteSpace: 'pre-wrap', display: 'inline' }}>
+              {improvements || <Text type="secondary">No comments</Text>}
+            </Paragraph>
+          </div>
+        </div>
       )}
     </div>
   )
@@ -117,7 +156,7 @@ export function HeadCommentsBlock({ comments, onSave, show = true }) {
 // `onNothingToReportChange` to just show it as a read-only tag). Each goal displays "Goal:" and its
 // title first, then "Goal Achievements:" and its tagged achievements below that.
 export function GoalsSection({
-  evaluation, rankLabels, canEdit, onRankChange, onSelfRankChange, onHeadRankChange, onNothingToReportChange, onCommentsChange, showComments = true,
+  evaluation, rankLabels, canEdit, onRankChange, onSelfRankChange, onHeadRankChange, onNothingToReportChange, onCommentsChange, onCommentsLiveChange, showComments = true,
   onOpenAssistant,
 }) {
   if (!evaluation.goalResults?.length) {
@@ -204,7 +243,13 @@ export function GoalsSection({
           </div>
         )
       })}
-      <HeadCommentsBlock comments={evaluation.goalsHeadComments} onSave={onCommentsChange} show={showComments} />
+      <HeadCommentsBlock
+        strengths={evaluation.goalsHeadCommentsStrengths}
+        improvements={evaluation.goalsHeadCommentsImprovements}
+        onSave={onCommentsChange}
+        onChange={onCommentsLiveChange}
+        show={showComments}
+      />
     </Card>
   )
 }
@@ -371,5 +416,267 @@ export function RatingAssistantModal({ open, onClose, resetKey, title, rubric, e
         <Button onClick={onClose}>Close</Button>
       </Space>
     </Modal>
+  )
+}
+
+// Distinct from every category color and GOAL_COLOR -- gold, matching the StratAlign brand mark.
+export const NEXT_CYCLE_COLOR = { accent: '#c9a24b', tint: '#fffbe6' }
+
+function NextCycleGoalRubricEditor({ goal, onSave }) {
+  const [u, setU] = useState(goal.rubricUnsatisfactory || '')
+  const [m, setM] = useState(goal.rubricMeetsExpectations || '')
+  const [x, setX] = useState(goal.rubricExceedsExpectations || '')
+  useEffect(() => {
+    setU(goal.rubricUnsatisfactory || '')
+    setM(goal.rubricMeetsExpectations || '')
+    setX(goal.rubricExceedsExpectations || '')
+  }, [goal.id, goal.rubricUnsatisfactory, goal.rubricMeetsExpectations, goal.rubricExceedsExpectations])
+
+  const save = () => onSave({ rubricUnsatisfactory: u, rubricMeetsExpectations: m, rubricExceedsExpectations: x })
+
+  return (
+    <div style={{ marginTop: 8 }}>
+      <Text strong style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>3-Level Rubric</Text>
+      <Input.TextArea rows={2} value={u} placeholder="Unsatisfactory"
+        onChange={(e) => setU(e.target.value)} onBlur={save} style={{ marginBottom: 4 }} />
+      <Input.TextArea rows={2} value={m} placeholder="Meets Expectations"
+        onChange={(e) => setM(e.target.value)} onBlur={save} style={{ marginBottom: 4 }} />
+      <Input.TextArea rows={2} value={x} placeholder="Exceeds Expectations"
+        onChange={(e) => setX(e.target.value)} onBlur={save} />
+    </div>
+  )
+}
+
+// Live mirror of the head's Next Cycle Goals notes -- everything they've written as head comments
+// across the categories and Annual Goals section, kept in sync continuously (at load, and on every
+// keystroke -- see NextCycleGoalsSection's effect and TeamEvaluationsPage's draft-comment plumbing)
+// so they're never retyping the same strengths/improvements they just identified moments ago.
+function buildDefaultNextCycleNotes(evaluation) {
+  if (!evaluation) return { strengths: '', weaknesses: '' }
+  const strengthParts = []
+  const improvementParts = []
+  for (const cat of orderedCategoryResults(evaluation.categoryResults || [])) {
+    if (cat.headCommentsStrengths) strengthParts.push(`${cat.categoryName}: ${cat.headCommentsStrengths}`)
+    if (cat.headCommentsImprovements) improvementParts.push(`${cat.categoryName}: ${cat.headCommentsImprovements}`)
+  }
+  if (evaluation.goalsHeadCommentsStrengths) strengthParts.push(`Annual Goals: ${evaluation.goalsHeadCommentsStrengths}`)
+  if (evaluation.goalsHeadCommentsImprovements) improvementParts.push(`Annual Goals: ${evaluation.goalsHeadCommentsImprovements}`)
+  return { strengths: strengthParts.join('\n\n'), weaknesses: improvementParts.join('\n\n') }
+}
+
+// Goals for the employee's NEXT annual cycle, drafted and reviewed by both the head and the
+// employee during THIS evaluation's own review/sign exchange (not a separate approval workflow).
+// Mirrors GoalSettingPage.jsx's AI-suggestion UI almost verbatim, except each goal carries TWO
+// independent ReviewControls -- one for the head's own review, one for the employee's (required
+// before they may sign or refuse the evaluation as a whole). Manages its own data/mutations so
+// every call site just needs to pass evaluationId + the two edit-window booleans.
+export function NextCycleGoalsSection({ evaluationId, evaluation, canHeadEdit, canEmployeeReview, onAfterMutate }) {
+  const qc = useQueryClient()
+  const [addOpen, setAddOpen] = useState(false)
+  const [addForm] = Form.useForm()
+  const [notesForm] = Form.useForm()
+
+  const { data: goals = [], isLoading } = useQuery({
+    queryKey: ['next-cycle-goals', evaluationId],
+    queryFn: () => getNextCycleGoals(evaluationId),
+    enabled: !!evaluationId,
+  })
+
+  const { data: categories = [] } = useQuery({
+    queryKey: ['categories-for-title', evaluation?.titleId],
+    queryFn: () => getCategoriesByTitle(evaluation.titleId),
+    enabled: !!evaluation?.titleId && canHeadEdit,
+  })
+
+  const invalidate = () => {
+    qc.invalidateQueries({ queryKey: ['next-cycle-goals', evaluationId] })
+    onAfterMutate?.()
+  }
+
+  const notesMut = useMutation({
+    mutationFn: ({ strengths, weaknesses }) => updateNextCycleGoalNotes(evaluationId, strengths, weaknesses),
+    onSuccess: invalidate,
+  })
+  const generateMut = useMutation({
+    mutationFn: () => generateNextCycleGoalSuggestions(evaluationId),
+    onSuccess: invalidate,
+  })
+  const addMut = useMutation({
+    mutationFn: (values) => addNextCycleGoal(evaluationId, values),
+    onSuccess: () => { invalidate(); setAddOpen(false); addForm.resetFields() },
+  })
+  const rubricMut = useMutation({
+    mutationFn: ({ goalId, payload }) => updateNextCycleGoalRubric(evaluationId, goalId, payload),
+    onSuccess: invalidate,
+  })
+  const leaderReviewMut = useMutation({
+    mutationFn: ({ goalId, payload }) => reviewNextCycleGoalAsLeader(evaluationId, goalId, payload),
+    onSuccess: invalidate,
+  })
+  const employeeReviewMut = useMutation({
+    mutationFn: ({ goalId, payload }) => reviewNextCycleGoalAsEmployee(evaluationId, goalId, payload),
+    onSuccess: invalidate,
+  })
+  const deleteMut = useMutation({
+    mutationFn: (goalId) => deleteNextCycleGoal(evaluationId, goalId),
+    onSuccess: invalidate,
+  })
+
+  const generating = !!evaluation?.nextCycleGenerationRequestedAt && !evaluation?.nextCycleGenerationFailureReason
+    && (!evaluation?.nextCycleGeneratedAt || new Date(evaluation.nextCycleGeneratedAt) < new Date(evaluation.nextCycleGenerationRequestedAt))
+
+  // Keep the notes fields continuously mirroring the head's category/goals comments -- at page
+  // load, and live as the head types those comments elsewhere on the page (TeamEvaluationsPage
+  // threads live drafts of them into the `evaluation` prop on every keystroke, not just on save).
+  // The visual update is immediate; the actual persist is debounced so a fast typist doesn't spam
+  // the backend once per character.
+  const lastSyncedNotesRef = useRef({ strengths: null, weaknesses: null })
+  const notesSyncTimerRef = useRef(null)
+  // Force a resync on the next evaluation's own data instead of comparing against the previous
+  // evaluation's computed defaults, which could coincidentally match (e.g. both blank) and skip.
+  useEffect(() => { lastSyncedNotesRef.current = { strengths: null, weaknesses: null } }, [evaluationId])
+  useEffect(() => {
+    if (!canHeadEdit || !evaluation) return
+    const defaults = buildDefaultNextCycleNotes(evaluation)
+    if (defaults.strengths === lastSyncedNotesRef.current.strengths
+        && defaults.weaknesses === lastSyncedNotesRef.current.weaknesses) {
+      return
+    }
+    lastSyncedNotesRef.current = defaults
+    notesForm.setFieldsValue(defaults)
+    if (notesSyncTimerRef.current) clearTimeout(notesSyncTimerRef.current)
+    notesSyncTimerRef.current = setTimeout(() => notesMut.mutate(defaults), 800)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canHeadEdit, evaluation])
+  useEffect(() => () => { if (notesSyncTimerRef.current) clearTimeout(notesSyncTimerRef.current) }, [])
+
+  if (!canHeadEdit && !canEmployeeReview && goals.length === 0) {
+    return null
+  }
+
+  return (
+    <Card type="inner" title="Next Cycle Goals"
+      style={{ marginBottom: 16, borderTop: `4px solid ${NEXT_CYCLE_COLOR.accent}` }}
+      styles={{ header: { background: NEXT_CYCLE_COLOR.tint } }}
+    >
+      {canHeadEdit && (
+        <Card size="small" title="Strengths & Areas for Improvement" style={{ marginBottom: 16 }}>
+          <Form form={notesForm} layout="vertical"
+            initialValues={{ strengths: evaluation?.nextCycleNotesStrengths, weaknesses: evaluation?.nextCycleNotesWeaknesses }}>
+            <Form.Item label="Strengths" name="strengths">
+              <Input.TextArea autoSize={{ minRows: 4, maxRows: 16 }} placeholder="Note strengths to build upon"
+                onBlur={() => notesMut.mutate(notesForm.getFieldsValue())} />
+            </Form.Item>
+            <Form.Item label="Areas for Improvement" name="weaknesses">
+              <Input.TextArea autoSize={{ minRows: 4, maxRows: 16 }} placeholder="Note areas where the employee can grow (AI will suggest goals from this)"
+                onBlur={() => notesMut.mutate(notesForm.getFieldsValue())} />
+            </Form.Item>
+            {!generating && !evaluation?.nextCycleGenerationFailureReason && (
+              <Button icon={<BulbOutlined />} loading={generateMut.isPending} onClick={() => generateMut.mutate()}>
+                Generate AI Suggestions
+              </Button>
+            )}
+          </Form>
+          {(generating || evaluation?.nextCycleGenerationFailureReason) && (
+            <div style={{ marginTop: 12 }}>
+              {evaluation?.nextCycleGenerationFailureReason ? (
+                <Alert type="error" showIcon style={{ marginBottom: 8 }}
+                  message="AI generation failed" description={evaluation.nextCycleGenerationFailureReason} />
+              ) : (
+                <div style={{ color: '#6b7280', marginBottom: 8 }}>
+                  AI is generating suggested goals in the background. This page checks automatically and will show them once ready.
+                </div>
+              )}
+              <Button loading={generateMut.isPending} onClick={() => generateMut.mutate()}>
+                {evaluation?.nextCycleGenerationFailureReason ? 'Retry Generation' : 'Cancel & Retry Generation'}
+              </Button>
+            </div>
+          )}
+        </Card>
+      )}
+
+      {isLoading ? null : goals.length === 0 ? (
+        <Empty description="No next cycle goals yet" />
+      ) : (
+        goals.map((g) => (
+          <Card key={g.id} size="small" style={{ marginBottom: 12 }}
+            title={<>{g.suggestedTitle} <Tag>{g.categoryName}</Tag></>}
+            extra={canHeadEdit && (
+              <Button type="text" danger size="small" icon={<DeleteOutlined />} onClick={() => deleteMut.mutate(g.id)} />
+            )}
+          >
+            <Paragraph type="secondary" style={{ marginBottom: 4 }}>{g.suggestedDescription}</Paragraph>
+            {g.rationale && <Paragraph type="secondary" style={{ fontSize: 12, marginBottom: 0 }}>Rationale: {g.rationale}</Paragraph>}
+            {canHeadEdit ? (
+              <NextCycleGoalRubricEditor goal={g} onSave={(payload) => rubricMut.mutate({ goalId: g.id, payload })} />
+            ) : (g.rubricUnsatisfactory || g.rubricMeetsExpectations || g.rubricExceedsExpectations) && (
+              <div style={{ marginTop: 8 }}>
+                <RubricPopover criteria={{
+                  criteriaName: 'View 3-level rubric',
+                  rubricUnsatisfactory: g.rubricUnsatisfactory,
+                  rubricMeetsExpectations: g.rubricMeetsExpectations,
+                  rubricExceedsExpectations: g.rubricExceedsExpectations,
+                }} />
+              </div>
+            )}
+            <Row gutter={16} style={{ marginTop: 10 }}>
+              <Col span={12}>
+                <Text strong style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>Head Review</Text>
+                {canHeadEdit ? (
+                  <ReviewControl targetType="NEXT_CYCLE_GOAL_LEADER" targetId={g.id}
+                    defaultTitle={g.suggestedTitle} defaultDescription={g.suggestedDescription}
+                    draft={{ actionType: g.leaderActionType, editedTitle: g.leaderEditedTitle, editedDescription: g.leaderEditedDescription }}
+                    onSave={(_t, _id, payload) => leaderReviewMut.mutate({ goalId: g.id, payload })}
+                  />
+                ) : (
+                  <Tag color={g.leaderActionType ? 'blue' : 'default'}>{g.leaderActionType || 'Not yet reviewed'}</Tag>
+                )}
+              </Col>
+              <Col span={12}>
+                <Text strong style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>Employee Review</Text>
+                {canEmployeeReview ? (
+                  <ReviewControl targetType="NEXT_CYCLE_GOAL_EMPLOYEE" targetId={g.id}
+                    defaultTitle={g.leaderEditedTitle || g.suggestedTitle} defaultDescription={g.leaderEditedDescription || g.suggestedDescription}
+                    draft={{ actionType: g.employeeActionType, editedTitle: g.employeeEditedTitle, editedDescription: g.employeeEditedDescription }}
+                    onSave={(_t, _id, payload) => employeeReviewMut.mutate({ goalId: g.id, payload })}
+                  />
+                ) : (
+                  <Tag color={g.employeeActionType ? 'blue' : 'default'}>{g.employeeActionType || 'Not yet reviewed'}</Tag>
+                )}
+              </Col>
+            </Row>
+          </Card>
+        ))
+      )}
+
+      {canHeadEdit && (
+        <>
+          <Button type="dashed" icon={<PlusOutlined />} onClick={() => setAddOpen(true)}>Add a New Goal</Button>
+          <Modal title="Add a Next Cycle Goal" open={addOpen} onCancel={() => setAddOpen(false)} destroyOnClose
+            onOk={() => addForm.submit()} confirmLoading={addMut.isPending}>
+            <Form form={addForm} layout="vertical" onFinish={(values) => addMut.mutate(values)}>
+              <Form.Item label="Category" name="categoryId" rules={[{ required: true }]}>
+                <Select options={categories.map((c) => ({ value: c.id, label: c.categoryName }))} placeholder="Select category" />
+              </Form.Item>
+              <Form.Item label="Goal Title" name="title" rules={[{ required: true }]}>
+                <Input placeholder="e.g., Develop advanced statistical analysis skills" />
+              </Form.Item>
+              <Form.Item label="Description" name="description">
+                <Input.TextArea rows={3} />
+              </Form.Item>
+              <Form.Item label="Rubric — Unsatisfactory (1)" name="rubricUnsatisfactory">
+                <Input.TextArea rows={2} />
+              </Form.Item>
+              <Form.Item label="Rubric — Meets Expectations (3)" name="rubricMeetsExpectations">
+                <Input.TextArea rows={2} />
+              </Form.Item>
+              <Form.Item label="Rubric — Exceeds Expectations (5)" name="rubricExceedsExpectations">
+                <Input.TextArea rows={2} />
+              </Form.Item>
+            </Form>
+          </Modal>
+        </>
+      )}
+    </Card>
   )
 }

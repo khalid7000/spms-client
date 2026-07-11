@@ -1,7 +1,7 @@
 // Head-facing Annual Evaluation view: pick a direct report's evaluation for an academic year,
 // rate every criterion and category plus an overall rank, submit (the employee is notified),
 // and keep editing (each edit notifies the employee) until someone signs -- then sign yourself.
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Card, Select, Table, Tag, Button, message, Descriptions, Alert, Empty, Space, Typography, Modal, Form, Input } from 'antd'
 import { CheckCircleOutlined } from '@ant-design/icons'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -10,11 +10,13 @@ import { getRankLabels } from '../../api/portfolio'
 import {
   getTeamEvaluations, getEvaluation, updateCriteriaRank, updateCategoryHeadRank, updateCategoryHeadComments,
   updateGoalHeadRank, updateGoalsHeadComments, updateGoalsHeadRank, updateOverallRank, submitHeadEvaluation, signAsHead,
+  getNextCycleGoals,
 } from '../../api/annualEvaluations'
 import { useTablePrefs, compareStrings } from '../../hooks/useTablePrefs'
 import {
   STATE_COLORS, orderedCategoryResults, categoryColor, UNLINKED_COLOR,
   AchievementList, rankLabelText, RubricPopover, GoalsSection, HeadCommentsBlock, RatingAssistantModal,
+  NextCycleGoalsSection,
 } from './evaluationDisplay'
 
 const { Paragraph, Text } = Typography
@@ -58,6 +60,37 @@ export default function TeamEvaluationsPage() {
     enabled: !!evaluation?.titleId,
   })
 
+  // Shares its cache key with NextCycleGoalsSection's own query -- just here to gate the submit button.
+  const { data: nextCycleGoals = [] } = useQuery({
+    queryKey: ['next-cycle-goals', evaluationId],
+    queryFn: () => getNextCycleGoals(evaluationId),
+    enabled: !!evaluationId,
+  })
+
+  // Live, in-memory drafts of the category/goals comments -- updated on every keystroke (not just
+  // on blur-save), purely so NextCycleGoalsSection can mirror them into its own notes fields as the
+  // head types, without waiting for a network round-trip. Reset whenever the evaluation changes.
+  const [draftCategoryComments, setDraftCategoryComments] = useState({})
+  const [draftGoalsComments, setDraftGoalsComments] = useState({ strengths: null, improvements: null })
+  useEffect(() => {
+    setDraftCategoryComments({})
+    setDraftGoalsComments({ strengths: null, improvements: null })
+  }, [evaluationId])
+
+  const liveEvaluation = useMemo(() => {
+    if (!evaluation) return evaluation
+    return {
+      ...evaluation,
+      categoryResults: (evaluation.categoryResults ?? []).map((c) => ({
+        ...c,
+        headCommentsStrengths: draftCategoryComments[c.categoryId]?.strengths ?? c.headCommentsStrengths,
+        headCommentsImprovements: draftCategoryComments[c.categoryId]?.improvements ?? c.headCommentsImprovements,
+      })),
+      goalsHeadCommentsStrengths: draftGoalsComments.strengths ?? evaluation.goalsHeadCommentsStrengths,
+      goalsHeadCommentsImprovements: draftGoalsComments.improvements ?? evaluation.goalsHeadCommentsImprovements,
+    }
+  }, [evaluation, draftCategoryComments, draftGoalsComments])
+
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ['evaluation', evaluationId] })
     qc.invalidateQueries({ queryKey: ['team-evaluations', academicYearId] })
@@ -74,7 +107,7 @@ export default function TeamEvaluationsPage() {
     onError: (err) => message.error(err.response?.data?.message || 'Failed to update rank'),
   })
   const categoryCommentsMut = useMutation({
-    mutationFn: ({ categoryId, comments }) => updateCategoryHeadComments(evaluationId, categoryId, comments),
+    mutationFn: ({ categoryId, strengths, improvements }) => updateCategoryHeadComments(evaluationId, categoryId, strengths, improvements),
     onSuccess: invalidate,
     onError: (err) => message.error(err.response?.data?.message || 'Failed to save comments'),
   })
@@ -84,7 +117,7 @@ export default function TeamEvaluationsPage() {
     onError: (err) => message.error(err.response?.data?.message || 'Failed to update rank'),
   })
   const goalsCommentsMut = useMutation({
-    mutationFn: (comments) => updateGoalsHeadComments(evaluationId, comments),
+    mutationFn: ({ strengths, improvements }) => updateGoalsHeadComments(evaluationId, strengths, improvements),
     onSuccess: invalidate,
     onError: (err) => message.error(err.response?.data?.message || 'Failed to save comments'),
   })
@@ -113,16 +146,19 @@ export default function TeamEvaluationsPage() {
   const canSign = evaluation?.state === 'HEAD_SUBMITTED' && !evaluation.headSignedAt
 
   const missingCategoryRank = (evaluation?.categoryResults ?? []).some((c) => !c.headCategoryRank)
-  const missingComments = (evaluation?.categoryResults ?? []).some((c) => !c.headComments || !c.headComments.trim())
+  const missingComments = (evaluation?.categoryResults ?? []).some((c) =>
+    !c.headCommentsStrengths || !c.headCommentsStrengths.trim() || !c.headCommentsImprovements || !c.headCommentsImprovements.trim())
   const missingCriteriaRank = (evaluation?.criteriaResults ?? []).some((c) => !c.headRank)
   const missingGoalRank = (evaluation?.goalResults ?? []).some((g) => !g.headGoalRank)
   const missingGoalsHeadRank = (evaluation?.goalResults?.length ?? 0) > 0 && !evaluation?.goalsHeadRank
   const missingGoalComments = (evaluation?.goalResults?.length ?? 0) > 0
-    && (!evaluation?.goalsHeadComments || !evaluation.goalsHeadComments.trim())
+    && (!evaluation?.goalsHeadCommentsStrengths || !evaluation.goalsHeadCommentsStrengths.trim()
+      || !evaluation?.goalsHeadCommentsImprovements || !evaluation.goalsHeadCommentsImprovements.trim())
   const missingOverallRank = !evaluation?.headOverallRank
+  const missingNextCycleGoal = nextCycleGoals.length === 0
   const canSubmit = evaluation?.state === 'EMPLOYEE_SUBMITTED'
   const readyToSubmit = canSubmit && !missingCategoryRank && !missingComments && !missingCriteriaRank
-    && !missingGoalRank && !missingGoalsHeadRank && !missingGoalComments && !missingOverallRank
+    && !missingGoalRank && !missingGoalsHeadRank && !missingGoalComments && !missingOverallRank && !missingNextCycleGoal
 
   const teamColumns = [
     {
@@ -254,8 +290,10 @@ export default function TeamEvaluationsPage() {
                     </div>
                   )}
                   <HeadCommentsBlock
-                    comments={cat.headComments}
-                    onSave={canEdit ? (comments) => categoryCommentsMut.mutate({ categoryId: cat.categoryId, comments }) : undefined}
+                    strengths={cat.headCommentsStrengths}
+                    improvements={cat.headCommentsImprovements}
+                    onSave={canEdit ? (strengths, improvements) => categoryCommentsMut.mutate({ categoryId: cat.categoryId, strengths, improvements }) : undefined}
+                    onChange={canEdit ? (strengths, improvements) => setDraftCategoryComments((prev) => ({ ...prev, [cat.categoryId]: { strengths, improvements } })) : undefined}
                   />
                 </Card>
               )
@@ -265,7 +303,8 @@ export default function TeamEvaluationsPage() {
               evaluation={evaluation} rankLabels={rankLabels} canEdit={canEdit}
               onRankChange={(goalId, rank) => goalRankMut.mutate({ goalId, rank })}
               onHeadRankChange={canEdit ? (rank) => goalsRankMut.mutate(rank) : undefined}
-              onCommentsChange={canEdit ? (comments) => goalsCommentsMut.mutate(comments) : undefined}
+              onCommentsChange={canEdit ? (strengths, improvements) => goalsCommentsMut.mutate({ strengths, improvements }) : undefined}
+              onCommentsLiveChange={canEdit ? (strengths, improvements) => setDraftGoalsComments({ strengths, improvements }) : undefined}
               onOpenAssistant={canEdit ? (g, goalEntries) => setAssistant({
                 key: `goal-${g.goalId}`,
                 title: g.goalTitle,
@@ -273,6 +312,11 @@ export default function TeamEvaluationsPage() {
                 entries: goalEntries,
                 onApply: (score) => goalRankMut.mutate({ goalId: g.goalId, rank: score }),
               }) : undefined}
+            />
+
+            <NextCycleGoalsSection
+              evaluationId={evaluationId} evaluation={liveEvaluation} canHeadEdit={canEdit} canEmployeeReview={false}
+              onAfterMutate={invalidate}
             />
 
             <RatingAssistantModal
@@ -289,7 +333,7 @@ export default function TeamEvaluationsPage() {
             )}
             {canSubmit && !readyToSubmit && (
               <Alert type="info" showIcon style={{ marginTop: 12 }}
-                message="Rank every category, criteria, and goal, plus an overall rank for the Annual Goals section, and fill in comments for every category and the Annual Goals section before submitting." />
+                message="Rank every category, criteria, and goal, plus an overall rank for the Annual Goals section, fill in comments for every category and the Annual Goals section, and add at least one Next Cycle Goal before submitting." />
             )}
             {evaluation.state === 'HEAD_SUBMITTED' && evaluation.locked && !evaluation.headSignedAt && (
               <Alert type="warning" showIcon message="Locked -- the employee has already signed or refused; you can no longer edit, but you can still sign." />

@@ -47,15 +47,15 @@ export const updateCriteriaRank = (evaluationId, criteriaId, rank) =>
 export const updateCategoryHeadRank = (evaluationId, categoryId, rank) =>
   api.put(`/api/portfolio/evaluations/${evaluationId}/categories/${categoryId}/head-rank`, { rank }).then(unwrap)
 
-export const updateCategoryHeadComments = (evaluationId, categoryId, comments) =>
-  api.put(`/api/portfolio/evaluations/${evaluationId}/categories/${categoryId}/head-comments`, { comments }).then(unwrap)
+export const updateCategoryHeadComments = (evaluationId, categoryId, strengths, improvements) =>
+  api.put(`/api/portfolio/evaluations/${evaluationId}/categories/${categoryId}/head-comments`, { strengths, improvements }).then(unwrap)
 
 export const updateGoalHeadRank = (evaluationId, goalId, rank) =>
   api.put(`/api/portfolio/evaluations/${evaluationId}/goals/${goalId}/head-rank`, { rank }).then(unwrap)
 
 // One comment field for the whole Annual Goals section -- parallel to a category's own comment field.
-export const updateGoalsHeadComments = (evaluationId, comments) =>
-  api.put(`/api/portfolio/evaluations/${evaluationId}/goals-comments`, { comments }).then(unwrap)
+export const updateGoalsHeadComments = (evaluationId, strengths, improvements) =>
+  api.put(`/api/portfolio/evaluations/${evaluationId}/goals-comments`, { strengths, improvements }).then(unwrap)
 
 // One head rank for the whole Annual Goals section -- parallel to a category's headCategoryRank.
 export const updateGoalsHeadRank = (evaluationId, rank) =>
@@ -78,4 +78,31 @@ export const refuseToSign = (evaluationId, rationale) =>
 
 export const downloadEvaluationPdf = (evaluationId) =>
   api.get(`/api/reports/annual-evaluation/${evaluationId}/pdf`, { responseType: 'blob' })
+
+// ─── Next Cycle Goals -- drafted/reviewed by both head and employee during this evaluation's own
+// review/sign exchange, reused later in Team Goal Setting once concluded. ──────────────────────
+
+export const updateNextCycleGoalNotes = (evaluationId, strengths, weaknesses) =>
+  api.put(`/api/portfolio/evaluations/${evaluationId}/next-cycle-goals/notes`, { strengths, weaknesses }).then(unwrap)
+
+export const generateNextCycleGoalSuggestions = (evaluationId) =>
+  api.post(`/api/portfolio/evaluations/${evaluationId}/next-cycle-goals/generate-suggestions`).then(unwrap)
+
+export const getNextCycleGoals = (evaluationId) =>
+  api.get(`/api/portfolio/evaluations/${evaluationId}/next-cycle-goals`).then(unwrap)
+
+export const addNextCycleGoal = (evaluationId, payload) =>
+  api.post(`/api/portfolio/evaluations/${evaluationId}/next-cycle-goals`, payload).then(unwrap)
+
+export const updateNextCycleGoalRubric = (evaluationId, goalId, payload) =>
+  api.put(`/api/portfolio/evaluations/${evaluationId}/next-cycle-goals/${goalId}/rubric`, payload).then(unwrap)
+
+export const reviewNextCycleGoalAsLeader = (evaluationId, goalId, payload) =>
+  api.put(`/api/portfolio/evaluations/${evaluationId}/next-cycle-goals/${goalId}/leader-review`, payload).then(unwrap)
+
+export const reviewNextCycleGoalAsEmployee = (evaluationId, goalId, payload) =>
+  api.put(`/api/portfolio/evaluations/${evaluationId}/next-cycle-goals/${goalId}/employee-review`, payload).then(unwrap)
+
+export const deleteNextCycleGoal = (evaluationId, goalId) =>
+  api.delete(`/api/portfolio/evaluations/${evaluationId}/next-cycle-goals/${goalId}`).then(unwrap)
 

@@ -10,7 +10,7 @@ import { getHierarchyEvaluations, getEvaluation } from '../../api/annualEvaluati
 import { useTablePrefs, compareStrings } from '../../hooks/useTablePrefs'
 import {
   STATE_COLORS, orderedCategoryResults, categoryColor, UNLINKED_COLOR,
-  AchievementList, rankLabelText, RubricPopover, GoalsSection,
+  AchievementList, rankLabelText, RubricPopover, GoalsSection, HeadCommentsBlock, NextCycleGoalsSection,
 } from './evaluationDisplay'
 
 const { Paragraph, Text } = Typography
@@ -154,17 +154,16 @@ export default function OrgEvaluationsPage() {
                       <AchievementList entries={unlinked} emptyText="" color={UNLINKED_COLOR} />
                     </div>
                   )}
-                  <div>
-                    <Text strong style={{ display: 'block', marginBottom: 4 }}>Head Comments</Text>
-                    <Paragraph style={{ whiteSpace: 'pre-wrap' }}>
-                      {cat.headComments || <Text type="secondary">No comments</Text>}
-                    </Paragraph>
-                  </div>
+                  <HeadCommentsBlock strengths={cat.headCommentsStrengths} improvements={cat.headCommentsImprovements} />
                 </Card>
               )
             })}
 
             <GoalsSection evaluation={evaluation} rankLabels={rankLabels} canEdit={false} />
+
+            <NextCycleGoalsSection
+              evaluationId={evaluationId} evaluation={evaluation} canHeadEdit={false} canEmployeeReview={false}
+            />
 
             {evaluation.employeeRefused && (
               <Alert type="warning" showIcon style={{ marginBottom: 12 }}
