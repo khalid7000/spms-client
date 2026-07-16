@@ -8,12 +8,14 @@ import { useQuery } from '@tanstack/react-query'
 import { getAcademicYears } from '../../api/academicYears'
 import { getConcludedEvaluations, downloadEvaluationPdf } from '../../api/annualEvaluations'
 import { useTablePrefs, compareStrings } from '../../hooks/useTablePrefs'
+import { useTerminology } from '../../TerminologyContext'
 
 const { Paragraph } = Typography
 
 const TABLE_PREFS_KEY = 'spms.evaluationReportsTable.prefs'
 
 export default function EvaluationReportsPage() {
+  const { academicYearLabel, defaultHeadTitleLabel } = useTerminology()
   const [academicYearId, setAcademicYearId] = useState(null)
   const { prefs, sortOrderFor, handleTableChange } = useTablePrefs(TABLE_PREFS_KEY)
 
@@ -44,7 +46,7 @@ export default function EvaluationReportsPage() {
       title: 'Employee', dataIndex: 'employeeName', key: 'employeeName',
       sorter: (a, b) => compareStrings(a.employeeName, b.employeeName), sortOrder: sortOrderFor('employeeName'),
     },
-    { title: 'Head', dataIndex: 'headName', key: 'headName' },
+    { title: defaultHeadTitleLabel, dataIndex: 'headName', key: 'headName' },
     { title: 'Overall Rank', dataIndex: 'headOverallRank', key: 'headOverallRank' },
     {
       title: 'Concluded', dataIndex: 'headSignedAt', key: 'headSignedAt',
@@ -69,11 +71,11 @@ export default function EvaluationReportsPage() {
           Only concluded evaluations (signed by the head, and signed or refused by the employee) appear here.
         </Paragraph>
         <Select
-          style={{ width: 220, marginBottom: 16 }} placeholder="Academic year" value={academicYearId}
+          style={{ width: 220, marginBottom: 16 }} placeholder={academicYearLabel} value={academicYearId}
           onChange={setAcademicYearId} options={academicYears.map((y) => ({ value: y.id, label: y.name }))}
         />
         {!academicYearId ? (
-          <Empty description="Select an academic year" />
+          <Empty description={`Select a ${academicYearLabel}`} />
         ) : (
           <Table
             dataSource={evaluations} columns={columns} rowKey="id" loading={isLoading}

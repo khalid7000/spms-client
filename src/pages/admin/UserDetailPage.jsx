@@ -80,9 +80,13 @@ export default function UserDetailPage() {
             <Descriptions.Item label="Department">
               {user.department?.name || '—'}
             </Descriptions.Item>
+            <Descriptions.Item label="Org Group">
+              {user.orgGroup?.title || '—'}
+            </Descriptions.Item>
             <Descriptions.Item label="Role">
               {user.systemRoles?.includes('ADMIN') && <Tag color="purple">Admin</Tag>}
               {user.systemRoles?.includes('HR') && <Tag color="blue">HR</Tag>}
+              {user.systemRoles?.includes('USER_ADMIN') && <Tag color="cyan">User Admin</Tag>}
               {!user.systemRoles?.length && <Tag>Employee</Tag>}
             </Descriptions.Item>
             <Descriptions.Item label="Status">

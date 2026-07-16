@@ -21,6 +21,7 @@ import { getDashboard } from '../../api/dashboard'
 import { getStrategyApprovalStatus, approveStrategy } from '../../api/approvals'
 import { getSwotStatus } from '../../api/swot'
 import { useAuth } from '../../auth/AuthContext'
+import { useTerminology } from '../../TerminologyContext'
 import StateChip from '../../components/StateChip'
 import RoleChip from '../../components/RoleChip'
 import TableTotal from '../../components/TableTotal'
@@ -71,9 +72,10 @@ function canComment(role, state) {
 
 // Modal for managing academic year locks
 function FreezeYearModal({ open, onClose, academicYears, onToggle, isPending }) {
+  const { academicYearLabel } = useTerminology()
   return (
     <Modal
-      title="Freeze / Unfreeze Academic Years"
+      title={`Freeze / Unfreeze ${academicYearLabel}s`}
       open={open}
       onCancel={onClose}
       footer={<Button onClick={onClose}>Close</Button>}
@@ -81,7 +83,7 @@ function FreezeYearModal({ open, onClose, academicYears, onToggle, isPending }) 
     >
       {academicYears.length === 0 ? (
         <div style={{ color: '#9ca3af', textAlign: 'center', padding: '24px 0' }}>
-          No academic years have been created yet.
+          No {academicYearLabel.toLowerCase()}s have been created yet.
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -341,6 +343,7 @@ function MembersTab({ strategyId }) {
 }
 
 export default function StrategyDetailPage() {
+  const { academicYearLabel } = useTerminology()
   const { strategyId } = useParams()
   const [searchParams, setSearchParams] = useSearchParams()
   const requestedTab = searchParams.get('tab')
@@ -553,7 +556,7 @@ export default function StrategyDetailPage() {
   const lockMut = useMutation({
     mutationFn: (id) => lockAcademicYear(id),
     onSuccess: () => {
-      message.success('Academic year frozen')
+      message.success(`${academicYearLabel} frozen`)
       qc.invalidateQueries({ queryKey: ['academic-years'] })
     },
     onError: (err) => message.error(err.response?.data?.message || 'Failed to freeze year'),
@@ -562,7 +565,7 @@ export default function StrategyDetailPage() {
   const unlockMut = useMutation({
     mutationFn: (id) => unlockAcademicYear(id),
     onSuccess: () => {
-      message.success('Academic year unfrozen')
+      message.success(`${academicYearLabel} unfrozen`)
       qc.invalidateQueries({ queryKey: ['academic-years'] })
     },
     onError: (err) => message.error(err.response?.data?.message || 'Failed to unfreeze year'),
@@ -729,7 +732,7 @@ export default function StrategyDetailPage() {
                         {(strategy.state === 'DEPLOYED' || strategy.state === 'FROZEN') && (
                           <Button size="small" icon={<LockOutlined />}
                             onClick={() => setFreezeYearOpen(true)}>
-                            Freeze Academic Year
+                            Freeze {academicYearLabel}
                           </Button>
                         )}
                       </Space>
@@ -780,7 +783,7 @@ export default function StrategyDetailPage() {
                 {/* Academic year selector */}
                 {(strategy.state === 'DEPLOYED' || strategy.state === 'FROZEN') && (
                   <div style={{ marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span style={{ fontSize: 13, color: '#6b7280', fontWeight: 500 }}>Academic Year:</span>
+                    <span style={{ fontSize: 13, color: '#6b7280', fontWeight: 500 }}>{academicYearLabel}:</span>
                     <Select
                       placeholder="Base plan (no year)"
                       allowClear

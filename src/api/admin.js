@@ -14,6 +14,16 @@ export const importUsers = (file) => {
   return api.post('/api/admin/users/import', form).then(unwrap)
 }
 
+// Data Repository (readers feed the central name-value repository Criteria Info Tools read from)
+export const getRepositoryReaders = () => api.get('/api/admin/repository-readers').then(unwrap)
+export const getRepositoryRecordsSummary = () => api.get('/api/admin/repository-records/summary').then(unwrap)
+export const runRepositoryImport = (code, file, params) => {
+  const form = new FormData()
+  form.append('file', file)
+  Object.entries(params).forEach(([k, v]) => form.append(k, v))
+  return api.post(`/api/admin/repository-readers/${code}/import`, form).then(unwrap)
+}
+
 // Org Groups
 export const getOrgGroups = () => api.get('/api/admin/org-groups').then(unwrap)
 export const createOrgGroup = (payload) => api.post('/api/admin/org-groups', payload).then(unwrap)
@@ -67,12 +77,22 @@ export const createAchievementType = (payload) =>
   api.post('/api/admin/achievement-types', payload).then(unwrap)
 export const updateAchievementType = (id, payload) =>
   api.put(`/api/admin/achievement-types/${id}`, payload).then(unwrap)
+export const deleteAchievementType = (id) =>
+  api.delete(`/api/admin/achievement-types/${id}`).then(unwrap)
+
+// Organization Settings (admin manage) -- fixed key set, edit-only
+export const getOrganizationSettings = () =>
+  api.get('/api/admin/organization-settings').then(unwrap)
+export const updateOrganizationSetting = (key, payload) =>
+  api.put(`/api/admin/organization-settings/${key}`, payload).then(unwrap)
 
 // Reference data (accessible by all authenticated users)
 export const getAchievementTypesPublic = () =>
   api.get('/api/admin/achievement-types/all').then(unwrap)
 export const getPlanningCyclesPublic = () =>
   api.get('/api/admin/planning-cycles/all').then(unwrap)
+export const getOrganizationSettingsPublic = () =>
+  api.get('/api/admin/organization-settings/all').then(unwrap)
 
 // Academic Years (admin manage)
 export const createAcademicYear = (payload) =>

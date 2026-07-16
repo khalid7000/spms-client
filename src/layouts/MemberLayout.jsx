@@ -6,7 +6,7 @@
 // as sections flickering in and out. Plain elements only change when the boolean they render
 // from actually changes.
 import { useState } from 'react'
-import { Layout, Avatar, Dropdown, Button, Badge } from 'antd'
+import { Layout, Avatar, Dropdown, Button, Badge, Switch, Empty } from 'antd'
 import { Link, useNavigate, useLocation, Outlet } from 'react-router-dom'
 import {
   DashboardOutlined,
@@ -30,12 +30,19 @@ import {
   OrderedListOutlined,
   AuditOutlined,
   AppstoreOutlined,
+  CheckCircleOutlined,
+  UndoOutlined,
+  GlobalOutlined,
+  DatabaseOutlined,
 } from '@ant-design/icons'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '../auth/AuthContext'
+import { useTerminology } from '../TerminologyContext'
 import { getMyPendingApprovals } from '../api/approvals'
 import { getMySwotPendingActions } from '../api/swot'
-import { getMyNotifications, getUnreadCount, markNotificationRead } from '../api/notifications'
+import {
+  getMyNotifications, getUnreadCount, markNotificationRead, markNotificationUnread, markAllNotificationsRead,
+} from '../api/notifications'
 import { getMyLeadershipProfile } from '../api/leadership'
 import { getDashboard } from '../api/dashboard'
 import Logo, { LogoMark } from '../components/Logo'
@@ -45,6 +52,7 @@ const NOT_DEPLOYED_STATES = ['CREATION', 'REVIEW', 'APPROVAL_PENDING']
 const { Sider, Header, Content } = Layout
 
 export default function MemberLayout() {
+  const { academicYearLabel } = useTerminology()
   const [collapsed, setCollapsed] = useState(false)
   const { user, logout } = useAuth()
   const navigate = useNavigate()
@@ -70,35 +78,51 @@ export default function MemberLayout() {
     refetchInterval: 30_000,
   })
 
+  // Unread-only is a display filter over the same already-fetched list -- no separate query.
+  const [showUnreadOnly, setShowUnreadOnly] = useState(false)
+
+  const invalidateNotifications = () => {
+    qc.invalidateQueries({ queryKey: ['notifications'] })
+    qc.invalidateQueries({ queryKey: ['notifications-unread-count'] })
+  }
+
   const handleNotificationClick = async (n) => {
     if (!n.isRead) {
       await markNotificationRead(n.id)
-      qc.invalidateQueries({ queryKey: ['notifications'] })
-      qc.invalidateQueries({ queryKey: ['notifications-unread-count'] })
+      invalidateNotifications()
     }
     if (n.type === 'ANNUAL_EVALUATION') {
       navigate('/portfolio/my-evaluation')
+    } else if (n.type === 'ANNUAL_EVALUATION_HEAD') {
+      navigate(`/portfolio/team-evaluations?evaluationId=${n.entityId}`)
     } else if (n.type === 'GOAL_CYCLE') {
       navigate('/portfolio/goals')
+    } else if (n.type === 'GOAL_CYCLE_HEAD') {
+      navigate(`/portfolio/team-goals?cycleId=${n.entityId}`)
     } else if (n.entityId && ['STRATEGY_MEMBERSHIP', 'STRATEGY_APPROVAL', 'SWOT_INVITE'].includes(n.type)) {
       navigate(`/strategies/${n.entityId}`)
     }
   }
 
-  const notificationMenu = {
-    items: notifications.length > 0
-      ? notifications.slice(0, 10).map((n) => ({
-          key: n.id,
-          label: (
-            <div style={{ maxWidth: 320, whiteSpace: 'normal', opacity: n.isRead ? 0.6 : 1 }}
-              onClick={() => handleNotificationClick(n)}>
-              {n.message}
-              <div style={{ fontSize: 11, color: '#9ca3af' }}>{new Date(n.createdAt).toLocaleString()}</div>
-            </div>
-          ),
-        }))
-      : [{ key: 'empty', label: 'No notifications', disabled: true }],
+  // Toggles read/unread on its own, without navigating -- stopPropagation keeps the row's own
+  // click (which marks read + navigates) from also firing.
+  const handleToggleRead = async (n, e) => {
+    e.stopPropagation()
+    if (n.isRead) {
+      await markNotificationUnread(n.id)
+    } else {
+      await markNotificationRead(n.id)
+    }
+    invalidateNotifications()
   }
+
+  const handleMarkAllRead = async (e) => {
+    e.stopPropagation()
+    await markAllNotificationsRead()
+    invalidateNotifications()
+  }
+
+  const visibleNotifications = showUnreadOnly ? notifications.filter((n) => !n.isRead) : notifications
 
   const swotQuery = useQuery({
     queryKey: ['swot-pending'],
@@ -130,6 +154,10 @@ export default function MemberLayout() {
 
   const isAdmin = user?.systemRoles?.includes('ADMIN')
   const isHR = user?.systemRoles?.includes('HR')
+  // Limited admin: user management only (Users page + CSV import) -- no other console feature,
+  // granted only by a true ADMIN. See AdminService.createUser/updateUser for the server-side
+  // guard that keeps this role from ever granting ADMIN/HR/USER_ADMIN to anyone.
+  const isUserAdmin = user?.systemRoles?.includes('USER_ADMIN')
 
   const sections = [
     {
@@ -190,7 +218,7 @@ export default function MemberLayout() {
           : []),
       ],
     },
-    (isAdmin || isHR) && {
+    (isAdmin || isHR || isUserAdmin) && {
       key: 'admin',
       label: 'Administration',
       icon: <SettingOutlined />,
@@ -202,13 +230,23 @@ export default function MemberLayout() {
               { key: '/admin/org-groups', icon: <ClusterOutlined />, label: 'Org Groups' },
               { key: '/admin/departments', icon: <ApartmentOutlined />, label: 'Departments' },
               { key: '/admin/planning-cycles', icon: <CalendarOutlined />, label: 'Planning Cycles' },
-              { key: '/admin/academic-years', icon: <BookOutlined />, label: 'Academic Years' },
+              { key: '/admin/academic-years', icon: <BookOutlined />, label: `${academicYearLabel}s` },
               { key: '/admin/strategies', icon: <OrderedListOutlined />, label: 'Strategies' },
               { key: '/admin/audit-logs', icon: <AuditOutlined />, label: 'Audit Logs' },
               { key: '/admin/portfolio/categories', icon: <AppstoreOutlined />, label: 'Portfolio Categories' },
+              { key: '/admin/achievement-types', icon: <TrophyOutlined />, label: 'Achievement Types' },
+              { key: '/admin/data-repository', icon: <DatabaseOutlined />, label: 'Data Repository' },
+              { key: '/admin/organization-settings', icon: <GlobalOutlined />, label: 'Organization Settings' },
             ]
           : []),
-        { key: '/evaluation-reports', icon: <FileTextOutlined />, label: 'Evaluation Reports' },
+        // A pure User Admin (not also a full Admin) only ever sees this one link -- everything
+        // else in this section is admin-only above, or admin/HR-only below.
+        ...(isUserAdmin && !isAdmin
+          ? [{ key: '/admin/users', icon: <TeamOutlined />, label: 'Users' }]
+          : []),
+        ...(isAdmin || isHR
+          ? [{ key: '/evaluation-reports', icon: <FileTextOutlined />, label: 'Evaluation Reports' }]
+          : []),
       ],
     },
   ].filter(Boolean)
@@ -304,7 +342,63 @@ export default function MemberLayout() {
             style={{ fontSize: 16, color: '#6b7280' }}
           />
           <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-            <Dropdown menu={notificationMenu} placement="bottomRight" trigger={['click']}>
+            <Dropdown
+              placement="bottomRight"
+              trigger={['click']}
+              popupRender={() => (
+                <div style={{
+                  width: 360, background: '#fff', borderRadius: 8,
+                  boxShadow: '0 6px 16px rgba(0,0,0,0.12)', overflow: 'hidden',
+                }}>
+                  <div style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    padding: '10px 14px', borderBottom: '1px solid #f0f0f0',
+                  }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, cursor: 'pointer' }}>
+                      <Switch size="small" checked={showUnreadOnly} onChange={setShowUnreadOnly} />
+                      Unread only
+                    </label>
+                    <Button type="link" size="small" disabled={unreadCount === 0} onClick={handleMarkAllRead}>
+                      Mark all as read
+                    </Button>
+                  </div>
+                  <div style={{ maxHeight: 360, overflowY: 'auto' }}>
+                    {visibleNotifications.length === 0 ? (
+                      <Empty
+                        description={showUnreadOnly ? 'No unread notifications' : 'No notifications'}
+                        image={Empty.PRESENTED_IMAGE_SIMPLE}
+                        style={{ padding: '24px 0' }}
+                      />
+                    ) : (
+                      visibleNotifications.slice(0, 10).map((n) => (
+                        <div
+                          key={n.id}
+                          onClick={() => handleNotificationClick(n)}
+                          style={{
+                            display: 'flex', alignItems: 'flex-start', gap: 8, padding: '10px 14px',
+                            borderBottom: '1px solid #f5f5f5', cursor: 'pointer',
+                            background: n.isRead ? 'transparent' : '#f0f5ff',
+                          }}
+                        >
+                          <div style={{ flex: 1, minWidth: 0, opacity: n.isRead ? 0.6 : 1 }}>
+                            <div style={{ whiteSpace: 'normal' }}>{n.message}</div>
+                            <div style={{ fontSize: 11, color: '#9ca3af' }}>{new Date(n.createdAt).toLocaleString()}</div>
+                          </div>
+                          <Button
+                            type="text" size="small"
+                            title={n.isRead ? 'Mark as unread' : 'Mark as read'}
+                            icon={n.isRead
+                              ? <UndoOutlined style={{ color: '#9ca3af' }} />
+                              : <CheckCircleOutlined style={{ color: '#1677ff' }} />}
+                            onClick={(e) => handleToggleRead(n, e)}
+                          />
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
+            >
               <Badge count={unreadCount} size="small">
                 <Button type="text" icon={<BellOutlined style={{ fontSize: 18, color: '#6b7280' }} />} />
               </Badge>

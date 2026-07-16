@@ -10,14 +10,17 @@ import { getHierarchyEvaluations, getEvaluation } from '../../api/annualEvaluati
 import { useTablePrefs, compareStrings } from '../../hooks/useTablePrefs'
 import {
   STATE_COLORS, orderedCategoryResults, categoryColor, UNLINKED_COLOR,
-  AchievementList, rankLabelText, RubricPopover, GoalsSection, HeadCommentsBlock, NextCycleGoalsSection,
+  AchievementList, rankLabelText, RubricPopover, GoalsSection, HeadCommentsBlock, EmployeeReflectionBlock,
+  NextCycleGoalsSection, EvaluationScoreSummary, CriteriaInfoToolButton,
 } from './evaluationDisplay'
+import { useTerminology } from '../../TerminologyContext'
 
 const { Paragraph, Text } = Typography
 
 const TABLE_PREFS_KEY = 'spms.orgEvaluationsTable.prefs'
 
 export default function OrgEvaluationsPage() {
+  const { defaultHeadTitleLabel, academicYearLabel } = useTerminology()
   const [academicYearId, setAcademicYearId] = useState(null)
   const [evaluationId, setEvaluationId] = useState(null)
   const { prefs, sortOrderFor, handleTableChange } = useTablePrefs(TABLE_PREFS_KEY)
@@ -58,7 +61,7 @@ export default function OrgEvaluationsPage() {
       title: 'Department', dataIndex: 'departmentName', key: 'departmentName',
       sorter: (a, b) => compareStrings(a.departmentName, b.departmentName), sortOrder: sortOrderFor('departmentName'),
     },
-    { title: 'Head', dataIndex: 'headName', key: 'headName' },
+    { title: defaultHeadTitleLabel, dataIndex: 'headName', key: 'headName' },
     { title: 'Status', dataIndex: 'state', key: 'state', render: (s) => <Tag color={STATE_COLORS[s]}>{s}</Tag> },
     {
       title: 'Overall Rank', dataIndex: 'headOverallRank', key: 'headOverallRank',
@@ -81,13 +84,13 @@ export default function OrgEvaluationsPage() {
         </Paragraph>
 
         <Select
-          style={{ width: 220, marginBottom: 24 }} placeholder="Academic year" value={academicYearId}
+          style={{ width: 220, marginBottom: 24 }} placeholder={academicYearLabel} value={academicYearId}
           onChange={(v) => { setAcademicYearId(v); setEvaluationId(null) }}
           options={academicYears.map((y) => ({ value: y.id, label: y.name }))}
         />
 
         {!academicYearId ? (
-          <Empty description="Select an academic year" />
+          <Empty description={`Select a ${academicYearLabel}`} />
         ) : !evaluationId ? (
           <Table
             dataSource={evaluations} columns={columns} rowKey="id" loading={isLoading}
@@ -101,19 +104,18 @@ export default function OrgEvaluationsPage() {
         ) : evaluation && (
           <>
             <Button style={{ marginBottom: 16 }} onClick={() => setEvaluationId(null)}>&larr; Back to list</Button>
-            <Descriptions column={4} style={{ marginBottom: 16 }}>
+            <Descriptions column={3} style={{ marginBottom: 16 }}>
               <Descriptions.Item label="Employee">{evaluation.employeeName}</Descriptions.Item>
-              <Descriptions.Item label="Head">{evaluation.headName}</Descriptions.Item>
+              <Descriptions.Item label={evaluation.headTitle ?? defaultHeadTitleLabel}>{evaluation.headName}</Descriptions.Item>
               <Descriptions.Item label="Status"><Tag color={STATE_COLORS[evaluation.state]}>{evaluation.state}</Tag></Descriptions.Item>
-              <Descriptions.Item label="Overall Rank">
-                {evaluation.headOverallRank ? (
-                  <Tag color="green">{rankLabelText(rankLabels, evaluation.headOverallRank)}</Tag>
-                ) : <Tag>Not yet rated</Tag>}
-              </Descriptions.Item>
             </Descriptions>
 
-            {orderedCategoryResults(evaluation.categoryResults).map((cat) => {
-              const color = categoryColor(cat.categoryName)
+            <EvaluationScoreSummary evaluation={evaluation} rankLabels={rankLabels} />
+
+            <Card size="small" title="Evaluation Details" style={{ marginBottom: 16 }} />
+
+            {orderedCategoryResults(evaluation.categoryResults).map((cat, idx) => {
+              const color = categoryColor(idx)
               const unlinked = evaluation.entries.filter((e) => e.categoryId === cat.categoryId && !e.criteriaId)
               return (
                 <Card key={cat.categoryId} type="inner" title={cat.categoryName}
@@ -141,6 +143,19 @@ export default function OrgEvaluationsPage() {
                           color={color}
                         />
                       </div>
+                      <EmployeeReflectionBlock comments={crit.employeeComments} sectionName={crit.criteriaName} color={color} />
+                      {crit.infoToolAssignments?.length > 0 && (
+                        <Space style={{ marginBottom: 8 }} wrap>
+                          {crit.infoToolAssignments.map((a) => (
+                            <CriteriaInfoToolButton
+                              key={`${a.toolCode}-${a.repositorySourceType}`}
+                              evaluationId={evaluationId} criteriaId={crit.criteriaId}
+                              repositorySourceType={a.repositorySourceType}
+                              displayName={a.displayName}
+                            />
+                          ))}
+                        </Space>
+                      )}
                       <div style={{ textAlign: 'right' }}>
                         <Tag color="green">{crit.headRank ? rankLabelText(rankLabels, crit.headRank) : '—'}</Tag>
                       </div>
@@ -154,12 +169,15 @@ export default function OrgEvaluationsPage() {
                       <AchievementList entries={unlinked} emptyText="" color={UNLINKED_COLOR} />
                     </div>
                   )}
+                  <EmployeeReflectionBlock comments={cat.employeeComments} sectionName={cat.categoryName} required />
                   <HeadCommentsBlock strengths={cat.headCommentsStrengths} improvements={cat.headCommentsImprovements} />
                 </Card>
               )
             })}
 
             <GoalsSection evaluation={evaluation} rankLabels={rankLabels} canEdit={false} />
+
+            <EmployeeReflectionBlock comments={evaluation.employeeFinalSummary} heading="General Final Summary Statement" required />
 
             <NextCycleGoalsSection
               evaluationId={evaluationId} evaluation={evaluation} canHeadEdit={false} canEmployeeReview={false}

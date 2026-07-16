@@ -1,9 +1,13 @@
-// Renders a Strategy's full Goal > Objective > Initiative > Measurement tree with inline
-// create/edit/delete for each node, plus the achievement-recording modal (which also tags
-// each achievement to a portfolio category/criteria for the annual evaluation workflow).
-import { useEffect, useState } from 'react'
+// Renders a Strategy's Vision Area > Goal > Objective > Initiative > Measurement tree as an
+// achievement-first board: Areas are the only collapsible level (everything under an open Area
+// renders flat), Initiatives render as a card grid or a list (user's choice, remembered per
+// strategy), and a permanent right-hand rail lets you log an achievement, see plan-wide stats, and
+// see what was recently logged -- without opening the tree at all. Inline create/edit/delete is
+// still available at every level, plus the achievement-recording modal (which also tags each
+// achievement to a portfolio category/criteria for the annual evaluation workflow).
+import { useState } from 'react'
 import {
-  Button, Input, InputNumber, Form, Modal, Popconfirm, message, Tooltip, Badge, Select, Tag, Rate, Alert, Typography,
+  Button, Input, InputNumber, Form, Modal, Drawer, Popconfirm, message, Tooltip, Badge, Select, Tag,
 } from 'antd'
 import {
   PlusOutlined, EditOutlined, DeleteOutlined, CommentOutlined,
@@ -12,23 +16,19 @@ import {
 } from '@ant-design/icons'
 import { useMutation, useQueryClient, useQueries, useQuery } from '@tanstack/react-query'
 import {
-  createGoal, updateGoal, deleteGoal, assignGoalArea,
+  createGoal, updateGoal, deleteGoal,
   createObjective, updateObjective, deleteObjective, setObjectiveFrozen,
   createInitiative, updateInitiative, deleteInitiative,
   createMeasurement, updateMeasurement, deleteMeasurement,
-  createArea, updateArea, deleteArea,
-  getAchievements, getAchievementsAcrossYears, updateAchievement, deleteAchievement,
-  getAchievementTypes,
+  getAchievements, getAchievementsAcrossYears, getRecentAchievements,
   getUniversityObjectives, getAvailableUniversityInitiatives,
 } from '../../api/strategies'
+import { useViewPrefs } from '../../hooks/useViewPrefs'
+import { useTerminology } from '../../TerminologyContext'
 import {
-  getMyCategories, getCategoriesForEmployee, getMyCycles, getCycleGoals,
-  getEntryByAchievement, logAchievement as logAchievementWithEvaluation, upsertEntryForAchievement,
-  getCriteria,
-} from '../../api/portfolio'
-import { useAuth } from '../../auth/AuthContext'
-
-const { Text } = Typography
+  AchievementModal, AchievementReportModal,
+  useAddAchievementMutation, useEditAchievementMutation, useDeleteAchievementMutation,
+} from '../../components/AchievementModal'
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
@@ -51,7 +51,7 @@ function canRecordAchievement(role, state) {
 }
 
 // Flips membership of `key` in a Set, returning a new Set (never mutates the one passed in) —
-// used for every expand/collapse toggle in this tree.
+// used for the Vision Area expand/collapse toggle (the only level still collapsible).
 function toggled(set, key) {
   const next = new Set(set)
   if (next.has(key)) next.delete(key)
@@ -65,6 +65,57 @@ function totalForEntity(comments, entityType, entityId) {
 
 function unreadForEntity(comments, entityType, entityId) {
   return comments.filter((c) => c.entityType === entityType && c.entityId === entityId && c.unread).length
+}
+
+// Whether the academic year matching this assessment-period name is frozen -- shared by
+// AchievementsPanel (gates add/edit/delete per period group) and the Initiative status chip
+// (shows "Frozen" instead of a progress color). Falls back to the tree's own year-filter lock
+// when no matching year is found (e.g. viewing the Base Plan).
+function isPeriodLocked(academicYears, yearLocked, periodName) {
+  const match = academicYears.find((y) => y.name === periodName)
+  return match ? (match.closed ?? false) : yearLocked
+}
+
+// On track / needs attention / not started / frozen -- mirrors the exact initiativeColor/
+// rollupColor algorithm already duplicated server-side (StrategyService) and in ReportPage.jsx /
+// StrategySummaryChart.jsx (red=0, amber=below threshold, green=at/above), fed by the same
+// all-time achievementCount already shown in the old "achievements total" tag. This is NOT the
+// period-scoped count the Dashboard's own rollup uses, so it can disagree with that -- no endpoint
+// currently exposes a period-scoped count at this granularity.
+function initiativeStatus(count, threshold, frozen) {
+  if (frozen) return { label: 'Frozen', tone: 'frozen' }
+  if (count === 0) return { label: 'Not started', tone: 'red' }
+  if (count >= threshold) return { label: 'On track', tone: 'green' }
+  return { label: 'Needs attention', tone: 'amber' }
+}
+
+// Every Initiative across the whole strategy, with its parent Goal/Objective for display and
+// search -- powers the rail's stats and its "search any initiative" achievement picker.
+function flattenInitiatives(goals) {
+  const result = []
+  goals.forEach((g) => {
+    ;(g.objectives ?? []).forEach((o) => {
+      ;(o.initiatives ?? []).forEach((ini) => {
+        result.push({ initiative: ini, objectiveId: o.id, goalTitle: g.title })
+      })
+    })
+  })
+  return result
+}
+
+// Resolves the one unambiguous assessment period a fast-add flow (Initiative card's own "Add"
+// button, the rail's search-and-log picker) may fix an achievement to, without ever asking the
+// user to pick one freely -- checked in priority order: the initiative's own resolved period
+// (set when the tree fell back to Base Plan filtered by a requested year), the initiative's own
+// academic year, then the tree's own year-filter. Returns null when genuinely ambiguous (Base
+// Plan with no year context at all) -- callers should disable the fast path in that case and
+// point the user at "View all", where every period already has its own fixed-period Add button.
+function resolveFixedPeriod(ini, academicYearId, academicYears, assessmentPeriods) {
+  const name = ini.assessmentPeriodName
+    || academicYears.find((y) => y.id === ini.academicYearId)?.name
+    || academicYears.find((y) => y.id === academicYearId)?.name
+  if (!name) return null
+  return { name, id: assessmentPeriods.find((p) => p.name === name)?.id }
 }
 
 // ─── UnitInput ────────────────────────────────────────────────────────────────
@@ -179,188 +230,10 @@ function CommentBtn({ entityType, entityId, comments, onClick }) {
   )
 }
 
-// ─── AchievementModal (add & edit) ───────────────────────────────────────────
-
-function AchievementModal({
-  open, onClose, onSave, loading, initialValues, assessmentPeriods, academicYears = [], title, initialPeriodName,
-  academicYearId, achievementId, authorId,
-}) {
-  const [form] = Form.useForm()
-  const { user } = useAuth()
-
-  const { data: achievementTypes = [] } = useQuery({
-    queryKey: ['achievement-types'],
-    queryFn: getAchievementTypes,
-    enabled: open,
-  })
-
-  // Editing someone else's achievement (Owner privilege) -- their categories/goals apply, not the editor's.
-  const isSelf = !authorId || authorId === user?.userId
-
-  const { data: categories = [], isError: categoriesError } = useQuery({
-    queryKey: ['portfolio-categories-for-achievement', isSelf ? 'me' : authorId],
-    queryFn: () => (isSelf ? getMyCategories() : getCategoriesForEmployee(authorId)),
-    enabled: open,
-    retry: false,
-  })
-
-  // The tree's own academic-year filter (`academicYearId`) is just a display filter and is often
-  // unset -- it has nothing to do with which year this specific achievement belongs to. Resolve
-  // the actual year from whichever assessment period the achievement is being recorded against
-  // (periods and academic years share the same name, e.g. "2028-2029"), falling back to the tree
-  // filter only if no period is known yet (the picker hasn't been touched).
-  const watchedPeriodId = Form.useWatch('assessmentPeriodId', form)
-  const selectedPeriodName = initialPeriodName ?? assessmentPeriods.find((p) => p.id === watchedPeriodId)?.name
-  const effectiveAcademicYearId = selectedPeriodName
-    ? academicYears.find((y) => y.name === selectedPeriodName)?.id
-    : academicYearId
-
-  const { data: myCycles = [] } = useQuery({
-    queryKey: ['my-goal-cycles', effectiveAcademicYearId],
-    queryFn: () => getMyCycles(effectiveAcademicYearId),
-    enabled: open && isSelf && !!effectiveAcademicYearId,
-  })
-  const deployedCycle = myCycles.find((c) => c.state === 'DEPLOYED')
-  const { data: myGoals = [] } = useQuery({
-    queryKey: ['my-deployed-goals-for-achievement', deployedCycle?.id],
-    queryFn: () => getCycleGoals(deployedCycle.id),
-    enabled: open && isSelf && !!deployedCycle,
-  })
-
-  const { data: existingEntry } = useQuery({
-    queryKey: ['portfolio-entry-for-achievement', achievementId],
-    queryFn: () => getEntryByAchievement(achievementId),
-    enabled: open && !!achievementId,
-  })
-
-  // Criteria narrows to whichever category is currently selected in the form -- reload as it changes.
-  const selectedCategoryId = Form.useWatch('categoryId', form)
-  const { data: criteria = [] } = useQuery({
-    queryKey: ['portfolio-criteria-for-achievement', selectedCategoryId],
-    queryFn: () => getCriteria(selectedCategoryId),
-    enabled: open && !!selectedCategoryId,
-  })
-
-  // "Other" reveals a free-text field for a custom type -- matched by name since achievementTypeId
-  // is whatever id the admin's AchievementType table happens to assign it.
-  const selectedAchievementTypeId = Form.useWatch('achievementTypeId', form)
-  const otherAchievementType = achievementTypes.find((t) => t.name === 'Other')
-  const isOtherType = !!otherAchievementType && selectedAchievementTypeId === otherAchievementType.id
-
-  useEffect(() => {
-    if (!open) return
-    form.setFieldsValue({
-      ...initialValues,
-      categoryId: existingEntry?.categoryId,
-      criteriaId: existingEntry?.criteriaId,
-      categoryRating: existingEntry?.categoryRating,
-      goalId: existingEntry?.goalId,
-      evidenceUrl: existingEntry?.evidenceUrl,
-    })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, existingEntry])
-
-  const handleOk = async () => {
-    try {
-      const values = await form.validateFields()
-      onSave(values)
-    } catch {}
-  }
-
-  const noCategoriesConfigured = open && (categoriesError || categories.length === 0)
-
-  return (
-    <Modal title={title} open={open} onCancel={onClose} onOk={handleOk}
-      confirmLoading={loading} okButtonProps={{ disabled: noCategoriesConfigured }} destroyOnClose>
-      <Form form={form} layout="vertical" initialValues={initialValues}>
-        <Form.Item name="title" label="Title" rules={[{ required: true }]}>
-          <Input />
-        </Form.Item>
-        <Form.Item name="achievementTypeId" label="Type" rules={[{ required: true }]}>
-          <Select placeholder="Select type">
-            {achievementTypes.map((t) => (
-              <Select.Option key={t.id} value={t.id}>{t.name}</Select.Option>
-            ))}
-          </Select>
-        </Form.Item>
-        {isOtherType && (
-          <Form.Item name="customTypeName" label="Custom Type" rules={[{ required: true, message: 'Describe the achievement type' }]}>
-            <Input placeholder="Describe the type of achievement" />
-          </Form.Item>
-        )}
-        {initialPeriodName ? (
-          <>
-            {/* Hidden field carries the ID through validateFields when period is pre-set */}
-            <Form.Item name="assessmentPeriodId" hidden><Input /></Form.Item>
-            <Form.Item label="Assessment Period">
-              <span style={{
-                display: 'inline-block', padding: '4px 10px', borderRadius: 6,
-                background: '#eff6ff', color: '#1d4ed8', fontWeight: 600, fontSize: 13,
-              }}>
-                {initialPeriodName}
-              </span>
-            </Form.Item>
-          </>
-        ) : (
-          <Form.Item name="assessmentPeriodId" label="Assessment Period">
-            <Select placeholder="Select period (optional)" allowClear>
-              {assessmentPeriods.map((p) => (
-                <Select.Option key={p.id} value={p.id}>{p.name}</Select.Option>
-              ))}
-            </Select>
-          </Form.Item>
-        )}
-        <Form.Item name="details" label="Details">
-          <Input.TextArea rows={2} />
-        </Form.Item>
-        <Form.Item name="privateNotes" label="Private Notes" extra="Only visible to you">
-          <Input.TextArea rows={2} />
-        </Form.Item>
-
-        {noCategoriesConfigured ? (
-          <Alert type="warning" showIcon style={{ marginBottom: 16 }}
-            message="Portfolio categories aren't configured yet"
-            description="Ask an admin to configure portfolio categories for your title before recording achievements here." />
-        ) : (
-          <>
-            <Form.Item name="categoryId" label="Evaluation Category" rules={[{ required: true }]}
-              extra="Which annual-portfolio category this achievement counts toward">
-              <Select placeholder="Select category"
-                options={categories.map((c) => ({ value: c.id, label: c.categoryName }))}
-                onChange={() => form.setFieldValue('criteriaId', undefined)} />
-            </Form.Item>
-            <Form.Item name="criteriaId" label="Criteria" rules={[{ required: true }]}
-              extra="Which specific criteria within the category -- used later during the annual evaluation">
-              <Select placeholder={selectedCategoryId ? 'Select criteria' : 'Select a category first'}
-                disabled={!selectedCategoryId}
-                options={criteria.map((c) => ({ value: c.id, label: c.criteriaName }))} />
-            </Form.Item>
-          </>
-        )}
-
-        {isSelf && (
-          <Form.Item name="goalId" label="Related Annual Goal (Optional)">
-            <Select placeholder="Link to a deployed goal" allowClear
-              options={myGoals.map((g) => ({ value: g.id, label: g.goalTitle }))} />
-          </Form.Item>
-        )}
-
-        <Form.Item name="categoryRating" label="Self-Assessment Rating (Optional)">
-          <Rate tooltips={['Poor', 'Fair', 'Good', 'Very Good', 'Excellent']} />
-        </Form.Item>
-        <Form.Item name="evidenceUrl" label="Evidence/Link" rules={[{ required: true, message: 'Evidence/Link is required' }]}
-          extra="URL to evidence. Public link is prefered, but even a link to the evidence in your cloud storage open to public is fine">
-          <Input placeholder="URL to certificate, publication, or evidence" />
-        </Form.Item>
-        {!isSelf && (
-          <Text type="secondary" style={{ fontSize: 12 }}>
-            Goal linking is only available to the achievement's author.
-          </Text>
-        )}
-      </Form>
-    </Modal>
-  )
-}
+// AchievementModal, AchievementReportModal, and the add/edit/delete mutation hooks now live in
+// src/components/AchievementModal.jsx -- shared with the Annual Evaluation page, since
+// achievements generated by a criterion-assigned achievement tool have no measurement/Initiative
+// at all and so can only ever be edited from that page, never the Strategy Tree.
 
 // ─── MeasurementNode ─────────────────────────────────────────────────────────
 
@@ -419,21 +292,17 @@ function MeasurementNode({ m, role, state, comments, onComment, onRefresh }) {
 // ─── AchievementsPanel ───────────────────────────────────────────────────────
 // Trophy icon lives here — at each period group header — not on the INI row.
 
-function AchievementsPanel({ measurements, initiativeId, iniAcademicYearId, basePlanPeriodFilterName, role, state, yearLocked, academicYears, assessmentPeriods, academicYearId, onRefresh, departmentBreakdown }) {
+function AchievementsPanel({ measurements, initiativeId, iniAcademicYearId, basePlanPeriodFilterName, role, state, yearLocked, academicYears, assessmentPeriods, academicYearId, onRefresh, departmentBreakdown, strategyId }) {
+  const { topLevelStrategyLabel } = useTerminology()
   const [editingAchievement, setEditingAchievement] = useState(null)
   // addingForPeriod: null (closed) | { id: number|undefined, name: string|undefined }
   const [addingForPeriod, setAddingForPeriod] = useState(null)
-  const qc = useQueryClient()
+  const [viewingAchievement, setViewingAchievement] = useState(null)
 
   // canAddAch: base eligibility — per-group year lock is checked separately
   const canAddAch = canRecordAchievement(role, state) && (measurements?.length ?? 0) > 0
 
-  // Returns true if the academic year matching this period name is frozen
-  const isPeriodLocked = (periodName) => {
-    const match = academicYears.find((y) => y.name === periodName)
-    return match ? (match.closed ?? false) : yearLocked
-  }
-
+  const groupLockedFor = (periodName) => isPeriodLocked(academicYears, yearLocked, periodName)
   const periodIdForName = (name) => assessmentPeriods.find((p) => p.name === name)?.id
 
   // This initiative row being a base row (iniAcademicYearId null) -- whether because Base Plan is
@@ -458,69 +327,12 @@ function AchievementsPanel({ measurements, initiativeId, iniAcademicYearId, base
   const isLoading = showingBasePlan ? acrossYearsQuery.isLoading : perMeasurementQueries.some((q) => q.isLoading)
   const all = showingBasePlan ? (acrossYearsQuery.data ?? []) : perMeasurementQueries.flatMap((q) => q.data ?? [])
 
-  const addAchMut = useMutation({
-    mutationFn: (values) => logAchievementWithEvaluation({
-      measurementId: measurements[0].id,
-      achievementTitle: values.title,
-      achievementTypeId: values.achievementTypeId,
-      customTypeName: values.customTypeName,
-      details: values.details,
-      privateNotes: values.privateNotes,
-      assessmentPeriodId: values.assessmentPeriodId,
-      categoryId: values.categoryId,
-      criteriaId: values.criteriaId,
-      categoryRating: values.categoryRating,
-      goalId: values.goalId,
-      evidenceUrl: values.evidenceUrl,
-    }),
-    onSuccess: () => {
-      message.success('Achievement recorded')
-      setAddingForPeriod(null)
-      ;(measurements ?? []).forEach((m) => qc.invalidateQueries({ queryKey: ['achievements', m.id] }))
-      qc.invalidateQueries({ queryKey: ['achievements-across-years', initiativeId] })
-      onRefresh?.()
-    },
-    onError: (err) => message.error(err.response?.data?.message || 'Failed to record achievement'),
-  })
-
-  const editMut = useMutation({
-    mutationFn: async (values) => {
-      await updateAchievement(editingAchievement.id, {
-        title: values.title,
-        achievementTypeId: values.achievementTypeId,
-        customTypeName: values.customTypeName,
-        details: values.details,
-        privateNotes: values.privateNotes,
-        assessmentPeriodId: values.assessmentPeriodId,
-      })
-      await upsertEntryForAchievement(editingAchievement.id, {
-        categoryId: values.categoryId,
-        criteriaId: values.criteriaId,
-        categoryRating: values.categoryRating,
-        goalId: values.goalId,
-        evidenceUrl: values.evidenceUrl,
-      })
-    },
-    onSuccess: () => {
-      message.success('Achievement updated')
-      setEditingAchievement(null)
-      ;(measurements ?? []).forEach((m) => qc.invalidateQueries({ queryKey: ['achievements', m.id] }))
-      qc.invalidateQueries({ queryKey: ['achievements-across-years', initiativeId] })
-      onRefresh?.()
-    },
-    onError: (err) => message.error(err.response?.data?.message || 'Update failed'),
-  })
-
-  const deleteMut = useMutation({
-    mutationFn: (id) => deleteAchievement(id),
-    onSuccess: () => {
-      message.success('Achievement deleted')
-      ;(measurements ?? []).forEach((m) => qc.invalidateQueries({ queryKey: ['achievements', m.id] }))
-      qc.invalidateQueries({ queryKey: ['achievements-across-years', initiativeId] })
-      onRefresh?.()
-    },
-    onError: (err) => message.error(err.response?.data?.message || 'Delete failed'),
-  })
+  // Initiative-level fields (achievementCount, recentAchievements, status chip) live in the
+  // strategy-tree payload itself, not in these achievements/across-years queries -- every mutation
+  // here also calls onRefresh so those stay in sync, not just this panel's own achievement list.
+  const addAchMut = useAddAchievementMutation(measurements, initiativeId, strategyId, () => { setAddingForPeriod(null); onRefresh?.() })
+  const editMut = useEditAchievementMutation(measurements, initiativeId, strategyId, () => { setEditingAchievement(null); onRefresh?.() })
+  const deleteMut = useDeleteAchievementMutation(measurements, initiativeId, strategyId, () => onRefresh?.())
 
   // Nothing to show and no add capability
   if (!canAddAch && all.length === 0 && academicYears.length === 0 && !departmentBreakdown?.length) return null
@@ -552,32 +364,26 @@ function AchievementsPanel({ measurements, initiativeId, iniAcademicYearId, base
         </div>
 
         {Object.entries(grouped).sort(([a], [b]) => a.localeCompare(b)).map(([period, items]) => {
-          const groupLocked = isPeriodLocked(period)
+          const groupLocked = groupLockedFor(period)
           const deptContribs = deptByPeriod[period] ?? []
           const deptTotal = deptContribs.reduce((s, d) => s + d.achievementCount, 0)
           const periodTotal = items.length + deptTotal
           return (
-          <div key={period} style={{ marginBottom: 8 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-              <span style={{
-                fontSize: 11, fontWeight: 600,
-                background: groupLocked ? '#fff1f0' : '#eff6ff',
-                color: groupLocked ? '#cf1322' : '#1d4ed8',
-                padding: '1px 8px', borderRadius: 10,
-              }}>
-                {period} — {periodTotal} achievement{periodTotal !== 1 ? 's' : ''}
+          <div key={period} style={{ marginBottom: 14 }}>
+            <div className="ach-section-label">
+              <span className="lbl">
+                {period} · {periodTotal} achievement{periodTotal !== 1 ? 's' : ''}
                 {groupLocked && <LockOutlined style={{ marginLeft: 4, fontSize: 10 }} />}
               </span>
               {canAddAch && !groupLocked && (
-                <Tooltip title={`Add achievement for ${period}`}>
-                  <Button type="text" size="small" icon={<TrophyOutlined />}
-                    onClick={() => setAddingForPeriod({ name: period, id: items[0]?.assessmentPeriodId ?? periodIdForName(period) })}
-                    style={{ color: '#c9a24b', padding: '0 4px', height: 'auto', lineHeight: 1 }} />
-                </Tooltip>
+                <button type="button" className="add-ach-btn"
+                  onClick={() => setAddingForPeriod({ name: period, id: items[0]?.assessmentPeriodId ?? periodIdForName(period) })}>
+                  <span className="trophy">🏆</span> Add achievement
+                </button>
               )}
             </div>
             {deptContribs.length > 0 && (
-              <div style={{ margin: '0 0 4px 0', padding: '5px 10px', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 5 }}>
+              <div style={{ margin: '0 0 8px 0', padding: '5px 10px', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 5 }}>
                 <div style={{ fontSize: 10, fontWeight: 700, color: '#92400e', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>
                   Department Contributions
                 </div>
@@ -589,7 +395,7 @@ function AchievementsPanel({ measurements, initiativeId, iniAcademicYearId, base
                 ))}
                 {items.length > 0 && (
                   <div style={{ fontSize: 11, display: 'flex', justifyContent: 'space-between', color: '#374151', marginBottom: 2 }}>
-                    <span>Local (university)</span>
+                    <span>Local ({topLevelStrategyLabel.toLowerCase()})</span>
                     <span style={{ fontWeight: 600 }}>{items.length}</span>
                   </div>
                 )}
@@ -599,29 +405,37 @@ function AchievementsPanel({ measurements, initiativeId, iniAcademicYearId, base
                 </div>
               </div>
             )}
-            <ul style={{ margin: '2px 0 0 0', paddingLeft: 18 }}>
+            <div className="ach-card-list">
               {items.map((a) => (
-                <li key={a.id} style={{ fontSize: 12, color: '#374151', marginBottom: 3, lineHeight: 1.5, display: 'flex', alignItems: 'flex-start', gap: 4 }}>
-                  <span style={{ flex: 1 }}>
-                    {a.title}
-                    {a.authorName && (
-                      <span style={{ fontSize: 11, color: '#9ca3af', marginLeft: 6 }}>— {a.authorName}</span>
-                    )}
-                  </span>
-                  {!groupLocked && a.canEdit && (
-                    <Button type="text" size="small" icon={<EditOutlined />}
-                      style={{ color: '#9ca3af', padding: '0 2px', height: 'auto', flexShrink: 0 }}
-                      onClick={() => setEditingAchievement(a)} />
+                <Tooltip key={a.id} title={a.details || 'No additional details'} placement="left">
+                <div className="ach-card" style={{ cursor: 'pointer' }} onClick={() => setViewingAchievement(a)}>
+                  <span className="icon">🏆</span>
+                  <div className="body">
+                    <div className="title">{a.title}</div>
+                    <div className="meta">
+                      {a.achievementTypeName && <span className="type-tag">{a.achievementTypeName}</span>}
+                      <span className="date">{new Date(a.recordedAt).toISOString().slice(0, 10)}</span>
+                      {a.authorName && <span>— {a.authorName}</span>}
+                    </div>
+                  </div>
+                  {!groupLocked && (a.canEdit || a.canDelete) && (
+                    <div className="ach-card-actions" onClick={(e) => e.stopPropagation()}>
+                      {a.canEdit && (
+                        <Button type="text" size="small" icon={<EditOutlined />}
+                          style={{ color: '#9ca3af' }}
+                          onClick={() => setEditingAchievement(a)} />
+                      )}
+                      {a.canDelete && (
+                        <Popconfirm title="Delete achievement?" onConfirm={() => deleteMut.mutate(a.id)}>
+                          <Button type="text" size="small" icon={<DeleteOutlined />} style={{ color: '#ef4444' }} />
+                        </Popconfirm>
+                      )}
+                    </div>
                   )}
-                  {!groupLocked && a.canDelete && (
-                    <Popconfirm title="Delete achievement?" onConfirm={() => deleteMut.mutate(a.id)}>
-                      <Button type="text" size="small" icon={<DeleteOutlined />}
-                        style={{ color: '#ef4444', padding: '0 2px', height: 'auto', flexShrink: 0 }} />
-                    </Popconfirm>
-                  )}
-                </li>
+                </div>
+                </Tooltip>
               ))}
-            </ul>
+            </div>
           </div>
         )})}
       </div>
@@ -630,7 +444,7 @@ function AchievementsPanel({ measurements, initiativeId, iniAcademicYearId, base
       <AchievementModal
         open={!!editingAchievement}
         onClose={() => setEditingAchievement(null)}
-        onSave={editMut.mutate}
+        onSave={(values) => editMut.mutate({ achievementId: editingAchievement.id, values })}
         loading={editMut.isPending}
         title="Edit Achievement"
         assessmentPeriods={assessmentPeriods}
@@ -638,6 +452,7 @@ function AchievementsPanel({ measurements, initiativeId, iniAcademicYearId, base
         academicYearId={academicYearId}
         achievementId={editingAchievement?.id}
         authorId={editingAchievement?.authorId}
+        initialPeriodName={editingAchievement?.assessmentPeriodName}
         initialValues={editingAchievement ? {
           title: editingAchievement.title,
           achievementTypeId: editingAchievement.achievementTypeId,
@@ -661,15 +476,83 @@ function AchievementsPanel({ measurements, initiativeId, iniAcademicYearId, base
         initialPeriodName={addingForPeriod?.name}
         initialValues={{ assessmentPeriodId: addingForPeriod?.id }}
       />
+
+      <AchievementReportModal achievement={viewingAchievement} onClose={() => setViewingAchievement(null)} />
     </>
   )
 }
 
 // ─── InitiativeNode ───────────────────────────────────────────────────────────
+// Renders as either a card (default, grid) or a list row (Concept A-style, collapsible), per the
+// tree's cards/list toggle -- both share the exact same detail body (measurements + achievements).
 
-function InitiativeNode({ ini, objectiveId, isDeptStrategy, expanded, onToggle, role, state, strategyId, academicYearId, yearLocked, academicYears, assessmentPeriods, planningCycleId, comments, onComment, onRefresh, validationErrors }) {
+function InitiativeCardPreview({ ini }) {
+  const measurements = ini.measurements ?? []
+  if (measurements.length === 0) {
+    return <div className="kpi-line" style={{ color: '#9ca3af' }}>No KPIs recorded yet</div>
+  }
+  const first = measurements[0]
+  return (
+    <div className="kpi-line">
+      {first.description}: <span className="v">{first.actualValue ?? '—'}{first.unit ? ` ${first.unit}` : ''}</span>
+      {' '}/ target <span className="v">{first.targetValue ?? '—'}{first.unit ? ` ${first.unit}` : ''}</span>
+      {measurements.length > 1 && (
+        <span style={{ marginLeft: 6, color: '#9ca3af' }}>
+          +{measurements.length - 1} more KPI{measurements.length - 1 !== 1 ? 's' : ''}
+        </span>
+      )}
+    </div>
+  )
+}
+
+// Up to 2 achievements shown directly on the card -- the server prioritizes the viewer's own into
+// these 2 slots (see StrategyService.buildInitiativeResponse), falling back to most-recent overall,
+// so a user's own achievements get quick edit/delete right here without opening "View all". A "+N
+// more" line derived from the direct achievementCount already on the initiative covers the rest.
+function InitiativeAchievementPreview({ ini, onEdit, onDelete, onView }) {
+  const preview = ini.recentAchievements ?? []
+  if (preview.length === 0) return null
+  const remaining = (ini.achievementCount ?? 0) - preview.length
+  return (
+    <div className="ach-preview">
+      {preview.map((a) => (
+        <Tooltip key={a.id} title={a.details || 'No additional details'} placement="left">
+        <div className="ach-chip" style={{ cursor: 'pointer' }} onClick={() => onView(a)}>
+          <span className="ach-chip-text">
+            {a.title}
+            {a.authorName && <span className="who"> — {a.authorName}</span>}
+          </span>
+          {(a.canEdit || a.canDelete) && (
+            <span className="ach-chip-actions" onClick={(e) => e.stopPropagation()}>
+              {a.canEdit && (
+                <Button type="text" size="small" icon={<EditOutlined />}
+                  onClick={() => onEdit(a)} style={{ color: '#6b7280', padding: '0 2px', height: 'auto' }} />
+              )}
+              {a.canDelete && (
+                <Popconfirm title="Delete achievement?" onConfirm={() => onDelete(a.id)}>
+                  <Button type="text" size="small" icon={<DeleteOutlined />}
+                    style={{ color: '#ef4444', padding: '0 2px', height: 'auto' }} />
+                </Popconfirm>
+              )}
+            </span>
+          )}
+        </div>
+        </Tooltip>
+      ))}
+      {remaining > 0 && <div className="ach-more">+ {remaining} more</div>}
+    </div>
+  )
+}
+
+function InitiativeNode({ ini, objectiveId, isDeptStrategy, viewMode, role, state, strategyId, academicYearId, yearLocked, academicYears, assessmentPeriods, planningCycleId, comments, onComment, onRefresh, validationErrors, threshold }) {
   const [editOpen, setEditOpen] = useState(false)
   const [addMeasOpen, setAddMeasOpen] = useState(false)
+  const [quickAddOpen, setQuickAddOpen] = useState(false)
+  const [editingPreviewAchievement, setEditingPreviewAchievement] = useState(null)
+  const [viewingPreviewAchievement, setViewingPreviewAchievement] = useState(null)
+  const [rowExpanded, setRowExpanded] = useState(false)
+  const [detailOpen, setDetailOpen] = useState(false)
+  const { topLevelStrategyLabel, academicYearLabel } = useTerminology()
   const editable = canEdit(role, state)
   const isFrozen = ini.hasAchievements
   const iniInvalid = validationErrors?.initiativeIds?.has(ini.id)
@@ -702,89 +585,60 @@ function InitiativeNode({ ini, objectiveId, isDeptStrategy, expanded, onToggle, 
     onError: () => message.error('Create failed'),
   })
 
-  const hasContent = (ini.measurements?.length ?? 0) > 0 || ini.hasAchievements || ini.mappedAchievementCount > 0
+  const quickAddMut = useAddAchievementMutation(ini.measurements, ini.id, strategyId, () => { setQuickAddOpen(false); onRefresh?.() })
+  // Powers the card's own achievement-preview chips -- quick edit/delete without opening "View all".
+  const editPreviewMut = useEditAchievementMutation(ini.measurements, ini.id, strategyId, () => { setEditingPreviewAchievement(null); onRefresh?.() })
+  const deletePreviewMut = useDeleteAchievementMutation(ini.measurements, ini.id, strategyId, () => onRefresh?.())
 
-  return (
-    <div className="tree-node" style={{ marginLeft: 32 }}>
-      <div className="tree-node-header"
-        style={{ outline: iniInvalid ? '1px solid #fecaca' : undefined, background: iniInvalid ? '#fff5f5' : undefined }}
-        onClick={onToggle}>
-        <span style={{ width: 16, color: '#9ca3af', flexShrink: 0 }}>
-          {hasContent ? (expanded ? <DownOutlined /> : <RightOutlined />) : null}
-        </span>
-        <span className="node-type-badge initiative">INI</span>
-        <div style={{ flex: 1 }}>
-          <div className="node-title" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            {ini.title}
-            {iniInvalid && <ValidationWarning tip="Needs at least one measurement (KPI)" />}
-            {isFrozen && (
-              <Tooltip title="Has recorded achievements — cannot be edited or deleted">
-                <LockOutlined style={{ fontSize: 11, color: '#c9a24b' }} />
-              </Tooltip>
-            )}
-          </div>
-          {ini.description && <div className="node-desc">{ini.description}</div>}
-          {ini.universityInitiativeTitle && (
-            <Tooltip title="Mapped to university initiative">
-              <Tag color="purple" style={{ fontSize: 10, marginTop: 2, cursor: 'default' }}>
-                Uni: {ini.universityInitiativeTitle}
-              </Tag>
-            </Tooltip>
-          )}
-          {ini.mappedAchievementCount > 0 && (
-            <Tooltip title={`${ini.mappedAchievementCount} achievements from mapped departments + ${ini.achievementCount} local`}>
-              <Tag color="gold" style={{ fontSize: 10, marginTop: 2, cursor: 'default' }}>
-                {ini.achievementCount + ini.mappedAchievementCount} achievements total
-              </Tag>
-            </Tooltip>
-          )}
-        </div>
-        <div className="node-actions">
-          <CommentBtn entityType="INITIATIVE" entityId={ini.id} comments={comments} onClick={onComment} />
-          {editable && (
-            <>
-              {!isFrozen && (
-                <>
-                  <Button type="text" size="small" icon={<EditOutlined />}
-                    onClick={(e) => { e.stopPropagation(); setEditOpen(true) }}
-                    style={{ color: '#6b7280' }} />
-                  <Popconfirm title="Delete initiative?" onConfirm={() => deleteMut.mutate()}>
-                    <Button type="text" size="small" icon={<DeleteOutlined />}
-                      onClick={(e) => e.stopPropagation()} style={{ color: '#ef4444' }} />
-                  </Popconfirm>
-                </>
-              )}
-              <Button type="text" size="small" icon={<PlusOutlined />}
-                onClick={(e) => { e.stopPropagation(); setAddMeasOpen(true) }}
-                style={{ color: '#6b7280' }} title="Add Measurement" />
-            </>
-          )}
-        </div>
-      </div>
+  const hasMeasurement = (ini.measurements?.length ?? 0) > 0
+  const hasContent = hasMeasurement || ini.hasAchievements || ini.mappedAchievementCount > 0
+  const totalAchievements = (ini.achievementCount ?? 0) + (ini.mappedAchievementCount ?? 0)
+  const frozenByYear = isPeriodLocked(academicYears, yearLocked, ini.assessmentPeriodName)
+  const status = initiativeStatus(totalAchievements, threshold, frozenByYear)
+  // The card's fast-add can only fix an achievement to an unambiguous period -- when viewing Base
+  // Plan with no year context at all, fall back to "View all", where every period already has its
+  // own fixed-period Add button (see AchievementsPanel).
+  const fixedPeriod = resolveFixedPeriod(ini, academicYearId, academicYears, assessmentPeriods)
+  const canAddAch = canRecordAchievement(role, state) && hasMeasurement && !!fixedPeriod
 
-      {expanded && (
-        <div className="tree-node-body" style={{ padding: '8px 16px 8px 48px' }}>
-          {ini.measurements?.map((m) => (
-            <MeasurementNode key={m.id} m={m} role={role} state={state}
-              comments={comments} onComment={onComment} onRefresh={onRefresh} />
-          ))}
-          <AchievementsPanel
-            measurements={ini.measurements ?? []}
-            initiativeId={ini.id}
-            iniAcademicYearId={ini.academicYearId}
-            basePlanPeriodFilterName={ini.assessmentPeriodName}
-            role={role}
-            state={state}
-            yearLocked={yearLocked}
-            academicYears={academicYears}
-            assessmentPeriods={assessmentPeriods}
-            academicYearId={academicYearId}
-            onRefresh={onRefresh}
-            departmentBreakdown={ini.departmentBreakdown}
-          />
-        </div>
-      )}
+  const editDeleteActions = editable && !isFrozen && (
+    <>
+      <Button type="text" size="small" icon={<EditOutlined />}
+        onClick={(e) => { e.stopPropagation(); setEditOpen(true) }} style={{ color: '#6b7280' }} />
+      <Popconfirm title="Delete initiative?" onConfirm={() => deleteMut.mutate()}>
+        <Button type="text" size="small" icon={<DeleteOutlined />}
+          onClick={(e) => e.stopPropagation()} style={{ color: '#ef4444' }} />
+      </Popconfirm>
+    </>
+  )
 
+  const addMeasurementAction = editable && (
+    <Button type="text" size="small" icon={<PlusOutlined />}
+      onClick={(e) => { e.stopPropagation(); setAddMeasOpen(true) }}
+      style={{ color: '#6b7280' }} title="Add Measurement" />
+  )
+
+  const detailBody = (
+    <div>
+      {ini.measurements?.map((m) => (
+        <MeasurementNode key={m.id} m={m} role={role} state={state}
+          comments={comments} onComment={onComment} onRefresh={onRefresh} />
+      ))}
+      <AchievementsPanel
+        measurements={ini.measurements ?? []}
+        initiativeId={ini.id}
+        iniAcademicYearId={ini.academicYearId}
+        basePlanPeriodFilterName={ini.assessmentPeriodName}
+        role={role} state={state} yearLocked={yearLocked}
+        academicYears={academicYears} assessmentPeriods={assessmentPeriods}
+        academicYearId={academicYearId} onRefresh={onRefresh}
+        departmentBreakdown={ini.departmentBreakdown} strategyId={strategyId}
+      />
+    </div>
+  )
+
+  const sharedModals = (
+    <>
       <QuickEditModal open={editOpen} onClose={() => setEditOpen(false)}
         onSave={updateMut.mutate} loading={updateMut.isPending} title="Edit Initiative"
         initialValues={{ title: ini.title, description: ini.description, universityInitiativeId: ini.universityInitiativeId ?? undefined }}
@@ -793,15 +647,14 @@ function InitiativeNode({ ini, objectiveId, isDeptStrategy, expanded, onToggle, 
           { name: 'description', label: 'Description', type: 'textarea' },
           ...(showUniversityMapping ? [{
             name: 'universityInitiativeId',
-            label: 'University Initiative',
+            label: `${topLevelStrategyLabel} Initiative`,
             type: 'select',
-            placeholder: 'Select the university initiative this maps to',
+            placeholder: `Select the ${topLevelStrategyLabel.toLowerCase()} initiative this maps to`,
             options: universityInitiativeOptions,
             loading: loadingUnivInitiatives,
-            rules: [{ required: true, message: 'Map this initiative to a university initiative' }],
+            rules: [{ required: true, message: `Map this initiative to a ${topLevelStrategyLabel.toLowerCase()} initiative` }],
           }] : []),
         ]} />
-
       <QuickEditModal open={addMeasOpen} onClose={() => setAddMeasOpen(false)}
         onSave={addMeasMut.mutate} loading={addMeasMut.isPending} title="Add Measurement"
         initialValues={{}}
@@ -810,13 +663,152 @@ function InitiativeNode({ ini, objectiveId, isDeptStrategy, expanded, onToggle, 
           { name: 'unit', label: 'Unit', type: 'unit' },
           { name: 'targetValue', label: 'Target Value', type: 'number' },
         ]} />
+      {/* Fast path: record an achievement straight from the card, no need to open its detail
+          view first -- shares the same mutation AchievementsPanel and the rail both use. */}
+      <AchievementModal
+        open={quickAddOpen} onClose={() => setQuickAddOpen(false)}
+        onSave={quickAddMut.mutate} loading={quickAddMut.isPending}
+        title={`Record Achievement — ${ini.title}`}
+        assessmentPeriods={assessmentPeriods} academicYears={academicYears} academicYearId={academicYearId}
+        initialPeriodName={fixedPeriod?.name}
+        initialValues={{ assessmentPeriodId: fixedPeriod?.id }} />
+      {/* Quick edit for a card's own achievement-preview chips -- same modal AchievementsPanel uses. */}
+      <AchievementModal
+        open={!!editingPreviewAchievement} onClose={() => setEditingPreviewAchievement(null)}
+        onSave={(values) => editPreviewMut.mutate({ achievementId: editingPreviewAchievement.id, values })}
+        loading={editPreviewMut.isPending}
+        title="Edit Achievement"
+        assessmentPeriods={assessmentPeriods} academicYears={academicYears} academicYearId={academicYearId}
+        achievementId={editingPreviewAchievement?.id}
+        authorId={editingPreviewAchievement?.authorId}
+        initialPeriodName={editingPreviewAchievement?.assessmentPeriodName}
+        initialValues={editingPreviewAchievement ? {
+          title: editingPreviewAchievement.title,
+          achievementTypeId: editingPreviewAchievement.achievementTypeId,
+          customTypeName: editingPreviewAchievement.customTypeName,
+          assessmentPeriodId: editingPreviewAchievement.assessmentPeriodId,
+          details: editingPreviewAchievement.details,
+          privateNotes: editingPreviewAchievement.privateNotes,
+        } : {}} />
+      <AchievementReportModal achievement={viewingPreviewAchievement} onClose={() => setViewingPreviewAchievement(null)} />
+    </>
+  )
+
+  if (viewMode === 'list') {
+    return (
+      <div className="tree-node">
+        <div className="tree-node-header"
+          style={{ outline: iniInvalid ? '1px solid #fecaca' : undefined, background: iniInvalid ? '#fff5f5' : undefined }}
+          onClick={() => setRowExpanded((v) => !v)}>
+          <span style={{ width: 16, color: '#9ca3af', flexShrink: 0 }}>
+            {hasContent ? (rowExpanded ? <DownOutlined /> : <RightOutlined />) : null}
+          </span>
+          <span className="node-type-badge initiative">INI</span>
+          <div style={{ flex: 1 }}>
+            <div className="node-title" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              {ini.title}
+              {iniInvalid && <ValidationWarning tip="Needs at least one measurement (KPI)" />}
+              {isFrozen && (
+                <Tooltip title="Has recorded achievements — cannot be edited or deleted">
+                  <LockOutlined style={{ fontSize: 11, color: '#c9a24b' }} />
+                </Tooltip>
+              )}
+            </div>
+            {ini.description && <div className="node-desc">{ini.description}</div>}
+            {ini.universityInitiativeTitle && (
+              <Tooltip title={`Mapped to ${topLevelStrategyLabel.toLowerCase()} initiative: ${ini.universityInitiativeTitle}`}>
+                <Tag color="purple" style={{ fontSize: 10, marginTop: 2, cursor: 'default', maxWidth: '100%', overflow: 'hidden' }}>
+                  <span style={{ display: 'inline-block', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', verticalAlign: 'bottom' }}>
+                    {topLevelStrategyLabel}: {ini.universityInitiativeTitle}
+                  </span>
+                </Tag>
+              </Tooltip>
+            )}
+          </div>
+          <span className={`status-chip ${status.tone}`}>{status.label}</span>
+          <span className="ini-count">{totalAchievements} achievement{totalAchievements !== 1 ? 's' : ''}</span>
+          <div className="node-actions" onClick={(e) => e.stopPropagation()}>
+            <CommentBtn entityType="INITIATIVE" entityId={ini.id} comments={comments} onClick={onComment} />
+            {editDeleteActions}
+            {addMeasurementAction}
+            {canRecordAchievement(role, state) && hasMeasurement && (
+              <Tooltip title={fixedPeriod ? 'Record achievement' : `Select a specific ${academicYearLabel.toLowerCase()} above, or use View all to add for an existing period`}>
+                <Button type="text" size="small" icon={<TrophyOutlined />} disabled={!fixedPeriod}
+                  onClick={() => setQuickAddOpen(true)} style={{ color: fixedPeriod ? '#c9a24b' : '#d1d5db' }} />
+              </Tooltip>
+            )}
+          </div>
+        </div>
+        {rowExpanded && (
+          <div className="tree-node-body" style={{ padding: '8px 16px 8px 48px' }}>
+            {detailBody}
+          </div>
+        )}
+        {sharedModals}
+      </div>
+    )
+  }
+
+  return (
+    <div className={`init-card ${iniInvalid ? 'invalid' : ''}`}>
+      <span className="node-type-badge initiative card-badge">Initiative</span>
+      <div className="init-card-top">
+        <div className="init-card-title">
+          {ini.title}
+          {iniInvalid && <ValidationWarning tip="Needs at least one measurement (KPI)" />}
+          {isFrozen && (
+            <Tooltip title="Has recorded achievements — cannot be edited or deleted">
+              <LockOutlined style={{ fontSize: 11, color: '#c9a24b' }} />
+            </Tooltip>
+          )}
+        </div>
+        <span className={`status-chip ${status.tone}`}>{status.label}</span>
+      </div>
+      {ini.universityInitiativeTitle && (
+        <Tooltip title={`Mapped to ${topLevelStrategyLabel.toLowerCase()} initiative: ${ini.universityInitiativeTitle}`}>
+          <Tag color="purple" style={{ fontSize: 10, alignSelf: 'flex-start', maxWidth: '100%', overflow: 'hidden' }}>
+            <span style={{ display: 'inline-block', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', verticalAlign: 'bottom' }}>
+              {topLevelStrategyLabel}: {ini.universityInitiativeTitle}
+            </span>
+          </Tag>
+        </Tooltip>
+      )}
+      <InitiativeCardPreview ini={ini} />
+      <InitiativeAchievementPreview ini={ini}
+        onEdit={setEditingPreviewAchievement}
+        onDelete={(id) => deletePreviewMut.mutate(id)}
+        onView={setViewingPreviewAchievement} />
+      <div className="init-card-foot">
+        <span className="ach-count"><b>{totalAchievements}</b>logged</span>
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+          <CommentBtn entityType="INITIATIVE" entityId={ini.id} comments={comments} onClick={onComment} />
+          {editDeleteActions}
+          {addMeasurementAction}
+          <Button size="small" type="text" onClick={() => setDetailOpen(true)}>View all</Button>
+          <Button size="small" className="card-add-btn" icon={<TrophyOutlined />}
+            disabled={!canAddAch}
+            title={!hasMeasurement ? 'Add a KPI first'
+              : !fixedPeriod ? `Select a specific ${academicYearLabel.toLowerCase()} above, or use View all to add for an existing period`
+              : undefined}
+            onClick={() => (hasMeasurement && fixedPeriod ? setQuickAddOpen(true) : setDetailOpen(true))}>
+            {hasMeasurement ? 'Add' : 'Add a KPI first'}
+          </Button>
+        </div>
+      </div>
+
+      <Drawer title={ini.title} open={detailOpen} onClose={() => setDetailOpen(false)} width={520} destroyOnClose>
+        {detailBody}
+      </Drawer>
+      {sharedModals}
     </div>
   )
 }
 
 // ─── ObjectiveNode ────────────────────────────────────────────────────────────
+// No longer collapsible -- always shows its Initiatives, as a card grid or a list, per viewMode.
 
-function ObjectiveNode({ obj, expanded, onToggle, expandedInitiativeIds, onToggleInitiative, role, state, strategyId, academicYearId, yearLocked, academicYears, assessmentPeriods, planningCycleId, isDeptStrategy, comments, onComment, onRefresh, validationErrors }) {
+function ObjectiveNode({ obj, isDeptStrategy, viewMode, role, state, strategyId, academicYearId, yearLocked, academicYears, assessmentPeriods, planningCycleId, comments, onComment, onRefresh, validationErrors, threshold }) {
+  const { topLevelStrategyLabel } = useTerminology()
   const [editOpen, setEditOpen] = useState(false)
   const [addIniOpen, setAddIniOpen] = useState(false)
   const editable = canEdit(role, state)
@@ -867,52 +859,49 @@ function ObjectiveNode({ obj, expanded, onToggle, expandedInitiativeIds, onToggl
     onError: (err) => message.error(err.response?.data?.message || 'Create failed'),
   })
 
-  const iniCount = obj.initiatives?.length ?? 0
   const objInvalid = validationErrors?.objectiveIds?.has(obj.id)
+  const initiatives = obj.initiatives ?? []
+
+  const initiativeProps = {
+    isDeptStrategy, viewMode, role, state, strategyId, academicYearId, yearLocked,
+    academicYears, assessmentPeriods, planningCycleId, comments, onComment, onRefresh,
+    validationErrors, threshold,
+  }
 
   return (
-    <div className="tree-node" style={{ marginLeft: 16 }}>
-      <div className="tree-node-header"
-        style={{ outline: objInvalid ? '1px solid #fecaca' : undefined, background: objInvalid ? '#fff5f5' : undefined }}
-        onClick={onToggle}>
-        <span style={{ width: 16, color: '#9ca3af', flexShrink: 0 }}>
-          {iniCount > 0 ? (expanded ? <DownOutlined /> : <RightOutlined />) : null}
+    <div className={`board-objective ${objInvalid ? 'invalid' : ''}`}>
+      <div className="board-objective-head">
+        <span className="node-type-badge objective">Objective</span>
+        <span className="obj-title">
+          {obj.title}
+          {obj.frozen && <span className="frozen-badge" style={{ marginLeft: 8 }}><LockOutlined style={{ fontSize: 10 }} /> Frozen</span>}
+          {objInvalid && <ValidationWarning tip="Needs at least one initiative" />}
         </span>
-        <span className="node-type-badge objective">OBJ</span>
-        <div style={{ flex: 1 }}>
-          <div className="node-title" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            {obj.title}
-            {obj.frozen && <span className="frozen-badge"><LockOutlined style={{ fontSize: 10 }} /> Frozen</span>}
-            {objInvalid && <ValidationWarning tip="Needs at least one initiative" />}
-          </div>
-          {obj.description && <div className="node-desc">{obj.description}</div>}
-          {obj.universityObjectiveTitles?.length > 0 && (
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 2 }}>
-              {obj.universityObjectiveTitles.map((t, i) => (
-                <Tooltip key={i} title="Mapped to university objective">
-                  <Tag color="geekblue" style={{ fontSize: 10, cursor: 'default' }}>
-                    Uni: {t}
-                  </Tag>
-                </Tooltip>
-              ))}
-            </div>
-          )}
-        </div>
+        {obj.universityObjectiveTitles?.length > 0 && (
+          <span style={{ display: 'flex', gap: 4, maxWidth: '100%', flexWrap: 'wrap' }}>
+            {obj.universityObjectiveTitles.map((t, i) => (
+              <Tooltip key={i} title={`Mapped to ${topLevelStrategyLabel.toLowerCase()} objective: ${t}`}>
+                <Tag color="geekblue" style={{ fontSize: 10, cursor: 'default', maxWidth: '100%', overflow: 'hidden' }}>
+                  <span style={{ display: 'inline-block', maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', verticalAlign: 'bottom' }}>
+                    {topLevelStrategyLabel}: {t}
+                  </span>
+                </Tag>
+              </Tooltip>
+            ))}
+          </span>
+        )}
         <div className="node-actions">
           <CommentBtn entityType="OBJECTIVE" entityId={obj.id} comments={comments} onClick={onComment} />
           {editable && (
             <>
               <Button type="text" size="small" icon={<EditOutlined />}
-                onClick={(e) => { e.stopPropagation(); setEditOpen(true) }}
-                style={{ color: '#6b7280' }} />
+                onClick={() => setEditOpen(true)} style={{ color: '#6b7280' }} />
               {!obj.frozen && (
                 <Button type="text" size="small" icon={<PlusOutlined />}
-                  onClick={(e) => { e.stopPropagation(); setAddIniOpen(true) }}
-                  style={{ color: '#6b7280' }} title="Add Initiative" />
+                  onClick={() => setAddIniOpen(true)} style={{ color: '#6b7280' }} title="Add Initiative" />
               )}
               <Popconfirm title="Delete objective?" onConfirm={() => deleteMut.mutate()}>
-                <Button type="text" size="small" icon={<DeleteOutlined />}
-                  onClick={(e) => e.stopPropagation()} style={{ color: '#ef4444' }} />
+                <Button type="text" size="small" icon={<DeleteOutlined />} style={{ color: '#ef4444' }} />
               </Popconfirm>
             </>
           )}
@@ -920,23 +909,26 @@ function ObjectiveNode({ obj, expanded, onToggle, expandedInitiativeIds, onToggl
             <Tooltip title={obj.frozen ? 'Unfreeze' : 'Freeze'}>
               <Button type="text" size="small"
                 icon={obj.frozen ? <UnlockOutlined /> : <LockOutlined />}
-                onClick={(e) => { e.stopPropagation(); freezeMut.mutate() }}
+                onClick={() => freezeMut.mutate()}
                 style={{ color: obj.frozen ? '#c0871a' : '#6b7280' }} />
             </Tooltip>
           )}
         </div>
       </div>
+      {obj.description && <div className="node-desc" style={{ marginBottom: 10 }}>{obj.description}</div>}
 
-      {expanded && obj.initiatives?.length > 0 && (
-        <div>
-          {obj.initiatives.map((ini) => (
-            <InitiativeNode key={ini.id} ini={ini} objectiveId={obj.id} isDeptStrategy={isDeptStrategy}
-              expanded={expandedInitiativeIds.has(ini.id)} onToggle={() => onToggleInitiative(ini.id)}
-              role={role} state={state}
-              strategyId={strategyId} academicYearId={academicYearId} yearLocked={yearLocked}
-              academicYears={academicYears} assessmentPeriods={assessmentPeriods}
-              planningCycleId={planningCycleId} comments={comments}
-              onComment={onComment} onRefresh={onRefresh} validationErrors={validationErrors} />
+      {initiatives.length === 0 ? (
+        <div className="board-empty">No initiatives yet.</div>
+      ) : viewMode === 'list' ? (
+        <div className="init-list-view">
+          {initiatives.map((ini) => (
+            <InitiativeNode key={ini.id} ini={ini} objectiveId={obj.id} {...initiativeProps} />
+          ))}
+        </div>
+      ) : (
+        <div className="board-grid">
+          {initiatives.map((ini) => (
+            <InitiativeNode key={ini.id} ini={ini} objectiveId={obj.id} {...initiativeProps} />
           ))}
         </div>
       )}
@@ -949,13 +941,13 @@ function ObjectiveNode({ obj, expanded, onToggle, expandedInitiativeIds, onToggl
           { name: 'description', label: 'Description', type: 'textarea' },
           ...(isDeptStrategy ? [{
             name: 'universityObjectiveIds',
-            label: 'University Objective(s)',
+            label: `${topLevelStrategyLabel} Objective(s)`,
             type: 'select',
             mode: 'multiple',
-            placeholder: 'Select at least one university objective',
+            placeholder: `Select at least one ${topLevelStrategyLabel.toLowerCase()} objective`,
             options: universityObjectiveOptions,
             loading: loadingUnivObjectives,
-            rules: [{ required: true, type: 'array', min: 1, message: 'Map this objective to at least one university objective' }],
+            rules: [{ required: true, type: 'array', min: 1, message: `Map this objective to at least one ${topLevelStrategyLabel.toLowerCase()} objective` }],
           }] : []),
         ]} />
 
@@ -967,12 +959,12 @@ function ObjectiveNode({ obj, expanded, onToggle, expandedInitiativeIds, onToggl
           { name: 'description', label: 'Description', type: 'textarea' },
           ...(isDeptStrategy && !academicYearId ? [{
             name: 'universityInitiativeId',
-            label: 'University Initiative',
+            label: `${topLevelStrategyLabel} Initiative`,
             type: 'select',
-            placeholder: 'Select the university initiative this maps to',
+            placeholder: `Select the ${topLevelStrategyLabel.toLowerCase()} initiative this maps to`,
             options: universityInitiativeOptions,
             loading: loadingUnivInitiatives,
-            rules: [{ required: true, message: 'Map this initiative to a university initiative' }],
+            rules: [{ required: true, message: `Map this initiative to a ${topLevelStrategyLabel.toLowerCase()} initiative` }],
           }] : []),
         ]} />
     </div>
@@ -980,8 +972,10 @@ function ObjectiveNode({ obj, expanded, onToggle, expandedInitiativeIds, onToggl
 }
 
 // ─── GoalNode ─────────────────────────────────────────────────────────────────
+// No longer collapsible -- always shows its Objectives.
 
-function GoalNode({ goal, expanded, onToggle, expandedObjectiveIds, onToggleObjective, expandedInitiativeIds, onToggleInitiative, role, state, strategyId, academicYearId, yearLocked, academicYears, assessmentPeriods, planningCycleId, isDeptStrategy, areas, comments, onComment, onRefresh, validationErrors }) {
+function GoalNode({ goal, isDeptStrategy, viewMode, role, state, strategyId, academicYearId, yearLocked, academicYears, assessmentPeriods, planningCycleId, areas, comments, onComment, onRefresh, validationErrors, threshold }) {
+  const { topLevelStrategyLabel } = useTerminology()
   const [editOpen, setEditOpen] = useState(false)
   const [addObjOpen, setAddObjOpen] = useState(false)
   const editable = canEdit(role, state)
@@ -1014,57 +1008,44 @@ function GoalNode({ goal, expanded, onToggle, expandedObjectiveIds, onToggleObje
     onError: (err) => message.error(err.response?.data?.message || 'Create failed'),
   })
 
-  const objCount = goal.objectives?.length ?? 0
   const goalInvalid = validationErrors?.goalIds?.has(goal.id)
+  const objectives = goal.objectives ?? []
 
   return (
-    <div className="tree-node">
-      <div className="tree-node-header"
-        style={{ background: goalInvalid ? '#fff5f5' : '#fafbff', outline: goalInvalid ? '1px solid #fecaca' : undefined }}
-        onClick={onToggle}>
-        <span style={{ width: 16, color: '#9ca3af', flexShrink: 0 }}>
-          {objCount > 0 ? (expanded ? <DownOutlined /> : <RightOutlined />) : null}
-        </span>
-        <span className="node-type-badge goal">GOAL</span>
-        <div style={{ flex: 1 }}>
-          <div className="node-title" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            {goal.title}
-            {goalInvalid && <ValidationWarning tip="Needs at least one objective" />}
-          </div>
-          {goal.description && <div className="node-desc">{goal.description}</div>}
-        </div>
+    <div className={`board-goal ${goalInvalid ? 'invalid' : ''}`}>
+      <div className="board-goal-head">
+        <span className="node-type-badge goal">Goal</span>
+        <h3>
+          {goal.title}
+          {goalInvalid && <ValidationWarning tip="Needs at least one objective" />}
+        </h3>
         <div className="node-actions">
           <CommentBtn entityType="GOAL" entityId={goal.id} comments={comments} onClick={onComment} />
           {editable && (
             <>
               <Button type="text" size="small" icon={<EditOutlined />}
-                onClick={(e) => { e.stopPropagation(); setEditOpen(true) }}
-                style={{ color: '#6b7280' }} />
+                onClick={() => setEditOpen(true)} style={{ color: '#6b7280' }} />
               <Button type="text" size="small" icon={<PlusOutlined />}
-                onClick={(e) => { e.stopPropagation(); setAddObjOpen(true) }}
-                style={{ color: '#6b7280' }} title="Add Objective" />
+                onClick={() => setAddObjOpen(true)} style={{ color: '#6b7280' }} title="Add Objective" />
               <Popconfirm title="Delete goal?" onConfirm={() => deleteMut.mutate()}>
-                <Button type="text" size="small" icon={<DeleteOutlined />}
-                  onClick={(e) => e.stopPropagation()} style={{ color: '#ef4444' }} />
+                <Button type="text" size="small" icon={<DeleteOutlined />} style={{ color: '#ef4444' }} />
               </Popconfirm>
             </>
           )}
         </div>
       </div>
+      {goal.description && <div className="node-desc" style={{ marginBottom: 12 }}>{goal.description}</div>}
 
-      {expanded && goal.objectives?.length > 0 && (
-        <div className="tree-node-body">
-          {goal.objectives.map((obj) => (
-            <ObjectiveNode key={obj.id} obj={obj}
-              expanded={expandedObjectiveIds.has(obj.id)} onToggle={() => onToggleObjective(obj.id)}
-              expandedInitiativeIds={expandedInitiativeIds} onToggleInitiative={onToggleInitiative}
-              role={role} state={state}
-              strategyId={strategyId} academicYearId={academicYearId} yearLocked={yearLocked}
-              academicYears={academicYears} assessmentPeriods={assessmentPeriods}
-              planningCycleId={planningCycleId} isDeptStrategy={isDeptStrategy} comments={comments}
-              onComment={onComment} onRefresh={onRefresh} validationErrors={validationErrors} />
-          ))}
-        </div>
+      {objectives.length === 0 ? (
+        <div className="board-empty">No objectives yet.</div>
+      ) : (
+        objectives.map((obj) => (
+          <ObjectiveNode key={obj.id} obj={obj} isDeptStrategy={isDeptStrategy} viewMode={viewMode}
+            role={role} state={state} strategyId={strategyId} academicYearId={academicYearId}
+            yearLocked={yearLocked} academicYears={academicYears} assessmentPeriods={assessmentPeriods}
+            planningCycleId={planningCycleId} comments={comments} onComment={onComment} onRefresh={onRefresh}
+            validationErrors={validationErrors} threshold={threshold} />
+        ))
       )}
 
       <QuickEditModal open={editOpen} onClose={() => setEditOpen(false)}
@@ -1089,13 +1070,13 @@ function GoalNode({ goal, expanded, onToggle, expandedObjectiveIds, onToggleObje
           { name: 'description', label: 'Description', type: 'textarea' },
           ...(isDeptStrategy ? [{
             name: 'universityObjectiveIds',
-            label: 'University Objective(s)',
+            label: `${topLevelStrategyLabel} Objective(s)`,
             type: 'select',
             mode: 'multiple',
-            placeholder: 'Select at least one university objective',
+            placeholder: `Select at least one ${topLevelStrategyLabel.toLowerCase()} objective`,
             options: universityObjectiveOptions,
             loading: loadingUnivObjectives,
-            rules: [{ required: true, type: 'array', min: 1, message: 'Map this objective to at least one university objective' }],
+            rules: [{ required: true, type: 'array', min: 1, message: `Map this objective to at least one ${topLevelStrategyLabel.toLowerCase()} objective` }],
           }] : []),
         ]} />
     </div>
@@ -1103,49 +1084,151 @@ function GoalNode({ goal, expanded, onToggle, expandedObjectiveIds, onToggleObje
 }
 
 // ─── AreaSection ──────────────────────────────────────────────────────────────
+// The only collapsible level now -- a gradient band; everything inside an open Area is flat.
 
-function AreaSection({ area, goals, expanded, onToggle, expandedGoalIds, onToggleGoal, expandedObjectiveIds, onToggleObjective, expandedInitiativeIds, onToggleInitiative, role, state, strategyId, academicYearId, yearLocked, academicYears, assessmentPeriods, planningCycleId, isDeptStrategy, areas, comments, onComment, onRefresh, validationErrors }) {
+function AreaSection({ area, goals, expanded, onToggle, isDeptStrategy, viewMode, role, state, strategyId, academicYearId, yearLocked, academicYears, assessmentPeriods, planningCycleId, areas, comments, onComment, onRefresh, validationErrors, threshold }) {
   const areaInvalid = area && validationErrors?.areaIds?.has(area.id)
 
   return (
-    <div className="area-section" style={{ outline: areaInvalid ? '1px solid #fecaca' : undefined, background: areaInvalid ? '#fff5f5' : undefined, borderRadius: areaInvalid ? 6 : undefined }}>
-      <div className="area-header" style={{ cursor: 'pointer', userSelect: 'none' }} onClick={onToggle}>
-        {expanded ? <DownOutlined style={{ fontSize: 11 }} /> : <RightOutlined style={{ fontSize: 11 }} />}
+    <div className={`area-band ${areaInvalid ? 'invalid' : ''}`}>
+      <div className="area-strip" onClick={onToggle}>
         {area ? (
           <>
-            <span>{area.name}</span>
-            <span className="area-tag">{goals.length} goals</span>
+            <span className="name">{area.name}</span>
+            <span className="count">{goals.length} goal{goals.length !== 1 ? 's' : ''}</span>
             {areaInvalid && <ValidationWarning tip="Needs at least one goal" />}
           </>
         ) : (
           <>
-            <span style={{ color: '#aab4c4' }}>Ungrouped Goals</span>
-            <span className="area-tag">{goals.length}</span>
+            <span className="name" style={{ opacity: 0.75 }}>Ungrouped Goals</span>
+            <span className="count">{goals.length}</span>
           </>
         )}
+        <span className="area-chevron">{expanded ? <DownOutlined /> : <RightOutlined />}</span>
       </div>
       {expanded && (
-        <div className="area-goals">
+        <div className="area-band-body">
           {goals.length === 0 ? (
-            <div style={{ padding: '16px', color: '#9ca3af', fontSize: 13, textAlign: 'center' }}>
-              No goals in this area
-            </div>
+            <div className="board-empty">No goals in this area</div>
           ) : (
             goals.map((goal) => (
-              <GoalNode key={goal.id} goal={goal}
-                expanded={expandedGoalIds.has(goal.id)} onToggle={() => onToggleGoal(goal.id)}
-                expandedObjectiveIds={expandedObjectiveIds} onToggleObjective={onToggleObjective}
-                expandedInitiativeIds={expandedInitiativeIds} onToggleInitiative={onToggleInitiative}
-                role={role} state={state}
-                strategyId={strategyId} academicYearId={academicYearId} yearLocked={yearLocked}
-                academicYears={academicYears} assessmentPeriods={assessmentPeriods}
-                planningCycleId={planningCycleId} isDeptStrategy={isDeptStrategy} areas={areas}
-                comments={comments} onComment={onComment} onRefresh={onRefresh}
-                validationErrors={validationErrors} />
+              <GoalNode key={goal.id} goal={goal} isDeptStrategy={isDeptStrategy} viewMode={viewMode}
+                role={role} state={state} strategyId={strategyId} academicYearId={academicYearId}
+                yearLocked={yearLocked} academicYears={academicYears} assessmentPeriods={assessmentPeriods}
+                planningCycleId={planningCycleId} areas={areas} comments={comments} onComment={onComment}
+                onRefresh={onRefresh} validationErrors={validationErrors} threshold={threshold} />
             ))
           )}
         </div>
       )}
+    </div>
+  )
+}
+
+// ─── AchievementRail ──────────────────────────────────────────────────────────
+// Always-visible companion to the board: log an achievement for any initiative in this strategy
+// without opening the tree, see the plan's overall numbers, and see what was just logged.
+
+function AchievementRail({ strategyId, goals, academicYears, assessmentPeriods, academicYearId, role, state, onRefresh }) {
+  const { academicYearLabel } = useTerminology()
+  const [pickerOpen, setPickerOpen] = useState(false)
+  const [search, setSearch] = useState('')
+  const [quickAddTarget, setQuickAddTarget] = useState(null)
+
+  const flat = flattenInitiatives(goals)
+  const filtered = search
+    ? flat.filter((f) => f.initiative.title.toLowerCase().includes(search.toLowerCase()))
+    : flat
+  const totalAchievements = flat.reduce(
+    (sum, f) => sum + (f.initiative.achievementCount ?? 0) + (f.initiative.mappedAchievementCount ?? 0), 0)
+
+  const { data: recent = [], isLoading: recentLoading } = useQuery({
+    queryKey: ['recent-achievements', strategyId],
+    queryFn: () => getRecentAchievements(strategyId, 8),
+    enabled: !!strategyId,
+  })
+
+  const quickAddMut = useAddAchievementMutation(
+    quickAddTarget?.initiative.measurements, quickAddTarget?.initiative.id, strategyId,
+    () => { setQuickAddTarget(null); onRefresh?.() },
+  )
+
+  const canAdd = canRecordAchievement(role, state)
+
+  return (
+    <div className="ach-rail">
+      <div className="rail-card">
+        <h3>Log an Achievement</h3>
+        <Button type="primary" block icon={<TrophyOutlined />} disabled={!canAdd} onClick={() => setPickerOpen(true)}
+          style={{ background: '#13223a' }}>
+          Record Achievement
+        </Button>
+        <div className="rail-hint">Search any initiative in this plan — no need to open the tree.</div>
+      </div>
+
+      <div className="rail-card">
+        <h3>This Plan, at a Glance</h3>
+        <div className="rail-stat-row">
+          <div className="rail-stat"><div className="n">{totalAchievements}</div><div className="l">Achievements</div></div>
+          <div className="rail-stat"><div className="n">{flat.length}</div><div className="l">Initiatives</div></div>
+          <div className="rail-stat"><div className="n">{goals.length}</div><div className="l">Goals</div></div>
+        </div>
+      </div>
+
+      <div className="rail-card">
+        <h3>Recently Logged</h3>
+        {recentLoading ? (
+          <div style={{ fontSize: 12, color: '#9ca3af' }}>Loading…</div>
+        ) : recent.length === 0 ? (
+          <div style={{ fontSize: 12, color: '#9ca3af' }}>No achievements logged yet.</div>
+        ) : (
+          recent.map((a) => (
+            <div key={a.id} className="rail-feed-item">
+              <span className="dot" />
+              <div>
+                <div className="t">{a.title}</div>
+                <div className="s">{a.initiativeTitle} — {new Date(a.recordedAt).toLocaleDateString()}</div>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+
+      <Modal title="Record Achievement" open={pickerOpen}
+        onCancel={() => { setPickerOpen(false); setSearch('') }} footer={null} destroyOnClose>
+        <Input placeholder="Search initiatives by title…" value={search}
+          onChange={(e) => setSearch(e.target.value)} style={{ marginBottom: 12 }} autoFocus />
+        <div className="rail-picker-list">
+          {filtered.length === 0 ? (
+            <div style={{ fontSize: 13, color: '#9ca3af', padding: '12px 0' }}>No matching initiatives.</div>
+          ) : filtered.map((f) => {
+            const hasMeasurement = (f.initiative.measurements?.length ?? 0) > 0
+            const period = resolveFixedPeriod(f.initiative, academicYearId, academicYears, assessmentPeriods)
+            const pickable = hasMeasurement && !!period
+            return (
+              <div key={f.initiative.id} className="rail-picker-item"
+                onClick={() => { if (pickable) { setPickerOpen(false); setQuickAddTarget(f) } }}
+                style={{ opacity: pickable ? 1 : 0.5, cursor: pickable ? 'pointer' : 'not-allowed' }}>
+                <div style={{ fontWeight: 600, fontSize: 13.5 }}>{f.initiative.title}</div>
+                <div style={{ fontSize: 11.5, color: '#9ca3af' }}>
+                  {f.goalTitle}
+                  {!hasMeasurement && ' · Needs a KPI before you can log an achievement'}
+                  {hasMeasurement && !period && ` · Select a specific ${academicYearLabel.toLowerCase()} above to log achievements here`}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      </Modal>
+
+      <AchievementModal
+        open={!!quickAddTarget} onClose={() => setQuickAddTarget(null)}
+        onSave={quickAddMut.mutate} loading={quickAddMut.isPending}
+        title={quickAddTarget ? `Record Achievement — ${quickAddTarget.initiative.title}` : 'Record Achievement'}
+        assessmentPeriods={assessmentPeriods} academicYears={academicYears} academicYearId={academicYearId}
+        initialPeriodName={quickAddTarget ? resolveFixedPeriod(quickAddTarget.initiative, academicYearId, academicYears, assessmentPeriods)?.name : undefined}
+        initialValues={{ assessmentPeriodId: quickAddTarget ? resolveFixedPeriod(quickAddTarget.initiative, academicYearId, academicYears, assessmentPeriods)?.id : undefined }}
+      />
     </div>
   )
 }
@@ -1164,8 +1247,9 @@ export default function StrategyTree({
   assessmentPeriods = [],
   validationErrors = null,
 }) {
-  const { goals = [], areas = [], state, id: strategyId, planningCycleId, strategyType } = strategy
+  const { goals = [], areas = [], state, id: strategyId, planningCycleId, strategyType, achievementThreshold } = strategy
   const isDeptStrategy = strategyType !== 'UNIVERSITY'
+  const threshold = achievementThreshold ?? 3
 
   const goalsByAreaId = {}
   const ungrouped = []
@@ -1178,78 +1262,70 @@ export default function StrategyTree({
     }
   })
 
-  // Expand/collapse state for the whole tree lives here so one "Expand All / Collapse All"
-  // button can drive every level at once. Areas default OPEN (so we track what's collapsed);
-  // goals/objectives/initiatives default CLOSED (so we track what's expanded) — same as each
-  // node's original per-instance default, which also means a newly-added item automatically
-  // gets the right default with no extra sync effect (its id just isn't in either Set yet).
+  // Vision Areas are the only level that still collapses -- Goals/Objectives/Initiatives all
+  // render flat once their Area is open (see the approved board redesign). Areas default open.
   const [collapsedAreaKeys, setCollapsedAreaKeys] = useState(() => new Set())
-  const [expandedGoalIds, setExpandedGoalIds] = useState(() => new Set())
-  const [expandedObjectiveIds, setExpandedObjectiveIds] = useState(() => new Set())
-  const [expandedInitiativeIds, setExpandedInitiativeIds] = useState(() => new Set())
-  const [allExpanded, setAllExpanded] = useState(false)
-
+  const [allAreasExpanded, setAllAreasExpanded] = useState(true)
   const toggleArea = (key) => setCollapsedAreaKeys((prev) => toggled(prev, key))
-  const toggleGoal = (id) => setExpandedGoalIds((prev) => toggled(prev, id))
-  const toggleObjective = (id) => setExpandedObjectiveIds((prev) => toggled(prev, id))
-  const toggleInitiative = (id) => setExpandedInitiativeIds((prev) => toggled(prev, id))
 
-  const handleExpandCollapseAll = () => {
-    if (allExpanded) {
-      // Collapse back to just Goals: areas stay open (so the goal list itself stays visible),
-      // everything below a goal (objectives/initiatives/measurements/achievements) closes.
-      setExpandedGoalIds(new Set())
-      setExpandedObjectiveIds(new Set())
-      setExpandedInitiativeIds(new Set())
+  const handleExpandCollapseAllAreas = () => {
+    if (allAreasExpanded) {
+      setCollapsedAreaKeys(new Set([...areas.map((a) => a.id), 'ungrouped']))
     } else {
-      const objectiveIds = []
-      const initiativeIds = []
-      goals.forEach((g) => (g.objectives ?? []).forEach((o) => {
-        objectiveIds.push(o.id)
-        ;(o.initiatives ?? []).forEach((i) => initiativeIds.push(i.id))
-      }))
       setCollapsedAreaKeys(new Set())
-      setExpandedGoalIds(new Set(goals.map((g) => g.id)))
-      setExpandedObjectiveIds(new Set(objectiveIds))
-      setExpandedInitiativeIds(new Set(initiativeIds))
     }
-    setAllExpanded(!allExpanded)
+    setAllAreasExpanded(!allAreasExpanded)
   }
+
+  // Cards (default) vs. List display for Initiatives -- remembered per strategy.
+  const [viewMode, setViewMode] = useViewPrefs(`spms.strategyTreeView.${strategyId}`, 'cards')
+
+  const hasAnyGoals = areas.length > 0 || ungrouped.length > 0
 
   return (
     <div className="strategy-tree">
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
-        <Button size="small" onClick={handleExpandCollapseAll}>
-          {allExpanded ? 'Collapse All' : 'Expand All'}
+      <div className="tree-toolbar">
+        <div className="view-toggle" role="group" aria-label="Initiative display">
+          <button type="button" className={viewMode === 'cards' ? 'active' : ''} onClick={() => setViewMode('cards')}>▦ Cards</button>
+          <button type="button" className={viewMode === 'list' ? 'active' : ''} onClick={() => setViewMode('list')}>☰ List</button>
+        </div>
+        <Button size="small" onClick={handleExpandCollapseAllAreas}>
+          {allAreasExpanded ? 'Collapse All Areas' : 'Expand All Areas'}
         </Button>
       </div>
-      {areas.map((area) => (
-        <AreaSection key={area.id} area={area} goals={goalsByAreaId[area.id] || []}
-          expanded={!collapsedAreaKeys.has(area.id)} onToggle={() => toggleArea(area.id)}
-          expandedGoalIds={expandedGoalIds} onToggleGoal={toggleGoal}
-          expandedObjectiveIds={expandedObjectiveIds} onToggleObjective={toggleObjective}
-          expandedInitiativeIds={expandedInitiativeIds} onToggleInitiative={toggleInitiative}
-          role={role} state={state} strategyId={strategyId}
-          academicYearId={academicYearId} yearLocked={yearLocked} academicYears={academicYears}
-          assessmentPeriods={assessmentPeriods} planningCycleId={planningCycleId} areas={areas}
-          isDeptStrategy={isDeptStrategy}
-          comments={comments} onComment={onComment} onRefresh={onRefresh}
-          validationErrors={validationErrors} />
-      ))}
-      {ungrouped.length > 0 && (
-        <AreaSection area={null} goals={ungrouped}
-          expanded={!collapsedAreaKeys.has('ungrouped')} onToggle={() => toggleArea('ungrouped')}
-          expandedGoalIds={expandedGoalIds} onToggleGoal={toggleGoal}
-          expandedObjectiveIds={expandedObjectiveIds} onToggleObjective={toggleObjective}
-          expandedInitiativeIds={expandedInitiativeIds} onToggleInitiative={toggleInitiative}
-          role={role} state={state}
-          strategyId={strategyId} academicYearId={academicYearId} yearLocked={yearLocked}
-          academicYears={academicYears} assessmentPeriods={assessmentPeriods}
-          planningCycleId={planningCycleId} areas={areas}
-          isDeptStrategy={isDeptStrategy}
-          comments={comments} onComment={onComment} onRefresh={onRefresh}
-          validationErrors={validationErrors} />
-      )}
+
+      <div className="tree-layout">
+        <div className="tree-board">
+          {areas.map((area) => (
+            <AreaSection key={area.id} area={area} goals={goalsByAreaId[area.id] || []}
+              expanded={!collapsedAreaKeys.has(area.id)} onToggle={() => toggleArea(area.id)}
+              isDeptStrategy={isDeptStrategy} viewMode={viewMode}
+              role={role} state={state} strategyId={strategyId}
+              academicYearId={academicYearId} yearLocked={yearLocked} academicYears={academicYears}
+              assessmentPeriods={assessmentPeriods} planningCycleId={planningCycleId} areas={areas}
+              comments={comments} onComment={onComment} onRefresh={onRefresh}
+              validationErrors={validationErrors} threshold={threshold} />
+          ))}
+          {ungrouped.length > 0 && (
+            <AreaSection area={null} goals={ungrouped}
+              expanded={!collapsedAreaKeys.has('ungrouped')} onToggle={() => toggleArea('ungrouped')}
+              isDeptStrategy={isDeptStrategy} viewMode={viewMode}
+              role={role} state={state}
+              strategyId={strategyId} academicYearId={academicYearId} yearLocked={yearLocked}
+              academicYears={academicYears} assessmentPeriods={assessmentPeriods}
+              planningCycleId={planningCycleId} areas={areas}
+              comments={comments} onComment={onComment} onRefresh={onRefresh}
+              validationErrors={validationErrors} threshold={threshold} />
+          )}
+          {!hasAnyGoals && (
+            <div className="board-empty" style={{ padding: 40 }}>No goals in this strategy yet.</div>
+          )}
+        </div>
+
+        <AchievementRail strategyId={strategyId} goals={goals}
+          academicYears={academicYears} assessmentPeriods={assessmentPeriods} academicYearId={academicYearId}
+          role={role} state={state} onRefresh={onRefresh} />
+      </div>
     </div>
   )
 }

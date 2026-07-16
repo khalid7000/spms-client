@@ -5,17 +5,19 @@ import {
 } from 'antd'
 import {
   PlusOutlined, EditOutlined, UserOutlined,
-  UploadOutlined, DownloadOutlined, InboxOutlined,
+  UploadOutlined, DownloadOutlined, InboxOutlined, SearchOutlined,
 } from '@ant-design/icons'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getUsers, createUser, updateUser, getDepartments, importUsers } from '../../api/admin'
+import { getUsers, createUser, updateUser, getDepartments, getOrgGroups, importUsers } from '../../api/admin'
+import { getAllTitles } from '../../api/portfolio'
 import { useNavigate } from 'react-router-dom'
 import { useTablePrefs, compareStrings } from '../../hooks/useTablePrefs'
+import { useAuth } from '../../auth/AuthContext'
 
 const { Dragger } = Upload
 const { Text } = Typography
 
-const CSV_TEMPLATE = 'fname,lname,email,title,department\nJane,Doe,jane.doe@rit.edu,Professor,ENG\n'
+const CSV_TEMPLATE = 'fname,lname,email,title,department,orgGroup\nJane,Doe,jane.doe@rit.edu,Professor,ENG,\n'
 
 function downloadTemplate() {
   const blob = new Blob([CSV_TEMPLATE], { type: 'text/csv' })
@@ -34,6 +36,13 @@ const TABLE_PREFS_KEY = 'spms.adminUsersTable.prefs'
 // Table sort + page size are persisted (see useTablePrefs) so the admin's
 // preferred view survives navigating away and coming back.
 export default function UsersPage() {
+  const { user: currentUser } = useAuth()
+  // A User Admin (limited role, granted only by a true Admin) reaches this page too, but must
+  // never see or submit the Roles field -- the server enforces this independently regardless
+  // (AdminService.createUser/updateUser), this just keeps a User Admin from seeing a field that
+  // wouldn't do anything for them anyway.
+  const isFullAdmin = currentUser?.systemRoles?.includes('ADMIN')
+  const [search, setSearch] = useState('')
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState(null)
   const [form] = Form.useForm()
@@ -55,8 +64,27 @@ export default function UsersPage() {
     queryKey: ['admin-departments'],
     queryFn: getDepartments,
   })
+  const { data: orgGroups = [] } = useQuery({
+    queryKey: ['admin-org-groups'],
+    queryFn: getOrgGroups,
+  })
+  // A User Admin can only assign a title that already exists (server-enforced too, see
+  // AdminService.assertKnownTitleIfUserAdmin) -- they pick from this list instead of typing free text.
+  const { data: allTitles = [] } = useQuery({
+    queryKey: ['all-titles'],
+    queryFn: getAllTitles,
+    enabled: !isFullAdmin,
+  })
 
   const deptOptions = departments.map((d) => ({ value: d.id, label: d.name }))
+  const orgGroupOptions = orgGroups.map((g) => ({ value: g.id, label: g.title }))
+  const titleOptions = allTitles.map((t) => ({ value: t.titleName, label: t.titleName }))
+
+  const filteredUsers = users.filter((u) => {
+    if (!search) return true
+    const haystack = [u.fname, u.lname, u.email, u.title, u.department?.name].filter(Boolean).join(' ').toLowerCase()
+    return haystack.includes(search.toLowerCase())
+  })
 
   // ── user create / edit ──────────────────────────────────────────────────────
 
@@ -74,6 +102,7 @@ export default function UsersPage() {
       email: user.email,
       title: user.title,
       departmentId: user.department?.id,
+      orgGroupId: user.orgGroup?.id,
       systemRoles: user.systemRoles || [],
     })
     setModalOpen(true)
@@ -161,6 +190,7 @@ export default function UsersPage() {
         <>
           {r.systemRoles?.includes('ADMIN') && <Tag color="purple">Admin</Tag>}
           {r.systemRoles?.includes('HR') && <Tag color="blue">HR</Tag>}
+          {r.systemRoles?.includes('USER_ADMIN') && <Tag color="cyan">User Admin</Tag>}
           {!r.systemRoles?.length && <Tag color="default">Employee</Tag>}
         </>
       ),
@@ -209,8 +239,17 @@ export default function UsersPage() {
         </div>
       </div>
 
+      <Input
+        placeholder="Search users by name, email, title, or department…"
+        prefix={<SearchOutlined />}
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        allowClear
+        style={{ maxWidth: 360, marginBottom: 16 }}
+      />
+
       <Table
-        dataSource={users}
+        dataSource={filteredUsers}
         columns={columns}
         rowKey="id"
         loading={isLoading}
@@ -252,19 +291,38 @@ export default function UsersPage() {
             </Form.Item>
           )}
           <Form.Item name="title" label="Title">
-            <Input />
+            {isFullAdmin ? (
+              <Input />
+            ) : (
+              <Select
+                showSearch
+                options={titleOptions}
+                allowClear
+                placeholder="Select an existing title"
+                optionFilterProp="label"
+              />
+            )}
           </Form.Item>
           <Form.Item name="departmentId" label="Department">
             <Select options={deptOptions} allowClear placeholder="No department" />
           </Form.Item>
-          <Form.Item name="systemRoles" label="Roles">
-            <Checkbox.Group
-              options={[
-                { label: 'Admin', value: 'ADMIN' },
-                { label: 'HR', value: 'HR' },
-              ]}
-            />
+          <Form.Item name="orgGroupId" label="Org Group">
+            <Select options={orgGroupOptions} allowClear placeholder="No org group" />
           </Form.Item>
+          <Text type="secondary" style={{ fontSize: 12, display: 'block', marginTop: -12, marginBottom: 16 }}>
+            A user must have a department, an org group, or both.
+          </Text>
+          {isFullAdmin && (
+            <Form.Item name="systemRoles" label="Roles">
+              <Checkbox.Group
+                options={[
+                  { label: 'Admin', value: 'ADMIN' },
+                  { label: 'HR', value: 'HR' },
+                  { label: 'User Admin', value: 'USER_ADMIN' },
+                ]}
+              />
+            </Form.Item>
+          )}
         </Form>
       </Modal>
 
@@ -324,10 +382,15 @@ export default function UsersPage() {
               </p>
               <p className="ant-upload-text">Click or drag a CSV file here</p>
               <p className="ant-upload-hint">
-                Columns: <Text code>fname, lname, email, title, department</Text>
+                Columns: <Text code>fname, lname, email, title, department, orgGroup</Text>
                 <br />
                 The <Text code>department</Text> column expects a department <strong>code</strong> (e.g.{' '}
-                <Text code>ENG</Text>, <Text code>CS</Text>), not the full name.
+                <Text code>ENG</Text>, <Text code>CS</Text>), not the full name. The{' '}
+                <Text code>orgGroup</Text> column expects an org group's <strong>title</strong>, exactly
+                as it appears in the Org Groups admin page.
+                <br />
+                Every user needs a department, an org group, or both — a row with neither will be
+                skipped.
                 <br />
                 Existing users (matched by email) will be updated. New emails will be created
                 with a default password.

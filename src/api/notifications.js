@@ -8,3 +8,7 @@ export const getMyNotifications = () => api.get('/api/notifications/my').then(un
 export const getUnreadCount = () => api.get('/api/notifications/unread-count').then(unwrap)
 
 export const markNotificationRead = (id) => api.put(`/api/notifications/${id}/read`).then(unwrap)
+
+export const markNotificationUnread = (id) => api.put(`/api/notifications/${id}/unread`).then(unwrap)
+
+export const markAllNotificationsRead = () => api.put('/api/notifications/mark-all-read').then(unwrap)

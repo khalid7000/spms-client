@@ -15,10 +15,12 @@ import {
 import { useNavigate } from 'react-router-dom'
 import TableTotal from '../../components/TableTotal'
 import { compareStrings } from '../../hooks/useTablePrefs'
+import { useTerminology } from '../../TerminologyContext'
 
 const { Panel } = Collapse
 
 function CyclePanel({ cycle, allStrategies, users, usersLoading }) {
+  const { topLevelStrategyLabel } = useTerminology()
   const [mainOpen, setMainOpen] = useState(false)
   const [unitOpen, setUnitOpen] = useState(false)
   const [mainForm] = Form.useForm()
@@ -44,7 +46,7 @@ function CyclePanel({ cycle, allStrategies, users, usersLoading }) {
   const createMut = useMutation({
     mutationFn: (payload) => createAdminUniversityStrategy(payload),
     onSuccess: (strategy, vars) => {
-      const label = vars.type === 'UNIVERSITY' ? 'Main university strategy' : 'Unit strategy'
+      const label = vars.type === 'UNIVERSITY' ? `Main ${topLevelStrategyLabel.toLowerCase()}` : 'Unit strategy'
       message.success(`${label} created`)
       setMainOpen(false)
       setUnitOpen(false)
@@ -66,7 +68,7 @@ function CyclePanel({ cycle, allStrategies, users, usersLoading }) {
       {/* Main university strategy section */}
       <div style={{ marginBottom: 16 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-          <span style={{ fontSize: 13, fontWeight: 600, color: '#374151' }}>Main University Strategy</span>
+          <span style={{ fontSize: 13, fontWeight: 600, color: '#374151' }}>Main {topLevelStrategyLabel}</span>
           {!mainStrategy && (
             <Button
               size="small"
@@ -102,7 +104,7 @@ function CyclePanel({ cycle, allStrategies, users, usersLoading }) {
           </div>
         ) : (
           <div style={{ color: '#9ca3af', fontSize: 13, padding: '6px 0' }}>
-            No main university strategy yet. Create one to start planning.
+            No main {topLevelStrategyLabel.toLowerCase()} yet. Create one to start planning.
           </div>
         )}
       </div>
@@ -233,9 +235,9 @@ function CyclePanel({ cycle, allStrategies, users, usersLoading }) {
         </>
       )}
 
-      {/* Modal: Setup Main University Strategy */}
+      {/* Modal: Setup Main Top-Level Strategy */}
       <Modal
-        title={`Setup Main University Strategy — ${cycle.name}`}
+        title={`Setup Main ${topLevelStrategyLabel} — ${cycle.name}`}
         open={mainOpen}
         onCancel={() => setMainOpen(false)}
         onOk={() => mainForm.submit()}
@@ -248,7 +250,7 @@ function CyclePanel({ cycle, allStrategies, users, usersLoading }) {
           onFinish={(values) => createMut.mutate({ ...values, planningCycleId: cycle.id, type: 'UNIVERSITY' })}
         >
           <Form.Item name="title" label="Strategy Title" rules={[{ required: true }]}>
-            <Input placeholder={`${cycle.name} University Strategic Plan`} />
+            <Input placeholder={`${cycle.name} ${topLevelStrategyLabel}`} />
           </Form.Item>
           <Form.Item name="description" label="Description">
             <Input.TextArea rows={2} />
@@ -303,6 +305,7 @@ function CyclePanel({ cycle, allStrategies, users, usersLoading }) {
 }
 
 export default function PlanningCyclesPage() {
+  const { topLevelStrategyLabel } = useTerminology()
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState(null)
   const [form] = Form.useForm()
@@ -467,8 +470,8 @@ export default function PlanningCyclesPage() {
             <Form.Item
               name="ownerId"
               label="Main Strategy Owner"
-              rules={[{ required: true, message: 'Select the owner for the main university strategy' }]}
-              extra="A main university strategy will be created automatically for this cycle."
+              rules={[{ required: true, message: `Select the owner for the main ${topLevelStrategyLabel.toLowerCase()}` }]}
+              extra={`A main ${topLevelStrategyLabel.toLowerCase()} will be created automatically for this cycle.`}
             >
               <Select
                 showSearch

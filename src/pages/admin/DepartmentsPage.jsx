@@ -9,10 +9,12 @@ import {
 import { getUsers } from '../../api/admin'
 import { useTablePrefs, compareStrings } from '../../hooks/useTablePrefs'
 import TableTotal from '../../components/TableTotal'
+import { useTerminology } from '../../TerminologyContext'
 
 const TABLE_PREFS_KEY = 'spms.adminDepartmentsTable.prefs'
 
 export default function DepartmentsPage() {
+  const { defaultHeadTitleLabel } = useTerminology()
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState(null)
   const [form] = Form.useForm()
@@ -105,7 +107,7 @@ export default function DepartmentsPage() {
       sortOrder: sortOrderFor('headTitle'),
     },
     {
-      title: 'Head',
+      title: defaultHeadTitleLabel,
       dataIndex: 'headUserName',
       key: 'headUserName',
       render: (v) => v || '—',

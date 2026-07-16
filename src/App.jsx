@@ -17,6 +17,9 @@ import OrgGroupsPage from './pages/admin/OrgGroupsPage'
 import AcademicYearsPage from './pages/admin/AcademicYearsPage'
 import CategoryManagementPage from './pages/admin/CategoryManagementPage'
 import EvaluationReportsPage from './pages/admin/EvaluationReportsPage'
+import OrganizationSettingsPage from './pages/admin/OrganizationSettingsPage'
+import AchievementTypesPage from './pages/admin/AchievementTypesPage'
+import DataRepositoryPage from './pages/admin/DataRepositoryPage'
 
 import MemberLayout from './layouts/MemberLayout'
 import MemberDashboard from './pages/member/MemberDashboard'
@@ -94,12 +97,15 @@ export default function App() {
 
         {/* Admin console -- ADMIN only */}
         <Route path="admin" element={<ProtectedRoute adminOnly><AdminDashboard /></ProtectedRoute>} />
-        <Route path="admin/users" element={<ProtectedRoute adminOnly><UsersPage /></ProtectedRoute>} />
-        <Route path="admin/users/:id" element={<ProtectedRoute adminOnly><UserDetailPage /></ProtectedRoute>} />
+        <Route path="admin/users" element={<ProtectedRoute requiredRoles={['ADMIN', 'USER_ADMIN']}><UsersPage /></ProtectedRoute>} />
+        <Route path="admin/users/:id" element={<ProtectedRoute requiredRoles={['ADMIN', 'USER_ADMIN']}><UserDetailPage /></ProtectedRoute>} />
         <Route path="admin/departments" element={<ProtectedRoute adminOnly><DepartmentsPage /></ProtectedRoute>} />
         <Route path="admin/planning-cycles" element={<ProtectedRoute adminOnly><PlanningCyclesPage /></ProtectedRoute>} />
         <Route path="admin/org-groups" element={<ProtectedRoute adminOnly><OrgGroupsPage /></ProtectedRoute>} />
         <Route path="admin/academic-years" element={<ProtectedRoute adminOnly><AcademicYearsPage /></ProtectedRoute>} />
+        <Route path="admin/organization-settings" element={<ProtectedRoute adminOnly><OrganizationSettingsPage /></ProtectedRoute>} />
+        <Route path="admin/achievement-types" element={<ProtectedRoute adminOnly><AchievementTypesPage /></ProtectedRoute>} />
+        <Route path="admin/data-repository" element={<ProtectedRoute adminOnly><DataRepositoryPage /></ProtectedRoute>} />
         <Route path="admin/strategies" element={<ProtectedRoute adminOnly><StrategiesAdminPage /></ProtectedRoute>} />
         <Route path="admin/strategies/:id" element={<ProtectedRoute adminOnly><StrategyDetailAdminPage /></ProtectedRoute>} />
         <Route path="admin/audit-logs" element={<ProtectedRoute adminOnly><AuditLogPage /></ProtectedRoute>} />

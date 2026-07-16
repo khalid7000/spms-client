@@ -64,11 +64,27 @@ export const updateGoalsHeadRank = (evaluationId, rank) =>
 export const updateOverallRank = (evaluationId, rank) =>
   api.put(`/api/portfolio/evaluations/${evaluationId}/overall-rank`, { rank }).then(unwrap)
 
-export const submitHeadEvaluation = (evaluationId) =>
-  api.post(`/api/portfolio/evaluations/${evaluationId}/submit-head`).then(unwrap)
+// Combines what used to be two separate head actions (submit, then sign) into one -- see
+// AnnualEvaluationService.submitAndSignHeadEvaluation.
+export const submitAndSignHeadEvaluation = (evaluationId, signatureName) =>
+  api.post(`/api/portfolio/evaluations/${evaluationId}/submit-and-sign-head`, { signatureName }).then(unwrap)
 
-export const signAsHead = (evaluationId, signatureName) =>
-  api.post(`/api/portfolio/evaluations/${evaluationId}/sign-head`, { signatureName }).then(unwrap)
+// Sends the evaluation back to the employee for one more round of edits/comments -- usable exactly
+// once per evaluation (see returnedToEmployeeAt on the response).
+export const returnToEmployeeForReview = (evaluationId) =>
+  api.post(`/api/portfolio/evaluations/${evaluationId}/return-to-employee`).then(unwrap)
+
+export const updateCategoryEmployeeComments = (evaluationId, categoryId, comments) =>
+  api.put(`/api/portfolio/evaluations/${evaluationId}/categories/${categoryId}/employee-comments`, { comments }).then(unwrap)
+
+export const updateCriterionEmployeeComments = (evaluationId, criteriaId, comments) =>
+  api.put(`/api/portfolio/evaluations/${evaluationId}/criteria/${criteriaId}/employee-comments`, { comments }).then(unwrap)
+
+export const updateGoalsEmployeeComments = (evaluationId, comments) =>
+  api.put(`/api/portfolio/evaluations/${evaluationId}/goals-employee-comments`, { comments }).then(unwrap)
+
+export const updateEmployeeFinalSummary = (evaluationId, comments) =>
+  api.put(`/api/portfolio/evaluations/${evaluationId}/employee-final-summary`, { comments }).then(unwrap)
 
 export const signAsEmployee = (evaluationId, signatureName) =>
   api.post(`/api/portfolio/evaluations/${evaluationId}/sign-employee`, { signatureName }).then(unwrap)
@@ -105,4 +121,37 @@ export const reviewNextCycleGoalAsEmployee = (evaluationId, goalId, payload) =>
 
 export const deleteNextCycleGoal = (evaluationId, goalId) =>
   api.delete(`/api/portfolio/evaluations/${evaluationId}/next-cycle-goals/${goalId}`).then(unwrap)
+
+// ─── Teaching Evaluations achievement module -- see CustomizableAchievementModule. ─────────────
+
+export const getTeachingEvaluationSession = (evaluationId, criteriaId) =>
+  api.get(`/api/portfolio/evaluations/${evaluationId}/teaching-evaluation-sessions`, { params: { criteriaId } }).then(unwrap)
+
+export const updateTeachingEvaluationNote = (evaluationId, sessionId, localFolderNote) =>
+  api.put(`/api/portfolio/evaluations/${evaluationId}/teaching-evaluation-sessions/${sessionId}/notes`, { localFolderNote }).then(unwrap)
+
+export const uploadTeachingEvaluationFiles = (evaluationId, sessionId, files) => {
+  const formData = new FormData()
+  files.forEach((file) => formData.append('files', file))
+  return api.post(`/api/portfolio/evaluations/${evaluationId}/teaching-evaluation-sessions/${sessionId}/upload`, formData,
+    { headers: { 'Content-Type': 'multipart/form-data' } }).then(unwrap)
+}
+
+export const generateTeachingEvaluationDraft = (evaluationId, sessionId) =>
+  api.post(`/api/portfolio/evaluations/${evaluationId}/teaching-evaluation-sessions/${sessionId}/generate`).then(unwrap)
+
+export const finalizeTeachingEvaluationAchievement = (evaluationId, sessionId, payload) =>
+  api.post(`/api/portfolio/evaluations/${evaluationId}/teaching-evaluation-sessions/${sessionId}/finalize`, payload).then(unwrap)
+
+export const deleteTeachingEvaluationSession = (evaluationId, sessionId) =>
+  api.delete(`/api/portfolio/evaluations/${evaluationId}/teaching-evaluation-sessions/${sessionId}`).then(unwrap)
+
+// ─── Rating Assistant word selections -- private to this evaluation's head, any time (not just
+// the current browser session). ─────────────────────────────────────────────────────────────────
+
+export const getRatingAssistantSelection = (evaluationId, targetType, targetId) =>
+  api.get(`/api/portfolio/evaluations/${evaluationId}/rating-assistant-selection`, { params: { targetType, targetId } }).then(unwrap)
+
+export const saveRatingAssistantSelection = (evaluationId, targetType, targetId, selectionHistory) =>
+  api.put(`/api/portfolio/evaluations/${evaluationId}/rating-assistant-selection`, { targetType, targetId, selectionHistory }).then(unwrap)
 

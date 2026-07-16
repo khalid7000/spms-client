@@ -5,10 +5,12 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { getMyPendingApprovals, approveStrategy } from '../../api/approvals'
 import TableTotal from '../../components/TableTotal'
 import { compareStrings } from '../../hooks/useTablePrefs'
+import { useTerminology } from '../../TerminologyContext'
 
 const { Text } = Typography
 
 export default function ApprovalsPage() {
+  const { topLevelStrategyLabel } = useTerminology()
   const qc = useQueryClient()
 
   const { data: pending = [], isLoading } = useQuery({
@@ -39,7 +41,7 @@ export default function ApprovalsPage() {
     {
       title: 'Department',
       dataIndex: 'strategyDepartment',
-      render: (v) => v || <Text type="secondary">University</Text>,
+      render: (v) => v || <Text type="secondary">{topLevelStrategyLabel}</Text>,
     },
     {
       title: 'Owner',

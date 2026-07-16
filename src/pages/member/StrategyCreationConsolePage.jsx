@@ -14,12 +14,14 @@ import { getPlanningCyclesPublic } from '../../api/admin'
 import { createDepartmentStrategy, createUniversityStrategy } from '../../api/strategies'
 import TableTotal from '../../components/TableTotal'
 import { compareStrings } from '../../hooks/useTablePrefs'
+import { useTerminology } from '../../TerminologyContext'
 
 const { Paragraph } = Typography
 
 const NOT_DEPLOYED_STATES = ['CREATION', 'REVIEW', 'APPROVAL_PENDING']
 
 export default function StrategyCreationConsolePage() {
+  const { topLevelStrategyLabel } = useTerminology()
   const navigate = useNavigate()
   const [modalOpen, setModalOpen] = useState(false)
   const [form] = Form.useForm()
@@ -106,7 +108,7 @@ export default function StrategyCreationConsolePage() {
               placeholder="Select type"
               options={[
                 ...(canCreateDepartment ? [{ value: 'DEPARTMENT', label: 'Department Strategy' }] : []),
-                ...(canCreateUniversity ? [{ value: 'UNIVERSITY', label: 'University Strategy' }] : []),
+                ...(canCreateUniversity ? [{ value: 'UNIVERSITY', label: topLevelStrategyLabel }] : []),
               ]}
             />
           </Form.Item>

@@ -59,6 +59,54 @@ export const deleteCriteria = (id) =>
 export const reorderCriteria = (categoryId, criteriaIds) =>
   api.put(`/api/portfolio/categories/${categoryId}/criteria/reorder`, criteriaIds).then(unwrap)
 
+// ============ Customizable Achievement Modules ============
+// Admin-assignable, extensible achievement-recording helpers (e.g. "Teaching Evaluations"), each
+// wired to exactly one criterion per title -- see CustomizableAchievementModule.
+
+export const getAchievementModules = () =>
+  api.get('/api/portfolio/achievement-modules').then(unwrap)
+
+export const getAchievementModuleAssignments = (titleId) =>
+  api.get(`/api/portfolio/titles/${titleId}/achievement-module-assignments`).then(unwrap)
+
+export const assignAchievementModule = (code, criteriaId, maxAchievementsPerYear, mandatory, displayName) =>
+  api.post(`/api/portfolio/achievement-modules/${code}/assign`, { criteriaId, maxAchievementsPerYear, mandatory, displayName }).then(unwrap)
+
+export const unassignAchievementModule = (code, criteriaId) =>
+  api.delete(`/api/portfolio/achievement-modules/${code}/assign/${criteriaId}`).then(unwrap)
+
+// ============ Criteria Info Tools ============
+// Admin-assignable, extensible HEAD-ONLY viewers (e.g. "Central Repository Viewer") -- parallel to
+// Customizable Achievement Modules above, but for pulling in reference info during evaluation
+// instead of recording achievements. See CriteriaInfoTool.
+
+export const getInfoTools = () =>
+  api.get('/api/portfolio/info-tools').then(unwrap)
+
+export const getInfoToolAssignments = (titleId) =>
+  api.get(`/api/portfolio/titles/${titleId}/info-tool-assignments`).then(unwrap)
+
+export const assignInfoTool = (code, criteriaId, displayName, repositorySourceType) =>
+  api.post(`/api/portfolio/info-tools/${code}/assign`, { criteriaId, displayName, repositorySourceType }).then(unwrap)
+
+// repositorySourceType disambiguates which assignment to remove -- a criterion can carry more than
+// one with the same toolCode (e.g. both an Early-Alert- and a Grade-Distribution-flavored one).
+export const unassignInfoTool = (code, criteriaId, repositorySourceType) =>
+  api.delete(`/api/portfolio/info-tools/${code}/assign/${criteriaId}`, { params: { repositorySourceType } }).then(unwrap)
+
+export const getRepositoryTypes = () =>
+  api.get('/api/portfolio/repository-types').then(unwrap)
+
+export const getInfoToolOptions = (evaluationId, criteriaId, repositorySourceType) =>
+  api.get(`/api/portfolio/evaluations/${evaluationId}/criteria/${criteriaId}/info-tool/options`, {
+    params: { repositorySourceType },
+  }).then(unwrap)
+
+export const getInfoToolDetails = (evaluationId, criteriaId, repositorySourceType, terms) =>
+  api.get(`/api/portfolio/evaluations/${evaluationId}/criteria/${criteriaId}/info-tool/details`, {
+    params: { repositorySourceType, terms: terms.join(',') },
+  }).then(unwrap)
+
 // ============ Employee Goal Cycles ============
 
 export const getMyDirectReports = () =>

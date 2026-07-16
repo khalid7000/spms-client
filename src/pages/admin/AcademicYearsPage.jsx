@@ -6,9 +6,11 @@ import { createAcademicYear, closeAcademicYear, getAdminStrategies } from '../..
 import { getAcademicYears } from '../../api/academicYears'
 import TableTotal from '../../components/TableTotal'
 import { compareStrings } from '../../hooks/useTablePrefs'
+import { useTerminology } from '../../TerminologyContext'
 import dayjs from 'dayjs'
 
 export default function AcademicYearsPage() {
+  const { academicYearLabel, topLevelStrategyLabel } = useTerminology()
   const [modalOpen, setModalOpen] = useState(false)
   const [form] = Form.useForm()
   const qc = useQueryClient()
@@ -33,7 +35,7 @@ export default function AcademicYearsPage() {
         universityStrategyId: values.universityStrategyId,
       }),
     onSuccess: () => {
-      message.success('Academic year created')
+      message.success(`${academicYearLabel} created`)
       setModalOpen(false)
       form.resetFields()
       qc.invalidateQueries({ queryKey: ['academic-years'] })
@@ -44,7 +46,7 @@ export default function AcademicYearsPage() {
   const closeMutation = useMutation({
     mutationFn: closeAcademicYear,
     onSuccess: () => {
-      message.success('Academic year closed')
+      message.success(`${academicYearLabel} closed`)
       qc.invalidateQueries({ queryKey: ['academic-years'] })
     },
     onError: (err) => message.error(err.response?.data?.message || 'Failed to close'),
@@ -68,7 +70,7 @@ export default function AcademicYearsPage() {
       render: (v) => (v ? dayjs(v).format('MMM D, YYYY') : '—'),
     },
     {
-      title: 'University Strategy',
+      title: topLevelStrategyLabel,
       dataIndex: 'universityStrategyTitle',
       render: (v) => v || '—',
     },
@@ -83,7 +85,7 @@ export default function AcademicYearsPage() {
       render: (_, row) =>
         !row.closed ? (
           <Popconfirm
-            title="Close this academic year?"
+            title={`Close this ${academicYearLabel.toLowerCase()}?`}
             description="This will block new achievements for all initiatives in this year."
             onConfirm={() => closeMutation.mutate(row.id)}
             okText="Close"
@@ -100,14 +102,14 @@ export default function AcademicYearsPage() {
   return (
     <div>
       <div className="page-header">
-        <h1 className="page-title">Academic Years</h1>
+        <h1 className="page-title">{academicYearLabel}s</h1>
         <Button
           type="primary"
           icon={<PlusOutlined />}
           onClick={() => setModalOpen(true)}
           style={{ background: '#13223a' }}
         >
-          New Academic Year
+          New {academicYearLabel}
         </Button>
       </div>
 
@@ -121,7 +123,7 @@ export default function AcademicYearsPage() {
       />
 
       <Modal
-        title="Create Academic Year"
+        title={`Create ${academicYearLabel}`}
         open={modalOpen}
         onCancel={() => { setModalOpen(false); form.resetFields() }}
         onOk={() => form.submit()}
@@ -133,12 +135,12 @@ export default function AcademicYearsPage() {
             <Input placeholder="e.g. 2023-2024" />
           </Form.Item>
           <Form.Item
-            name="universityStrategyId" label="University Strategy"
-            rules={[{ required: true, message: 'A university-level strategy must be selected' }]}
-            extra="Initiatives/measurements and Annual Evaluations for this year are scoped to this strategy's cycle"
+            name="universityStrategyId" label={topLevelStrategyLabel}
+            rules={[{ required: true, message: `A ${topLevelStrategyLabel.toLowerCase()} must be selected` }]}
+            extra={`Initiatives/measurements and Annual Evaluations for this ${academicYearLabel.toLowerCase()} are scoped to this strategy's cycle`}
           >
             <Select
-              placeholder="Select the university-level strategy this year belongs to"
+              placeholder={`Select the ${topLevelStrategyLabel.toLowerCase()} this ${academicYearLabel.toLowerCase()} belongs to`}
               options={universityStrategies.map((s) => ({ value: s.id, label: s.title }))}
             />
           </Form.Item>

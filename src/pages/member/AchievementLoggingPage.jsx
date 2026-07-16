@@ -5,8 +5,10 @@ import * as api from '../../api/portfolio'
 import { getAcademicYears, getMostRecentAcademicYear } from '../../api/academicYears'
 import TableTotal from '../../components/TableTotal'
 import { compareStrings } from '../../hooks/useTablePrefs'
+import { useTerminology } from '../../TerminologyContext'
 
 export default function AchievementLoggingPage() {
+  const { academicYearLabel } = useTerminology()
   const [academicYear, setAcademicYear] = useState(null)
 
   const { data: academicYears = [], isLoading: yearsLoading } = useQuery({
@@ -77,7 +79,7 @@ export default function AchievementLoggingPage() {
         </p>
 
         <Space style={{ marginBottom: 24 }}>
-          <Select style={{ width: 200 }} placeholder="Academic year" value={academicYear} onChange={setAcademicYear}
+          <Select style={{ width: 200 }} placeholder={academicYearLabel} value={academicYear} onChange={setAcademicYear}
             loading={yearsLoading} options={academicYears.map((y) => ({ value: y.id, label: y.name }))} />
         </Space>
 
@@ -113,7 +115,7 @@ export default function AchievementLoggingPage() {
               key: 'goals',
               label: 'My Deployed Goals',
               children: cycleGoals.length === 0 ? (
-                <Empty description="No deployed goals for this academic year yet" />
+                <Empty description={`No deployed goals for this ${academicYearLabel.toLowerCase()} yet`} />
               ) : (
                 <>
                   <TableTotal count={cycleGoals.length} />

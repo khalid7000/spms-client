@@ -4,6 +4,7 @@ import { BrowserRouter } from 'react-router-dom'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { ConfigProvider } from 'antd'
 import { AuthProvider } from './auth/AuthContext'
+import { TerminologyProvider } from './TerminologyContext'
 import { queryClient } from './queryClient'
 import App from './App'
 import './styles/index.css'
@@ -22,7 +23,9 @@ ReactDOM.createRoot(document.getElementById('root')).render(
           }}
         >
           <AuthProvider>
-            <App />
+            <TerminologyProvider>
+              <App />
+            </TerminologyProvider>
           </AuthProvider>
         </ConfigProvider>
       </QueryClientProvider>

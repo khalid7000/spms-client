@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import * as api from '../../api/portfolio'
 import { getAcademicYears, getMostRecentAcademicYear } from '../../api/academicYears'
 import ReviewControl, { ALL_REVIEW_ACTIONS } from '../../components/ReviewControl'
+import { useTerminology } from '../../TerminologyContext'
 
 const { Paragraph, Text } = Typography
 
@@ -27,6 +28,7 @@ const STATE_COLORS = {
 const EMPTY_ARRAY = []
 
 export default function GoalReviewPage() {
+  const { academicYearLabel, defaultHeadTitleLabel } = useTerminology()
   const [academicYear, setAcademicYear] = useState(null)
   const [drafts, setDrafts] = useState({})
   const [signOpen, setSignOpen] = useState(false)
@@ -90,7 +92,7 @@ export default function GoalReviewPage() {
   const acceptMut = useMutation({
     mutationFn: (signatureName) => api.acceptCycle(cycle.id, signatureName),
     onSuccess: () => {
-      message.success('Goals accepted, signed, and deployed for the academic year')
+      message.success(`Goals accepted, signed, and deployed for the ${academicYearLabel.toLowerCase()}`)
       setSignOpen(false)
       signForm.resetFields()
       qc.invalidateQueries({ queryKey: ['my-goal-cycles', academicYear] })
@@ -119,18 +121,18 @@ export default function GoalReviewPage() {
         </Paragraph>
 
         <Form layout="inline" style={{ marginBottom: 24 }}>
-          <Form.Item label="Academic Year">
+          <Form.Item label={academicYearLabel}>
             <Select style={{ width: 200 }} placeholder="Select year" value={academicYear} onChange={setAcademicYear}
               loading={yearsLoading} options={academicYears.map((y) => ({ value: y.id, label: y.name }))} />
           </Form.Item>
         </Form>
 
-        {!academicYear && <Empty description="Select an academic year" />}
+        {!academicYear && <Empty description={`Select a ${academicYearLabel}`} />}
 
         {academicYear && cyclesLoading && <Spin />}
 
         {academicYear && !cyclesLoading && !cycle && (
-          <Empty description="No goals have been set for you yet this academic year" />
+          <Empty description={`No goals have been set for you yet this ${academicYearLabel.toLowerCase()}`} />
         )}
 
         {cycle && (
@@ -179,7 +181,7 @@ export default function GoalReviewPage() {
                         Accept, Sign & Deploy
                       </Button>
                       <Popconfirm title="Submit back for more consideration?" onConfirm={() => submitBackMut.mutate()}>
-                        <Button icon={<SendOutlined />} loading={submitBackMut.isPending}>Submit Back to Department Head</Button>
+                        <Button icon={<SendOutlined />} loading={submitBackMut.isPending}>Submit Back to Department {defaultHeadTitleLabel}</Button>
                       </Popconfirm>
                       {!allReviewed && <Text type="secondary" style={{ fontSize: 12 }}>Review every goal above first</Text>}
                     </Space>
@@ -194,7 +196,7 @@ export default function GoalReviewPage() {
       <Modal title="Accept, Sign & Deploy" open={signOpen} onCancel={() => setSignOpen(false)} destroyOnClose
         onOk={() => signForm.submit()} confirmLoading={acceptMut.isPending} okText="Accept, Sign & Deploy">
         <Paragraph type="secondary">
-          These goals will be deployed as your active goals for this academic year. Type your full name
+          These goals will be deployed as your active goals for this {academicYearLabel.toLowerCase()}. Type your full name
           below to sign and confirm.
         </Paragraph>
         <Form form={signForm} layout="vertical" onFinish={(values) => acceptMut.mutate(values.signatureName)}>

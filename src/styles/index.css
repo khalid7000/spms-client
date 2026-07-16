@@ -233,6 +233,29 @@ body {
   color: #1a2035;
   margin-bottom: 8px;
   line-height: 1.35;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-height: 2.7em;
+}
+
+.strategy-card-subtitle {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.4;
+  min-height: 2.8em;
+}
+
+.strategy-card-department {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 1.4;
 }
 
 .strategy-card-meta {
@@ -251,6 +274,17 @@ body {
 .strategy-card-stat-link:hover {
   color: #1a3a6b;
   text-decoration: underline;
+}
+
+.strategy-card-gauge-link {
+  cursor: pointer;
+  border-radius: 6px;
+  padding: 2px;
+  transition: background 0.15s;
+}
+
+.strategy-card-gauge-link:hover {
+  background: #f5f7fb;
 }
 
 /* Page headers */
@@ -509,4 +543,566 @@ body {
   font-weight: 600;
   padding: 1px 8px;
   border-radius: 10px;
+}
+
+/* ── Achievement-first Strategy board ───────────────────────────────────── */
+
+.tree-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.view-toggle {
+  display: inline-flex;
+  border: 1px solid #d0d8e8;
+  border-radius: 8px;
+  padding: 2px;
+  background: #fff;
+}
+
+.view-toggle button {
+  font-family: var(--font-body);
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #6b7280;
+  background: none;
+  border: none;
+  padding: 5px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.view-toggle button.active {
+  background: var(--sidebar-bg);
+  color: #fff;
+}
+
+.tree-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: 20px;
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  .tree-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Vision Area band -- gradient strip, collapsible; everything inside it is flat once open. */
+.area-band {
+  margin-bottom: 20px;
+  border-radius: 8px;
+  border: 1px solid #d0d8e8;
+  overflow: hidden;
+  background: #fff;
+}
+
+.area-band.invalid {
+  outline: 1px solid #fecaca;
+  background: #fff5f5;
+}
+
+.area-strip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  background: linear-gradient(135deg, var(--sidebar-bg), var(--node-goal));
+  color: #fff;
+  cursor: pointer;
+  user-select: none;
+}
+
+.area-strip .name {
+  font-weight: 700;
+  font-size: 14.5px;
+}
+
+.area-strip .count {
+  font-size: 11.5px;
+  opacity: 0.85;
+}
+
+.area-strip .area-chevron {
+  margin-left: auto;
+  font-size: 12px;
+  opacity: 0.85;
+}
+
+.area-band-body {
+  padding: 18px 18px 6px;
+}
+
+.board-goal {
+  margin-bottom: 26px;
+}
+
+.board-goal.invalid {
+  outline: 1px solid #fecaca;
+  background: #fff5f5;
+  border-radius: 6px;
+  padding: 8px;
+}
+
+.board-goal-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 2px solid var(--node-goal);
+}
+
+.board-goal-head h3 {
+  font-size: 15.5px;
+  margin: 0;
+  color: #1a2035;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.board-objective {
+  margin-bottom: 20px;
+}
+
+.board-objective:last-child {
+  margin-bottom: 0;
+}
+
+.board-objective.invalid {
+  outline: 1px solid #fecaca;
+  background: #fff5f5;
+  border-radius: 6px;
+  padding: 8px;
+}
+
+.board-objective-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+
+.board-objective-head .obj-title {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #374151;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.board-empty {
+  padding: 14px;
+  color: #9ca3af;
+  font-size: 13px;
+  text-align: center;
+  border: 1px dashed #e2e8f0;
+  border-radius: 6px;
+}
+
+/* Initiative cards */
+.board-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 14px;
+}
+
+.init-card {
+  background: #f8faff;
+  border: 1px solid #e8eef6;
+  border-radius: 10px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.init-card.invalid {
+  outline: 1px solid #fecaca;
+  background: #fff5f5;
+}
+
+.init-card .card-badge {
+  align-self: flex-start;
+}
+
+.init-card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.init-card-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1a2035;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.init-card-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: auto;
+  padding-top: 4px;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.ach-count {
+  font-size: 11px;
+  color: #9ca3af;
+}
+
+.ach-count b {
+  color: var(--gold);
+  font-size: 15px;
+  margin-right: 3px;
+}
+
+.card-add-btn {
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 700;
+  color: #13223a;
+  background: var(--gold);
+  border: none;
+  border-radius: 7px;
+  padding: 5px 10px;
+  cursor: pointer;
+}
+
+.card-add-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.kpi-line {
+  font-size: 11.5px;
+  color: #6b7280;
+}
+
+.kpi-line .v {
+  font-family: var(--font-mono);
+  color: #1a2035;
+  font-weight: 600;
+}
+
+/* Achievement section label + "Add achievement" button + achievement cards, shown inside the
+   detail body (List view's inline expand and Card view's Drawer share this exact markup) --
+   the richer treatment from the agreed Concept A/B mockup, replacing the old small bullet list. */
+.ach-section-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+.ach-section-label .lbl {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #9ca3af;
+}
+
+.add-ach-btn {
+  font-family: var(--font-body);
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #13223a;
+  background: var(--gold-light);
+  border: 1px solid var(--gold);
+  border-radius: 7px;
+  padding: 6px 12px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.add-ach-btn:hover {
+  filter: brightness(1.04);
+}
+
+.ach-card-list {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.ach-card {
+  display: flex;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #f8faff;
+  border: 1px solid #e8eef6;
+  border-left: 3px solid var(--gold);
+}
+
+.ach-card .icon {
+  font-size: 15px;
+  margin-top: 1px;
+}
+
+.ach-card .body {
+  flex: 1;
+  min-width: 0;
+}
+
+.ach-card .title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1a2035;
+}
+
+.ach-card .meta {
+  font-size: 11.5px;
+  color: #9ca3af;
+  margin-top: 3px;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.ach-card .meta .type-tag {
+  background: #fbf3e1;
+  color: var(--gold);
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-weight: 600;
+}
+
+.ach-card .meta .date {
+  font-family: var(--font-mono);
+}
+
+.ach-card-actions {
+  display: flex;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+/* Read-only achievement report modal */
+.ach-report-row {
+  display: flex;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid #f0f2f5;
+  font-size: 13px;
+}
+
+.ach-report-row:last-child {
+  border-bottom: none;
+}
+
+.ach-report-row .k {
+  width: 150px;
+  flex-shrink: 0;
+  color: #9ca3af;
+  font-weight: 600;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding-top: 2px;
+}
+
+.ach-report-row .v {
+  flex: 1;
+  color: #1a2035;
+  word-break: break-word;
+}
+
+.ach-report-row .v a {
+  color: #1d4ed8;
+  word-break: break-all;
+}
+
+/* Achievement preview chips shown directly on the card, before "View all" is clicked */
+.ach-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.ach-chip {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 6px;
+  font-size: 12px;
+  padding: 5px 8px;
+  border-radius: 6px;
+  background: #fbf3e1;
+  color: #1a2035;
+  border-left: 3px solid var(--gold);
+}
+
+.ach-chip-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.ach-chip-actions {
+  display: flex;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.ach-chip .who {
+  color: #9ca3af;
+  font-size: 10.5px;
+}
+
+.ach-more {
+  font-size: 11px;
+  color: #9ca3af;
+  padding-left: 8px;
+}
+
+.ini-count {
+  font-size: 11px;
+  color: #9ca3af;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+/* Status chip -- On track / Needs attention / Not started / Frozen */
+.status-chip {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.status-chip.green { background: rgba(30, 142, 90, 0.15); color: var(--state-deployed); }
+.status-chip.amber { background: rgba(192, 135, 26, 0.15); color: var(--state-review); }
+.status-chip.red { background: rgba(220, 38, 38, 0.12); color: #dc2626; }
+.status-chip.frozen { background: rgba(91, 102, 117, 0.15); color: var(--state-frozen); }
+
+/* Achievement rail */
+.ach-rail {
+  position: sticky;
+  top: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.rail-card {
+  background: #fff;
+  border: 1px solid #d0d8e8;
+  border-radius: 10px;
+  padding: 16px;
+}
+
+.rail-card h3 {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #9ca3af;
+  margin: 0 0 12px;
+}
+
+.rail-hint {
+  font-size: 11.5px;
+  color: #9ca3af;
+  margin-top: 8px;
+  text-align: center;
+}
+
+.rail-stat-row {
+  display: flex;
+  gap: 10px;
+}
+
+.rail-stat {
+  flex: 1;
+  text-align: center;
+  padding: 10px 6px;
+  border-radius: 8px;
+  background: #f8faff;
+  border: 1px solid #e8eef6;
+}
+
+.rail-stat .n {
+  font-size: 20px;
+  font-weight: 700;
+  color: #1a2035;
+  font-family: var(--font-mono);
+}
+
+.rail-stat .l {
+  font-size: 10.5px;
+  color: #9ca3af;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-top: 2px;
+}
+
+.rail-feed-item {
+  display: flex;
+  gap: 9px;
+  padding: 9px 0;
+  border-bottom: 1px solid #f0f2f5;
+}
+
+.rail-feed-item:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.rail-feed-item .dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--gold);
+  margin-top: 5px;
+  flex-shrink: 0;
+}
+
+.rail-feed-item .t {
+  font-size: 12.5px;
+  color: #1a2035;
+}
+
+.rail-feed-item .s {
+  font-size: 11px;
+  color: #9ca3af;
+  margin-top: 2px;
+}
+
+.rail-picker-list {
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.rail-picker-item {
+  padding: 8px 10px;
+  border-radius: 6px;
+  margin-bottom: 4px;
+}
+
+.rail-picker-item:hover {
+  background: #f8faff;
 }

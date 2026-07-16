@@ -1,10 +1,11 @@
 import { Card, Row, Col, Spin, Empty, Typography, Tooltip } from 'antd'
-import { TeamOutlined, BellOutlined, FlagOutlined, AimOutlined } from '@ant-design/icons'
+import { TeamOutlined, BellOutlined } from '@ant-design/icons'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { getDashboard } from '../../api/dashboard'
 import StateChip from '../../components/StateChip'
 import RoleChip from '../../components/RoleChip'
+import SpeedometerGauge from '../../components/SpeedometerGauge'
 
 const { Text } = Typography
 
@@ -74,7 +75,7 @@ export default function MemberDashboard() {
                   className="strategy-card"
                   onClick={() => navigate(`/strategies/${item.strategyId}`)}
                 >
-                  <div className="strategy-card-title">{item.strategyTitle}</div>
+                  <div className="strategy-card-title" title={item.strategyTitle}>{item.strategyTitle}</div>
                   <div className="strategy-card-meta">
                     <StateChip state={item.state} />
                     <span
@@ -103,8 +104,10 @@ export default function MemberDashboard() {
                       gap: 2,
                     }}
                   >
-                    <span>{item.planningCycleName}</span>
-                    {item.departmentName && <span>{item.departmentName}</span>}
+                    <span className="strategy-card-subtitle" title={item.planningCycleName}>{item.planningCycleName}</span>
+                    {item.departmentName && (
+                      <span className="strategy-card-department" title={item.departmentName}>{item.departmentName}</span>
+                    )}
                   </div>
                   <div
                     style={{
@@ -112,8 +115,7 @@ export default function MemberDashboard() {
                       paddingTop: 10,
                       borderTop: '1px solid #f0f0f0',
                       display: 'flex',
-                      flexWrap: 'wrap',
-                      gap: '6px 14px',
+                      gap: 14,
                       fontSize: 12,
                       color: '#6b7280',
                     }}
@@ -131,21 +133,41 @@ export default function MemberDashboard() {
                         <BellOutlined /> {item.unreadNotificationCount}
                       </span>
                     </Tooltip>
+                  </div>
+
+                  <div
+                    style={{
+                      marginTop: 6,
+                      paddingTop: 6,
+                      display: 'flex',
+                      flexWrap: 'wrap',
+                      justifyContent: 'space-around',
+                      gap: 8,
+                    }}
+                  >
                     <Tooltip title={`Goals on track${item.mostRecentPeriodName ? ` (${item.mostRecentPeriodName})` : ''} -- click to view Report`}>
-                      <span
-                        className="strategy-card-stat-link"
+                      <div
+                        className="strategy-card-gauge-link"
                         onClick={(e) => { e.stopPropagation(); navigate(reportPath(item)) }}
                       >
-                        <FlagOutlined /> {item.goalsOnTrack}/{item.totalGoals} goals
-                      </span>
+                        <SpeedometerGauge value={item.goalsOnTrack} max={item.totalGoals} label="Goals" size={84} />
+                      </div>
                     </Tooltip>
                     <Tooltip title={`Objectives on track${item.mostRecentPeriodName ? ` (${item.mostRecentPeriodName})` : ''} -- click to view Report`}>
-                      <span
-                        className="strategy-card-stat-link"
+                      <div
+                        className="strategy-card-gauge-link"
                         onClick={(e) => { e.stopPropagation(); navigate(reportPath(item)) }}
                       >
-                        <AimOutlined /> {item.objectivesOnTrack}/{item.totalObjectives} objectives
-                      </span>
+                        <SpeedometerGauge value={item.objectivesOnTrack} max={item.totalObjectives} label="Objectives" size={84} />
+                      </div>
+                    </Tooltip>
+                    <Tooltip title={`Initiatives on track${item.mostRecentPeriodName ? ` (${item.mostRecentPeriodName})` : ''} -- click to view Report`}>
+                      <div
+                        className="strategy-card-gauge-link"
+                        onClick={(e) => { e.stopPropagation(); navigate(reportPath(item)) }}
+                      >
+                        <SpeedometerGauge value={item.initiativesOnTrack} max={item.totalInitiatives} label="Initiatives" size={84} />
+                      </div>
                     </Tooltip>
                   </div>
                 </div>

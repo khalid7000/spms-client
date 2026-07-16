@@ -112,3 +112,7 @@ export const searchUsers = (q) =>
 // Audit log (owner or admin)
 export const getStrategyAuditLog = (strategyId, params) =>
   api.get(`/api/strategies/${strategyId}/audit-log`, { params }).then((r) => r.data.data)
+
+// "Recently logged" feed for the Strategy Tree's achievement rail -- open to any strategy member.
+export const getRecentAchievements = (strategyId, limit = 10) =>
+  api.get(`/api/strategies/${strategyId}/achievements/recent`, { params: { limit } }).then(unwrap)

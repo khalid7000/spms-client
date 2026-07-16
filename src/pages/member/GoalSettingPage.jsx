@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { Card, Form, Button, Input, Select, Table, Modal, Space, Tag, message, Empty, Spin, Alert, Divider, Typography, Popconfirm, Checkbox } from 'antd'
 import { PlusOutlined, DeleteOutlined, BulbOutlined, SendOutlined } from '@ant-design/icons'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -8,6 +9,7 @@ import ReviewControl from '../../components/ReviewControl'
 import TableTotal from '../../components/TableTotal'
 import { compareStrings } from '../../hooks/useTablePrefs'
 import { RubricPopover } from './evaluationDisplay'
+import { useTerminology } from '../../TerminologyContext'
 
 const { Paragraph, Text } = Typography
 
@@ -60,9 +62,15 @@ function SuggestionRubricEditor({ suggestion, onSave }) {
 }
 
 export default function GoalSettingPage() {
+  const { academicYearLabel } = useTerminology()
+  const [searchParams] = useSearchParams()
+  // Seeded from ?cycleId= when arriving via a "leader" notification (e.g. an employee just
+  // deployed or sent back their goals) -- opens that cycle directly instead of the employee picker.
+  // The ref survives re-renders so the employee/year backfill effect below only fires once.
+  const deepLinkCycleId = useRef(searchParams.get('cycleId'))
   const [academicYear, setAcademicYear] = useState(null)
   const [selectedEmployee, setSelectedEmployee] = useState(null)
-  const [cycleId, setCycleId] = useState(null)
+  const [cycleId, setCycleId] = useState(() => (deepLinkCycleId.current ? Number(deepLinkCycleId.current) : null))
   const [drafts, setDrafts] = useState({})
   const [addGoalOpen, setAddGoalOpen] = useState(false)
   const [addGoalForm] = Form.useForm()
@@ -106,6 +114,18 @@ export default function GoalSettingPage() {
     enabled: !!cycleId,
     refetchInterval: 10_000,
   })
+
+  // Once a deep-linked cycle loads, sync the employee/year selection to match it (overriding
+  // whatever the "default to most recent year" effect above may have already set) so downstream
+  // logic that keys off selectedEmployee/academicYear -- title/category lookup, the DRAFT-state
+  // suggestion UI -- behaves exactly as if the leader had picked this employee/year manually.
+  useEffect(() => {
+    if (deepLinkCycleId.current && cycle) {
+      setSelectedEmployee(cycle.employeeId)
+      setAcademicYear(cycle.academicYearId)
+      deepLinkCycleId.current = null
+    }
+  }, [cycle])
 
   // Before auto-opening a fresh DRAFT cycle, check whether this employee has unused Next Cycle
   // Goals from a past, concluded Annual Evaluation (drafted/reviewed by both head and employee
@@ -334,7 +354,7 @@ export default function GoalSettingPage() {
         </Paragraph>
 
         <Form layout="inline" style={{ marginBottom: 24 }}>
-          <Form.Item label="Academic Year">
+          <Form.Item label={academicYearLabel}>
             <Select style={{ width: 200 }} placeholder="Select year" value={academicYear} onChange={(v) => { setAcademicYear(v); setCycleId(null) }}
               loading={yearsLoading} options={academicYears.map((y) => ({ value: y.id, label: y.name }))} />
           </Form.Item>
@@ -351,7 +371,7 @@ export default function GoalSettingPage() {
           Batch Check for Reusable Goals
         </Button>
 
-        {!cycleId && (openCycleMut.isPending ? <Spin /> : <Empty description="Select an academic year and employee to view their goals" />)}
+        {!cycleId && (openCycleMut.isPending ? <Spin /> : <Empty description={`Select a ${academicYearLabel.toLowerCase()} and employee to view their goals`} />)}
 
         {cycle && (
           <>
@@ -596,10 +616,10 @@ export default function GoalSettingPage() {
               the year you're deploying to. When both hold, those goals are deployed automatically -- employees
               who already have goals for that year, or have no eligible goals to reuse, are skipped and reported below.
             </Paragraph>
-            <Form.Item label="Set goals for academic year" name="targetAcademicYearId" rules={[{ required: true }]}>
+            <Form.Item label={`Set goals for ${academicYearLabel.toLowerCase()}`} name="targetAcademicYearId" rules={[{ required: true }]}>
               <Select placeholder="The year with no goals yet" options={academicYears.map((y) => ({ value: y.id, label: y.name }))} />
             </Form.Item>
-            <Form.Item label="Check concluded evaluations from academic year" name="sourceAcademicYearId" rules={[{ required: true }]}>
+            <Form.Item label={`Check concluded evaluations from ${academicYearLabel.toLowerCase()}`} name="sourceAcademicYearId" rules={[{ required: true }]}>
               <Select placeholder="The year to check for concluded evaluations" options={academicYears.map((y) => ({ value: y.id, label: y.name }))} />
             </Form.Item>
           </Form>
