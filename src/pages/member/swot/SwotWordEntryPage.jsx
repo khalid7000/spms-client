@@ -3,6 +3,7 @@ import { Card, Steps, Button, AutoComplete, Input, List, Space, message, Popconf
 import { ArrowLeftOutlined, DeleteOutlined } from '@ant-design/icons'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import {
   getMySwotEntries, submitSwotWord, deleteSwotWord, suggestSynonyms, submitFullSwot,
 } from '../../../api/swot'
@@ -13,14 +14,22 @@ const { Paragraph } = Typography
 const QUADRANTS = ['STRENGTH', 'WEAKNESS', 'OPPORTUNITY', 'THREAT']
 const MIN_WORDS = 3 // mirrors the backend default (app.swot.min-words-per-quadrant)
 
-const QUADRANT_PROMPTS = {
-  STRENGTH: 'What does this organization do well? (internal)',
-  WEAKNESS: 'Where does this organization fall short? (internal)',
-  OPPORTUNITY: 'What external trends or openings could this organization pursue?',
-  THREAT: 'What external risks or pressures could hurt this organization?',
+const QUADRANT_LABEL_KEYS = {
+  STRENGTH: 'swot.quadrantStrength',
+  WEAKNESS: 'swot.quadrantWeakness',
+  OPPORTUNITY: 'swot.quadrantOpportunity',
+  THREAT: 'swot.quadrantThreat',
+}
+
+const QUADRANT_PROMPT_KEYS = {
+  STRENGTH: 'swot.promptStrength',
+  WEAKNESS: 'swot.promptWeakness',
+  OPPORTUNITY: 'swot.promptOpportunity',
+  THREAT: 'swot.promptThreat',
 }
 
 export default function SwotWordEntryPage() {
+  const { t } = useTranslation()
   const { strategyId } = useParams()
   const navigate = useNavigate()
   const qc = useQueryClient()
@@ -44,7 +53,7 @@ export default function SwotWordEntryPage() {
   const addMut = useMutation({
     mutationFn: (payload) => submitSwotWord(strategyId, payload),
     onSuccess: () => { setWord(''); setJustification(''); setSynonymOptions([]); refresh() },
-    onError: (err) => message.error(err.response?.data?.message || 'Could not add word'),
+    onError: (err) => message.error(err.response?.data?.message || t('swot.addWordFailed')),
   })
 
   const deleteMut = useMutation({
@@ -54,8 +63,8 @@ export default function SwotWordEntryPage() {
 
   const submitMut = useMutation({
     mutationFn: () => submitFullSwot(strategyId),
-    onSuccess: () => { message.success('SWOT analysis submitted'); navigate(`/strategies/${strategyId}/swot`) },
-    onError: (err) => message.error(err.response?.data?.message || 'Submission failed'),
+    onSuccess: () => { message.success(t('swot.submittedSuccess')); navigate(`/strategies/${strategyId}/swot`) },
+    onError: (err) => message.error(err.response?.data?.message || t('swot.submitFailed')),
   })
 
   const countFor = (q) => entries.filter((e) => e.quadrant === q).length
@@ -78,7 +87,7 @@ export default function SwotWordEntryPage() {
 
   const handleAdd = () => {
     if (!word.trim() || !justification.trim()) {
-      message.warning('Enter a word and a one-sentence justification')
+      message.warning(t('swot.enterWordAndJustification'))
       return
     }
     addMut.mutate({ quadrant, word: word.trim(), justification: justification.trim() })
@@ -89,11 +98,11 @@ export default function SwotWordEntryPage() {
 
   const handleNext = () => {
     if (isInternalToExternalBoundary && !(canAdvanceFrom(0) && canAdvanceFrom(1))) {
-      message.warning(`Add at least ${MIN_WORDS} words to both Strength and Weakness before moving to external factors`)
+      message.warning(t('swot.needMinWordsBothInternal', { min: MIN_WORDS }))
       return
     }
     if (!canAdvanceFrom(step)) {
-      message.warning(`Add at least ${MIN_WORDS} words to ${quadrant} before continuing`)
+      message.warning(t('swot.needMinWordsThisQuadrant', { min: MIN_WORDS, quadrant: t(QUADRANT_LABEL_KEYS[quadrant]) }))
       return
     }
     setStep((s) => Math.min(s + 1, QUADRANTS.length))
@@ -106,7 +115,7 @@ export default function SwotWordEntryPage() {
       <Button type="text" icon={<ArrowLeftOutlined />}
         onClick={() => navigate(`/strategies/${strategyId}/swot`)}
         style={{ marginBottom: 16, color: '#6b7280' }}>
-        Back to SWOT Overview
+        {t('swot.backToOverview')}
       </Button>
 
       <Card>
@@ -114,7 +123,7 @@ export default function SwotWordEntryPage() {
           current={step}
           size="small"
           onChange={(i) => { if (i <= step || canAdvanceFrom(step)) setStep(i) }}
-          items={QUADRANTS.map((q) => ({ title: q.charAt(0) + q.slice(1).toLowerCase() }))}
+          items={QUADRANTS.map((q) => ({ title: t(QUADRANT_LABEL_KEYS[q]) }))}
           style={{ marginBottom: 20 }}
         />
 
@@ -123,8 +132,8 @@ export default function SwotWordEntryPage() {
             type="info"
             showIcon
             style={{ marginBottom: 16 }}
-            message="Start internal, then go external"
-            description="Work through Strengths and Weaknesses (what's happening inside the organization) before moving on to Opportunities and Threats (external factors)."
+            message={t('swot.startInternalTitle')}
+            description={t('swot.startInternalDescription')}
           />
         )}
         {isInternalToExternalBoundary && (
@@ -132,8 +141,8 @@ export default function SwotWordEntryPage() {
             type="warning"
             showIcon
             style={{ marginBottom: 16 }}
-            message="Internal factors first"
-            description="You must add enough Strengths and Weaknesses before continuing to Opportunities and Threats."
+            message={t('swot.internalFirstTitle')}
+            description={t('swot.internalFirstDescription')}
           />
         )}
 
@@ -141,9 +150,9 @@ export default function SwotWordEntryPage() {
           <>
             <div style={{ marginBottom: 12 }}>
               <QuadrantBadge quadrant={quadrant} />
-              <Paragraph style={{ marginTop: 8 }}>{QUADRANT_PROMPTS[quadrant]}</Paragraph>
+              <Paragraph style={{ marginTop: 8 }}>{t(QUADRANT_PROMPT_KEYS[quadrant])}</Paragraph>
               <Paragraph type="secondary" style={{ fontSize: 12 }}>
-                {countFor(quadrant)} / {MIN_WORDS} minimum words added
+                {t('swot.minWordsAdded', { count: countFor(quadrant), min: MIN_WORDS })}
               </Paragraph>
             </div>
 
@@ -154,17 +163,17 @@ export default function SwotWordEntryPage() {
                 onChange={setWord}
                 onSelect={setWord}
                 style={{ width: '100%' }}
-                placeholder="Type a word or short phrase — synonyms will appear as you type"
+                placeholder={t('swot.wordInputPlaceholder')}
               />
               <Input.TextArea
                 value={justification}
                 onChange={(e) => setJustification(e.target.value)}
                 rows={2}
                 maxLength={500}
-                placeholder="One sentence: why is this a good description?"
+                placeholder={t('swot.justificationPlaceholder')}
               />
               <Button type="primary" style={{ background: '#13223a' }} loading={addMut.isPending} onClick={handleAdd}>
-                Add Word
+                {t('swot.addWordButton')}
               </Button>
             </Space>
 
@@ -185,15 +194,15 @@ export default function SwotWordEntryPage() {
             />
 
             <div style={{ marginTop: 16, display: 'flex', justifyContent: 'space-between' }}>
-              <Button disabled={step === 0} onClick={() => setStep((s) => Math.max(s - 1, 0))}>Back</Button>
+              <Button disabled={step === 0} onClick={() => setStep((s) => Math.max(s - 1, 0))}>{t('swot.backButton')}</Button>
               <Button type="primary" style={{ background: '#13223a' }} onClick={handleNext}>
-                {step === QUADRANTS.length - 1 ? 'Review & Submit' : 'Next'}
+                {step === QUADRANTS.length - 1 ? t('swot.reviewAndSubmit') : t('swot.nextButton')}
               </Button>
             </div>
           </>
         ) : (
           <div>
-            <Paragraph strong>Review your SWOT analysis before submitting.</Paragraph>
+            <Paragraph strong>{t('swot.reviewBeforeSubmit')}</Paragraph>
             {QUADRANTS.map((q) => (
               <div key={q} style={{ marginBottom: 16 }}>
                 <QuadrantBadge quadrant={q} />
@@ -204,19 +213,19 @@ export default function SwotWordEntryPage() {
             ))}
             {!allMinMet && (
               <Alert type="error" showIcon style={{ marginBottom: 16 }}
-                message={`Each quadrant needs at least ${MIN_WORDS} words before you can submit.`} />
+                message={t('swot.eachQuadrantNeedsMin', { min: MIN_WORDS })} />
             )}
             <Space>
-              <Button onClick={() => setStep(QUADRANTS.length - 1)}>Back</Button>
+              <Button onClick={() => setStep(QUADRANTS.length - 1)}>{t('swot.backButton')}</Button>
               <Popconfirm
-                title="Submit your SWOT analysis?"
-                description="You won't be able to add more words after this."
+                title={t('swot.submitConfirmTitle')}
+                description={t('swot.submitConfirmDescription')}
                 onConfirm={() => submitMut.mutate()}
                 disabled={!allMinMet}
               >
                 <Button type="primary" disabled={!allMinMet} loading={submitMut.isPending}
                   style={{ background: '#13223a' }}>
-                  Submit SWOT Analysis
+                  {t('swot.submitButton')}
                 </Button>
               </Popconfirm>
             </Space>

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Table, Button, Modal, Form, Input, Select, Tag, message, Popconfirm } from 'antd'
 import { PlusOutlined, EditOutlined, DeleteOutlined, CheckCircleOutlined } from '@ant-design/icons'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import {
   getDepartments, createDepartment, updateDepartment,
   deactivateDepartment, reactivateDepartment, getOrgGroups,
@@ -14,6 +15,7 @@ import { useTerminology } from '../../TerminologyContext'
 const TABLE_PREFS_KEY = 'spms.adminDepartmentsTable.prefs'
 
 export default function DepartmentsPage() {
+  const { t } = useTranslation()
   const { defaultHeadTitleLabel } = useTerminology()
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState(null)
@@ -56,17 +58,17 @@ export default function DepartmentsPage() {
     mutationFn: (values) =>
       editing ? updateDepartment(editing.id, values) : createDepartment(values),
     onSuccess: () => {
-      message.success(editing ? 'Department updated' : 'Department created')
+      message.success(editing ? t('departmentsAdmin.departmentUpdated') : t('departmentsAdmin.departmentCreated'))
       setModalOpen(false)
       qc.invalidateQueries({ queryKey: ['admin-departments'] })
     },
-    onError: (err) => message.error(err.response?.data?.message || 'Operation failed'),
+    onError: (err) => message.error(err.response?.data?.message || t('tree.operationFailed')),
   })
 
   const deactivateMutation = useMutation({
     mutationFn: deactivateDepartment,
     onSuccess: () => {
-      message.success('Department deactivated')
+      message.success(t('departmentsAdmin.departmentDeactivated'))
       qc.invalidateQueries({ queryKey: ['admin-departments'] })
     },
   })
@@ -74,14 +76,14 @@ export default function DepartmentsPage() {
   const reactivateMutation = useMutation({
     mutationFn: reactivateDepartment,
     onSuccess: () => {
-      message.success('Department activated')
+      message.success(t('departmentsAdmin.departmentActivated'))
       qc.invalidateQueries({ queryKey: ['admin-departments'] })
     },
   })
 
   const columns = [
     {
-      title: 'Name',
+      title: t('common.name'),
       dataIndex: 'name',
       key: 'name',
       render: (v) => <span style={{ fontWeight: 500 }}>{v}</span>,
@@ -89,7 +91,7 @@ export default function DepartmentsPage() {
       sortOrder: sortOrderFor('name'),
     },
     {
-      title: 'Code',
+      title: t('departmentsAdmin.codeCol'),
       dataIndex: 'code',
       key: 'code',
       render: (v) => (
@@ -99,7 +101,7 @@ export default function DepartmentsPage() {
       sortOrder: sortOrderFor('code'),
     },
     {
-      title: 'Head Title',
+      title: t('orgGroups.headTitleCol'),
       dataIndex: 'headTitle',
       key: 'headTitle',
       render: (v) => v || '—',
@@ -115,7 +117,7 @@ export default function DepartmentsPage() {
       sortOrder: sortOrderFor('headUserName'),
     },
     {
-      title: 'Group',
+      title: t('departmentsAdmin.groupCol'),
       dataIndex: 'orgGroupTitle',
       key: 'orgGroupTitle',
       render: (v) => v || '—',
@@ -123,37 +125,37 @@ export default function DepartmentsPage() {
       sortOrder: sortOrderFor('orgGroupTitle'),
     },
     {
-      title: 'Status',
+      title: t('common.status'),
       dataIndex: 'active',
       key: 'active',
-      render: (v) => (v ? <Tag color="green">Active</Tag> : <Tag>Inactive</Tag>),
+      render: (v) => (v ? <Tag color="green">{t('departmentsAdmin.activeTag')}</Tag> : <Tag>{t('departmentsAdmin.inactiveTag')}</Tag>),
       sorter: (a, b) => Number(a.active) - Number(b.active),
       sortOrder: sortOrderFor('active'),
     },
     {
-      title: 'Actions',
+      title: t('common.actions'),
       render: (_, r) => (
         <div style={{ display: 'flex', gap: 8 }}>
           <Button size="small" icon={<EditOutlined />} onClick={() => openEdit(r)}>
-            Edit
+            {t('goalSetting.editButton')}
           </Button>
           {r.active ? (
             <Popconfirm
-              title="Deactivate this department?"
+              title={t('departmentsAdmin.deactivateConfirmTitle')}
               onConfirm={() => deactivateMutation.mutate(r.id)}
             >
               <Button size="small" danger icon={<DeleteOutlined />}>
-                Deactivate
+                {t('departmentsAdmin.deactivateButton')}
               </Button>
             </Popconfirm>
           ) : (
             <Popconfirm
-              title="Reactivate this department?"
+              title={t('departmentsAdmin.reactivateConfirmTitle')}
               onConfirm={() => reactivateMutation.mutate(r.id)}
             >
               <Button size="small" icon={<CheckCircleOutlined />}
                 style={{ color: '#52c41a', borderColor: '#52c41a' }}>
-                Activate
+                {t('departmentsAdmin.activateButton')}
               </Button>
             </Popconfirm>
           )}
@@ -165,10 +167,10 @@ export default function DepartmentsPage() {
   return (
     <div>
       <div className="page-header">
-        <h1 className="page-title">Departments</h1>
+        <h1 className="page-title">{t('nav.departments')}</h1>
         <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}
           style={{ background: '#13223a' }}>
-          New Department
+          {t('departmentsAdmin.newDepartmentButton')}
         </Button>
       </div>
 
@@ -183,7 +185,7 @@ export default function DepartmentsPage() {
       />
 
       <Modal
-        title={editing ? 'Edit Department' : 'Create Department'}
+        title={editing ? t('departmentsAdmin.editDepartmentTitle') : t('departmentsAdmin.createDepartmentTitle')}
         open={modalOpen}
         onCancel={() => setModalOpen(false)}
         onOk={() => form.submit()}
@@ -192,26 +194,26 @@ export default function DepartmentsPage() {
         width={480}
       >
         <Form form={form} layout="vertical" onFinish={saveMutation.mutate}>
-          <Form.Item name="name" label="Department Name" rules={[{ required: true }]}>
+          <Form.Item name="name" label={t('departmentsAdmin.departmentNameLabel')} rules={[{ required: true }]}>
             <Input />
           </Form.Item>
-          <Form.Item name="code" label="Code" rules={[{ required: true }]}>
-            <Input placeholder="e.g. CS, ENG" />
+          <Form.Item name="code" label={t('departmentsAdmin.codeCol')} rules={[{ required: true }]}>
+            <Input placeholder={t('departmentsAdmin.codePlaceholder')} />
           </Form.Item>
-          <Form.Item name="headTitle" label="Head Title"
-            tooltip="Title of the department head, e.g. Chair, Coordinator">
-            <Input placeholder="e.g. Chair" />
+          <Form.Item name="headTitle" label={t('orgGroups.headTitleCol')}
+            tooltip={t('departmentsAdmin.headTitleTooltip')}>
+            <Input placeholder={t('departmentsAdmin.headTitlePlaceholder')} />
           </Form.Item>
-          <Form.Item name="headUserId" label="Department Head">
-            <Select allowClear placeholder="Select a user" showSearch
+          <Form.Item name="headUserId" label={t('departmentsAdmin.departmentHeadLabel')}>
+            <Select allowClear placeholder={t('strategyDetailAdmin.selectUserPlaceholder')} showSearch
               optionFilterProp="label"
               options={users.map((u) => ({
                 value: u.id,
                 label: `${u.fname} ${u.lname} (${u.email})`,
               }))} />
           </Form.Item>
-          <Form.Item name="orgGroupId" label="Org Group">
-            <Select allowClear placeholder="Select a group"
+          <Form.Item name="orgGroupId" label={t('departmentsAdmin.orgGroupLabel')}>
+            <Select allowClear placeholder={t('departmentsAdmin.selectGroupPlaceholder')}
               options={orgGroups.map((g) => ({ value: g.id, label: g.title }))} />
           </Form.Item>
         </Form>

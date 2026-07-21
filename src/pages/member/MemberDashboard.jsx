@@ -1,11 +1,14 @@
-import { Card, Row, Col, Spin, Empty, Typography, Tooltip } from 'antd'
-import { TeamOutlined, BellOutlined } from '@ant-design/icons'
+import { useState } from 'react'
+import { Card, Row, Col, Spin, Empty, Typography, Tooltip, Button } from 'antd'
+import { TeamOutlined, BellOutlined, TrophyOutlined } from '@ant-design/icons'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { getDashboard } from '../../api/dashboard'
 import StateChip from '../../components/StateChip'
 import RoleChip from '../../components/RoleChip'
 import SpeedometerGauge from '../../components/SpeedometerGauge'
+import AddAchievementWizard from '../../components/AddAchievementWizard'
 
 const { Text } = Typography
 
@@ -17,7 +20,9 @@ function reportPath(item) {
 }
 
 export default function MemberDashboard() {
+  const { t } = useTranslation()
   const navigate = useNavigate()
+  const [wizardOpen, setWizardOpen] = useState(false)
   const { data: items = [], isLoading } = useQuery({
     queryKey: ['dashboard'],
     queryFn: getDashboard,
@@ -34,7 +39,7 @@ export default function MemberDashboard() {
   if (items.length === 0) {
     return (
       <Empty
-        description="No strategies assigned to you"
+        description={t('dashboard.noStrategies')}
         style={{ paddingTop: 80 }}
         image={Empty.PRESENTED_IMAGE_SIMPLE}
       />
@@ -50,8 +55,24 @@ export default function MemberDashboard() {
   return (
     <div>
       <div className="page-header">
-        <h1 className="page-title">My Strategies</h1>
+        <h1 className="page-title">{t('dashboard.title')}</h1>
       </div>
+
+      <div className="add-achievement-banner">
+        <Button
+          type="primary" icon={<TrophyOutlined />}
+          onClick={() => setWizardOpen(true)}
+          className="add-achievement-btn"
+        >
+          {t('dashboard.addAchievement')}
+        </Button>
+      </div>
+
+      <AddAchievementWizard
+        open={wizardOpen}
+        onClose={() => setWizardOpen(false)}
+        strategies={items}
+      />
 
       {Object.entries(byRole).map(([role, strategies]) => (
         <div key={role} style={{ marginBottom: 32 }}>
@@ -65,7 +86,7 @@ export default function MemberDashboard() {
           >
             <RoleChip role={role} />
             <Text style={{ color: '#6b7280', fontSize: 13 }}>
-              {strategies.length} {strategies.length === 1 ? 'strategy' : 'strategies'}
+              {t('dashboard.strategyCount', { count: strategies.length })}
             </Text>
           </div>
           <Row gutter={[16, 16]}>
@@ -120,7 +141,7 @@ export default function MemberDashboard() {
                       color: '#6b7280',
                     }}
                   >
-                    <Tooltip title="People with a role on this strategy -- click to view Members">
+                    <Tooltip title={t('dashboard.membersTooltip')}>
                       <span
                         className="strategy-card-stat-link"
                         onClick={(e) => { e.stopPropagation(); navigate(`/strategies/${item.strategyId}?tab=members`) }}
@@ -128,7 +149,7 @@ export default function MemberDashboard() {
                         <TeamOutlined /> {item.involvedUserCount}
                       </span>
                     </Tooltip>
-                    <Tooltip title="Unread notifications needing your attention">
+                    <Tooltip title={t('dashboard.notificationsTooltip')}>
                       <span style={item.unreadNotificationCount > 0 ? { color: '#c0871a', fontWeight: 600 } : undefined}>
                         <BellOutlined /> {item.unreadNotificationCount}
                       </span>
@@ -145,28 +166,28 @@ export default function MemberDashboard() {
                       gap: 8,
                     }}
                   >
-                    <Tooltip title={`Goals on track${item.mostRecentPeriodName ? ` (${item.mostRecentPeriodName})` : ''} -- click to view Report`}>
+                    <Tooltip title={t('dashboard.goalsTooltip', { periodSuffix: item.mostRecentPeriodName ? ` (${item.mostRecentPeriodName})` : '' })}>
                       <div
                         className="strategy-card-gauge-link"
                         onClick={(e) => { e.stopPropagation(); navigate(reportPath(item)) }}
                       >
-                        <SpeedometerGauge value={item.goalsOnTrack} max={item.totalGoals} label="Goals" size={84} />
+                        <SpeedometerGauge value={item.goalsOnTrack} max={item.totalGoals} label={t('dashboard.goalsLabel')} size={84} />
                       </div>
                     </Tooltip>
-                    <Tooltip title={`Objectives on track${item.mostRecentPeriodName ? ` (${item.mostRecentPeriodName})` : ''} -- click to view Report`}>
+                    <Tooltip title={t('dashboard.objectivesTooltip', { periodSuffix: item.mostRecentPeriodName ? ` (${item.mostRecentPeriodName})` : '' })}>
                       <div
                         className="strategy-card-gauge-link"
                         onClick={(e) => { e.stopPropagation(); navigate(reportPath(item)) }}
                       >
-                        <SpeedometerGauge value={item.objectivesOnTrack} max={item.totalObjectives} label="Objectives" size={84} />
+                        <SpeedometerGauge value={item.objectivesOnTrack} max={item.totalObjectives} label={t('dashboard.objectivesLabel')} size={84} />
                       </div>
                     </Tooltip>
-                    <Tooltip title={`Initiatives on track${item.mostRecentPeriodName ? ` (${item.mostRecentPeriodName})` : ''} -- click to view Report`}>
+                    <Tooltip title={t('dashboard.initiativesTooltip', { periodSuffix: item.mostRecentPeriodName ? ` (${item.mostRecentPeriodName})` : '' })}>
                       <div
                         className="strategy-card-gauge-link"
                         onClick={(e) => { e.stopPropagation(); navigate(reportPath(item)) }}
                       >
-                        <SpeedometerGauge value={item.initiativesOnTrack} max={item.totalInitiatives} label="Initiatives" size={84} />
+                        <SpeedometerGauge value={item.initiativesOnTrack} max={item.totalInitiatives} label={t('dashboard.initiativesLabel')} size={84} />
                       </div>
                     </Tooltip>
                   </div>

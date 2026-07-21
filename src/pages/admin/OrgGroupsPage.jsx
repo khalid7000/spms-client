@@ -2,11 +2,13 @@ import { useState } from 'react'
 import { Table, Button, Modal, Form, Input, Select, Tag, message, Popconfirm } from 'antd'
 import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import { getOrgGroups, createOrgGroup, updateOrgGroup, deleteOrgGroup, getUsers } from '../../api/admin'
 import TableTotal from '../../components/TableTotal'
 import { compareStrings } from '../../hooks/useTablePrefs'
 
 export default function OrgGroupsPage() {
+  const { t } = useTranslation()
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState(null)
   const [form] = Form.useForm()
@@ -42,20 +44,20 @@ export default function OrgGroupsPage() {
     mutationFn: (values) =>
       editing ? updateOrgGroup(editing.id, values) : createOrgGroup(values),
     onSuccess: () => {
-      message.success(editing ? 'Group updated' : 'Group created')
+      message.success(editing ? t('orgGroups.groupUpdated') : t('orgGroups.groupCreated'))
       setModalOpen(false)
       qc.invalidateQueries({ queryKey: ['admin-org-groups'] })
     },
-    onError: (err) => message.error(err.response?.data?.message || 'Operation failed'),
+    onError: (err) => message.error(err.response?.data?.message || t('tree.operationFailed')),
   })
 
   const deleteMutation = useMutation({
     mutationFn: deleteOrgGroup,
     onSuccess: () => {
-      message.success('Group deleted')
+      message.success(t('orgGroups.groupDeleted'))
       qc.invalidateQueries({ queryKey: ['admin-org-groups'] })
     },
-    onError: (err) => message.error(err.response?.data?.message || 'Delete failed'),
+    onError: (err) => message.error(err.response?.data?.message || t('orgGroups.deleteFailed')),
   })
 
   // Groups available as parents (exclude self when editing)
@@ -65,31 +67,31 @@ export default function OrgGroupsPage() {
 
   const columns = [
     {
-      title: 'Group Name',
+      title: t('orgGroups.groupNameCol'),
       dataIndex: 'title',
       render: (v) => <span style={{ fontWeight: 500 }}>{v}</span>,
       sorter: (a, b) => compareStrings(a.title, b.title),
     },
     {
-      title: 'Head Title',
+      title: t('orgGroups.headTitleCol'),
       dataIndex: 'headTitle',
       render: (v) => <Tag color="blue">{v}</Tag>,
     },
-    { title: 'Current Head', dataIndex: 'headUserName', render: (v) => v || '—' },
-    { title: 'Parent Group', dataIndex: 'parentTitle', render: (v) => v || '—' },
+    { title: t('orgGroups.currentHeadCol'), dataIndex: 'headUserName', render: (v) => v || '—' },
+    { title: t('orgGroups.parentGroupCol'), dataIndex: 'parentTitle', render: (v) => v || '—' },
     {
-      title: 'Actions',
+      title: t('common.actions'),
       render: (_, r) => (
         <div style={{ display: 'flex', gap: 8 }}>
           <Button size="small" icon={<EditOutlined />} onClick={() => openEdit(r)}>
-            Edit
+            {t('goalSetting.editButton')}
           </Button>
           <Popconfirm
-            title="Delete this group? Departments and sub-groups will be unassigned."
+            title={t('orgGroups.deleteConfirmTitle')}
             onConfirm={() => deleteMutation.mutate(r.id)}
           >
             <Button size="small" danger icon={<DeleteOutlined />}>
-              Delete
+              {t('strategiesAdmin.deleteOkText')}
             </Button>
           </Popconfirm>
         </div>
@@ -100,10 +102,10 @@ export default function OrgGroupsPage() {
   return (
     <div>
       <div className="page-header">
-        <h1 className="page-title">Org Groups</h1>
+        <h1 className="page-title">{t('nav.orgGroups')}</h1>
         <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}
           style={{ background: '#13223a' }}>
-          New Group
+          {t('orgGroups.newGroupButton')}
         </Button>
       </div>
 
@@ -117,7 +119,7 @@ export default function OrgGroupsPage() {
       />
 
       <Modal
-        title={editing ? 'Edit Org Group' : 'Create Org Group'}
+        title={editing ? t('orgGroups.editGroupTitle') : t('orgGroups.createGroupTitle')}
         open={modalOpen}
         onCancel={() => setModalOpen(false)}
         onOk={() => form.submit()}
@@ -126,19 +128,19 @@ export default function OrgGroupsPage() {
         width={480}
       >
         <Form form={form} layout="vertical" onFinish={saveMutation.mutate}>
-          <Form.Item name="title" label="Group Name" rules={[{ required: true }]}>
-            <Input placeholder="e.g. College of Engineering" />
+          <Form.Item name="title" label={t('orgGroups.groupNameCol')} rules={[{ required: true }]}>
+            <Input placeholder={t('orgGroups.groupNamePlaceholder')} />
           </Form.Item>
-          <Form.Item name="headTitle" label="Head Title" rules={[{ required: true }]}
-            tooltip="Title of the person who leads this group">
-            <Input placeholder="e.g. Dean, Director, VP" />
+          <Form.Item name="headTitle" label={t('orgGroups.headTitleCol')} rules={[{ required: true }]}
+            tooltip={t('orgGroups.headTitleTooltip')}>
+            <Input placeholder={t('orgGroups.headTitlePlaceholder')} />
           </Form.Item>
-          <Form.Item name="parentId" label="Parent Group"
-            tooltip="Leave blank for a top-level group">
-            <Select allowClear placeholder="None (top-level)" options={parentOptions} />
+          <Form.Item name="parentId" label={t('orgGroups.parentGroupCol')}
+            tooltip={t('orgGroups.parentGroupTooltip')}>
+            <Select allowClear placeholder={t('orgGroups.noneTopLevelPlaceholder')} options={parentOptions} />
           </Form.Item>
-          <Form.Item name="headUserId" label="Group Head">
-            <Select allowClear placeholder="Select a user" showSearch
+          <Form.Item name="headUserId" label={t('orgGroups.groupHeadLabel')}>
+            <Select allowClear placeholder={t('strategyDetailAdmin.selectUserPlaceholder')} showSearch
               optionFilterProp="label"
               options={users.map((u) => ({
                 value: u.id,

@@ -12,6 +12,9 @@ function buildUserInfo(data) {
     email: data.email,
     systemRoles: data.systemRoles || [],
     mustChangePassword: !!data.mustChangePassword,
+    // Self-service password change is hidden/guarded when true -- LDAP owns the password,
+    // not this app (see MemberLayout's user menu and ChangePasswordPage).
+    ldapEnabled: !!data.ldapEnabled,
   }
 }
 
@@ -25,8 +28,8 @@ export function AuthProvider({ children }) {
     }
   })
 
-  const login = useCallback(async (email, password) => {
-    const data = await apiLogin(email, password)
+  const login = useCallback(async (email, password, slug) => {
+    const data = await apiLogin(email, password, slug)
     const userInfo = buildUserInfo(data)
     // Purge any cached data from a previous session in this tab (role/permission-gated
     // queries share the same keys regardless of user, so a stale cache here would render

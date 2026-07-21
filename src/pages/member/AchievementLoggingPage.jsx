@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Card, Select, Table, Space, Tag, Statistic, Row, Col, Rate, Empty, Spin, Tabs } from 'antd'
 import { useQuery } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import * as api from '../../api/portfolio'
 import { getAcademicYears, getMostRecentAcademicYear } from '../../api/academicYears'
 import TableTotal from '../../components/TableTotal'
@@ -8,6 +9,7 @@ import { compareStrings } from '../../hooks/useTablePrefs'
 import { useTerminology } from '../../TerminologyContext'
 
 export default function AchievementLoggingPage() {
+  const { t } = useTranslation()
   const { academicYearLabel } = useTerminology()
   const [academicYear, setAcademicYear] = useState(null)
 
@@ -50,20 +52,20 @@ export default function AchievementLoggingPage() {
 
   const portfolioColumns = [
     {
-      title: 'Achievement', dataIndex: 'achievementTitle', key: 'achievementTitle', ellipsis: true, width: 250,
+      title: t('achievementLog.colAchievement'), dataIndex: 'achievementTitle', key: 'achievementTitle', ellipsis: true, width: 250,
       sorter: (a, b) => compareStrings(a.achievementTitle, b.achievementTitle),
     },
-    { title: 'Category', dataIndex: 'categoryName', key: 'categoryName', width: 150 },
-    { title: 'Type', dataIndex: 'achievementTypeName', key: 'achievementTypeName', width: 120 },
+    { title: t('achievementLog.colCategory'), dataIndex: 'categoryName', key: 'categoryName', width: 150 },
+    { title: t('common.type'), dataIndex: 'achievementTypeName', key: 'achievementTypeName', width: 120 },
     {
-      title: 'Goal', dataIndex: 'goalId', key: 'goalId', width: 150,
+      title: t('common.goal'), dataIndex: 'goalId', key: 'goalId', width: 150,
       render: (goalId) => {
         const goal = cycleGoals.find((g) => g.id === goalId)
-        return goal ? goal.goalTitle : goalId ? <Tag>Other year</Tag> : '-'
+        return goal ? goal.goalTitle : goalId ? <Tag>{t('achievementLog.otherYear')}</Tag> : '-'
       },
     },
     {
-      title: 'Rating', dataIndex: 'categoryRating', key: 'categoryRating', width: 120,
+      title: t('achievementLog.colRating'), dataIndex: 'categoryRating', key: 'categoryRating', width: 120,
       render: (rating) => rating ? <Rate disabled value={rating} /> : '-',
     },
   ]
@@ -71,11 +73,9 @@ export default function AchievementLoggingPage() {
   return (
     <div style={{ padding: 24 }}>
       <Card>
-        <h1>My Portfolio</h1>
+        <h1>{t('achievementLog.title')}</h1>
         <p>
-          A summary of your logged achievements and this year's deployed goals. Achievements are logged from the
-          Strategy Tree when you record them against an initiative -- each one is tagged there with the evaluation
-          category (and optionally a goal) it counts toward for your annual portfolio.
+          {t('achievementLog.intro')}
         </p>
 
         <Space style={{ marginBottom: 24 }}>
@@ -86,13 +86,13 @@ export default function AchievementLoggingPage() {
         {academicYear && summary && (
           <Row gutter={16} style={{ marginBottom: 24 }}>
             <Col xs={24} sm={12} lg={8}>
-              <Statistic title="Total Achievements" value={summary.totalEntries} />
+              <Statistic title={t('achievementLog.totalAchievements')} value={summary.totalEntries} />
             </Col>
             <Col xs={24} sm={12} lg={8}>
-              <Statistic title="Deployed Goals" value={summary.deployedGoals} />
+              <Statistic title={t('achievementLog.deployedGoals')} value={summary.deployedGoals} />
             </Col>
             <Col xs={24} sm={12} lg={8}>
-              <Statistic title="Average Rating" value={summary.averageRating} precision={1} suffix="/5" />
+              <Statistic title={t('achievementLog.averageRating')} value={summary.averageRating} precision={1} suffix="/5" />
             </Col>
           </Row>
         )}
@@ -101,21 +101,21 @@ export default function AchievementLoggingPage() {
           items={[
             {
               key: 'achievements',
-              label: 'My Achievements',
+              label: t('achievementLog.myAchievementsTab'),
               children: portfolioLoading ? <Spin /> : portfolio.length === 0 ? (
-                <Empty description="No achievements logged yet -- record one from a strategy's initiative tree" />
+                <Empty description={t('achievementLog.noneLoggedYet')} />
               ) : (
                 <Table
                   dataSource={portfolio} columns={portfolioColumns} rowKey="id"
-                  pagination={{ pageSize: 10, showTotal: (total) => `Total: ${total}` }}
+                  pagination={{ pageSize: 10, showTotal: (total) => t('achievementLog.totalCount', { count: total }) }}
                 />
               ),
             },
             {
               key: 'goals',
-              label: 'My Deployed Goals',
+              label: t('achievementLog.myDeployedGoalsTab'),
               children: cycleGoals.length === 0 ? (
-                <Empty description={`No deployed goals for this ${academicYearLabel.toLowerCase()} yet`} />
+                <Empty description={t('achievementLog.noDeployedGoals', { yearLabel: academicYearLabel.toLowerCase() })} />
               ) : (
                 <>
                   <TableTotal count={cycleGoals.length} />
@@ -125,10 +125,10 @@ export default function AchievementLoggingPage() {
                     pagination={false}
                     columns={[
                       {
-                        title: 'Goal', dataIndex: 'goalTitle', key: 'goalTitle', ellipsis: true,
+                        title: t('common.goal'), dataIndex: 'goalTitle', key: 'goalTitle', ellipsis: true,
                         sorter: (a, b) => compareStrings(a.goalTitle, b.goalTitle),
                       },
-                      { title: 'Category', dataIndex: 'categoryName', key: 'categoryName' },
+                      { title: t('achievementLog.colCategory'), dataIndex: 'categoryName', key: 'categoryName' },
                     ]}
                   />
                 </>

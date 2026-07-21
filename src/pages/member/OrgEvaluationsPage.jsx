@@ -4,6 +4,7 @@
 import { useState, useEffect } from 'react'
 import { Card, Select, Table, Tag, Button, Descriptions, Alert, Empty, Space, Typography } from 'antd'
 import { useQuery } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import { getAcademicYears, getMostRecentAcademicYear } from '../../api/academicYears'
 import { getRankLabels } from '../../api/portfolio'
 import { getHierarchyEvaluations, getEvaluation } from '../../api/annualEvaluations'
@@ -20,6 +21,7 @@ const { Paragraph, Text } = Typography
 const TABLE_PREFS_KEY = 'spms.orgEvaluationsTable.prefs'
 
 export default function OrgEvaluationsPage() {
+  const { t } = useTranslation()
   const { defaultHeadTitleLabel, academicYearLabel } = useTerminology()
   const [academicYearId, setAcademicYearId] = useState(null)
   const [evaluationId, setEvaluationId] = useState(null)
@@ -54,33 +56,31 @@ export default function OrgEvaluationsPage() {
 
   const columns = [
     {
-      title: 'Employee', dataIndex: 'employeeName', key: 'employeeName',
+      title: t('goalSetting.employeeLabel'), dataIndex: 'employeeName', key: 'employeeName',
       sorter: (a, b) => compareStrings(a.employeeName, b.employeeName), sortOrder: sortOrderFor('employeeName'),
     },
     {
-      title: 'Department', dataIndex: 'departmentName', key: 'departmentName',
+      title: t('common.department'), dataIndex: 'departmentName', key: 'departmentName',
       sorter: (a, b) => compareStrings(a.departmentName, b.departmentName), sortOrder: sortOrderFor('departmentName'),
     },
     { title: defaultHeadTitleLabel, dataIndex: 'headName', key: 'headName' },
-    { title: 'Status', dataIndex: 'state', key: 'state', render: (s) => <Tag color={STATE_COLORS[s]}>{s}</Tag> },
+    { title: t('common.status'), dataIndex: 'state', key: 'state', render: (s) => <Tag color={STATE_COLORS[s]}>{s}</Tag> },
     {
-      title: 'Overall Rank', dataIndex: 'headOverallRank', key: 'headOverallRank',
+      title: t('orgEval.overallRankColLabel'), dataIndex: 'headOverallRank', key: 'headOverallRank',
       render: (rank) => rank ? <Tag color="green">{rank}</Tag> : <Tag>—</Tag>,
     },
     {
       title: '', key: 'actions',
-      render: (_, row) => <Button size="small" onClick={() => setEvaluationId(row.id)}>View</Button>,
+      render: (_, row) => <Button size="small" onClick={() => setEvaluationId(row.id)}>{t('evalDisplay.viewButton')}</Button>,
     },
   ]
 
   return (
     <div style={{ padding: 24 }}>
       <Card>
-        <h1>Organization Evaluations</h1>
+        <h1>{t('orgEval.title')}</h1>
         <Paragraph type="secondary">
-          Read-only status of every Annual Evaluation across your organization hierarchy -- every department you
-          head directly, plus every department under any org group you head. To rate an evaluation, use Team
-          Annual Evaluations instead.
+          {t('orgEval.intro')}
         </Paragraph>
 
         <Select
@@ -90,29 +90,29 @@ export default function OrgEvaluationsPage() {
         />
 
         {!academicYearId ? (
-          <Empty description={`Select a ${academicYearLabel}`} />
+          <Empty description={t('goalReview.selectYearEmpty', { yearLabel: academicYearLabel })} />
         ) : !evaluationId ? (
           <Table
             dataSource={evaluations} columns={columns} rowKey="id" loading={isLoading}
-            locale={{ emptyText: 'No evaluations found in your organization hierarchy for this year' }}
+            locale={{ emptyText: t('orgEval.noEvaluationsFound') }}
             pagination={{
               current: prefs.current, pageSize: prefs.pageSize, showSizeChanger: true,
-              showTotal: (total) => `Total: ${total}`,
+              showTotal: (total) => t('achievementLog.totalCount', { count: total }),
             }}
             onChange={handleTableChange}
           />
         ) : evaluation && (
           <>
-            <Button style={{ marginBottom: 16 }} onClick={() => setEvaluationId(null)}>&larr; Back to list</Button>
+            <Button style={{ marginBottom: 16 }} onClick={() => setEvaluationId(null)}>&larr; {t('orgEval.backToList')}</Button>
             <Descriptions column={3} style={{ marginBottom: 16 }}>
-              <Descriptions.Item label="Employee">{evaluation.employeeName}</Descriptions.Item>
+              <Descriptions.Item label={t('goalSetting.employeeLabel')}>{evaluation.employeeName}</Descriptions.Item>
               <Descriptions.Item label={evaluation.headTitle ?? defaultHeadTitleLabel}>{evaluation.headName}</Descriptions.Item>
-              <Descriptions.Item label="Status"><Tag color={STATE_COLORS[evaluation.state]}>{evaluation.state}</Tag></Descriptions.Item>
+              <Descriptions.Item label={t('common.status')}><Tag color={STATE_COLORS[evaluation.state]}>{evaluation.state}</Tag></Descriptions.Item>
             </Descriptions>
 
             <EvaluationScoreSummary evaluation={evaluation} rankLabels={rankLabels} />
 
-            <Card size="small" title="Evaluation Details" style={{ marginBottom: 16 }} />
+            <Card size="small" title={t('annualEval.evaluationDetailsTitle')} style={{ marginBottom: 16 }} />
 
             {orderedCategoryResults(evaluation.categoryResults).map((cat, idx) => {
               const color = categoryColor(idx)
@@ -123,23 +123,23 @@ export default function OrgEvaluationsPage() {
                   styles={{ header: { background: color.tint } }}
                   extra={
                     <Space>
-                      <Tag color="green">Head: {cat.headCategoryRank ? rankLabelText(rankLabels, cat.headCategoryRank) : 'Not yet rated'}</Tag>
-                      <Tag color="magenta">Self: {cat.employeeSelfRank ? rankLabelText(rankLabels, cat.employeeSelfRank) : '—'}</Tag>
+                      <Tag color="green">{t('annualEval.headRankLabel', { rank: cat.headCategoryRank ? rankLabelText(rankLabels, cat.headCategoryRank) : t('annualEval.notYetRated') })}</Tag>
+                      <Tag color="magenta">{t('teamEval.selfLabel', { rank: cat.employeeSelfRank ? rankLabelText(rankLabels, cat.employeeSelfRank) : '—' })}</Tag>
                     </Space>
                   }
                 >
                   {evaluation.criteriaResults.filter((c) => c.categoryId === cat.categoryId).map((crit) => (
                     <div key={crit.criteriaId} style={{ marginBottom: 16, paddingBottom: 16, borderBottom: '1px solid #e8eef6' }}>
                       <div style={{ marginBottom: 8 }}>
-                        <Text strong>Criterion: </Text>
+                        <Text strong>{t('annualEval.criterionLabel')} </Text>
                         <RubricPopover criteria={crit} />
-                        {crit.employeeNothingToReport && <Tag color="gold" style={{ marginLeft: 8 }}>Employee: nothing to report</Tag>}
+                        {crit.employeeNothingToReport && <Tag color="gold" style={{ marginLeft: 8 }}>{t('evalDisplay.employeeNothingToReport')}</Tag>}
                       </div>
                       <div style={{ marginBottom: 8 }}>
-                        <Text strong style={{ display: 'block', marginBottom: 4 }}>Criterion Achievements:</Text>
+                        <Text strong style={{ display: 'block', marginBottom: 4 }}>{t('annualEval.criterionAchievementsLabel')}</Text>
                         <AchievementList
                           entries={evaluation.entries.filter((e) => e.criteriaId === crit.criteriaId)}
-                          emptyText={crit.employeeNothingToReport ? 'Employee reported nothing for this criteria' : 'No achievements tagged to this criteria'}
+                          emptyText={crit.employeeNothingToReport ? t('teamEval.employeeReportedNothingCriteria') : t('annualEval.noAchievementsTaggedCriteria')}
                           color={color}
                         />
                       </div>
@@ -164,7 +164,7 @@ export default function OrgEvaluationsPage() {
                   {unlinked.length > 0 && (
                     <div style={{ marginBottom: 16 }}>
                       <Text type="secondary" style={{ display: 'block', marginBottom: 4 }}>
-                        <Tag color="gold" style={{ marginRight: 6 }}>Needs review</Tag>Not linked to a specific criteria
+                        <Tag color="gold" style={{ marginRight: 6 }}>{t('teamEval.needsReviewTag')}</Tag>{t('teamEval.notLinkedToCriteria')}
                       </Text>
                       <AchievementList entries={unlinked} emptyText="" color={UNLINKED_COLOR} />
                     </div>
@@ -177,7 +177,7 @@ export default function OrgEvaluationsPage() {
 
             <GoalsSection evaluation={evaluation} rankLabels={rankLabels} canEdit={false} />
 
-            <EmployeeReflectionBlock comments={evaluation.employeeFinalSummary} heading="General Final Summary Statement" required />
+            <EmployeeReflectionBlock comments={evaluation.employeeFinalSummary} heading={t('annualEval.finalSummaryHeading')} required />
 
             <NextCycleGoalsSection
               evaluationId={evaluationId} evaluation={evaluation} canHeadEdit={false} canEmployeeReview={false}
@@ -185,16 +185,16 @@ export default function OrgEvaluationsPage() {
 
             {evaluation.employeeRefused && (
               <Alert type="warning" showIcon style={{ marginBottom: 12 }}
-                message="Employee refused to sign this evaluation"
+                message={t('orgEval.employeeRefusedToSign')}
                 description={evaluation.employeeRefusalRationale} />
             )}
             {evaluation.headSignedAt && (
               <Alert type="success" showIcon style={{ marginBottom: 8 }}
-                message={`Head signature: ${evaluation.headSignatureName} on ${new Date(evaluation.headSignedAt).toLocaleDateString()}`} />
+                message={t('orgEval.headSignature', { name: evaluation.headSignatureName, date: new Date(evaluation.headSignedAt).toLocaleDateString() })} />
             )}
             {evaluation.employeeSignedAt && (
               <Alert type="success" showIcon style={{ marginBottom: 8 }}
-                message={`Employee signature: ${evaluation.employeeSignatureName} on ${new Date(evaluation.employeeSignedAt).toLocaleDateString()}`} />
+                message={t('orgEval.employeeSignature', { name: evaluation.employeeSignatureName, date: new Date(evaluation.employeeSignedAt).toLocaleDateString() })} />
             )}
           </>
         )}

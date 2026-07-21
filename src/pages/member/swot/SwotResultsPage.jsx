@@ -2,6 +2,7 @@ import { Card, Row, Col, Spin, Empty, Button, Progress } from 'antd'
 import { ArrowLeftOutlined } from '@ant-design/icons'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import { getSwotResults } from '../../../api/swot'
 import QuadrantBadge from '../../../components/swot/QuadrantBadge'
 
@@ -15,6 +16,7 @@ const QUADRANT_HEX = {
 }
 
 export default function SwotResultsPage() {
+  const { t } = useTranslation()
   const { strategyId } = useParams()
   const navigate = useNavigate()
 
@@ -34,7 +36,7 @@ export default function SwotResultsPage() {
       <Button type="text" icon={<ArrowLeftOutlined />}
         onClick={() => navigate(`/strategies/${strategyId}/swot`)}
         style={{ marginBottom: 16, color: '#6b7280' }}>
-        Back to SWOT Overview
+        {t('swot.backToOverview')}
       </Button>
       <Row gutter={[16, 16]}>
         {QUADRANTS.map((q) => {
@@ -44,13 +46,13 @@ export default function SwotResultsPage() {
             <Col xs={24} md={12} key={q}>
               <Card size="small" title={<QuadrantBadge quadrant={q} />}>
                 {words.length === 0 ? (
-                  <Empty description="No results" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+                  <Empty description={t('swot.noResults')} image={Empty.PRESENTED_IMAGE_SIMPLE} />
                 ) : (
                   words.map((w) => (
                     <div key={w.word} style={{ marginBottom: 10 }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 2 }}>
                         <span><strong>#{w.rankPosition}</strong> {w.word}</span>
-                        <span style={{ color: '#6b7280' }}>{w.totalScore} pts</span>
+                        <span style={{ color: '#6b7280' }}>{t('swot.pointsSuffix', { count: w.totalScore })}</span>
                       </div>
                       <Progress
                         percent={Math.round((w.totalScore / topScore) * 100)}

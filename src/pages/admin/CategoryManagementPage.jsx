@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Table, Button, Modal, Form, Input, Select, Tag, message, Popconfirm, Card, Drawer, Space, InputNumber, Switch } from 'antd'
 import { PlusOutlined, EditOutlined, DeleteOutlined, CheckCircleOutlined, AppstoreOutlined, OrderedListOutlined } from '@ant-design/icons'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import {
   getAllTitles, createCategory, getCategoriesByTitle, updateCategory, deleteCategory,
   addRankLabel, getRankLabels, updateRankLabel, deleteRankLabel,
@@ -16,6 +17,7 @@ import { useTerminology } from '../../TerminologyContext'
 const CATEGORY_PREFS_KEY = 'spms.admin.portfolio.categories'
 
 export default function CategoryManagementPage() {
+  const { t } = useTranslation()
   const { academicYearLabel } = useTerminology()
   const [selectedTitle, setSelectedTitle] = useState(null)
   const [categoryModalOpen, setCategoryModalOpen] = useState(false)
@@ -35,7 +37,7 @@ export default function CategoryManagementPage() {
     queryKey: ['employee-titles'],
     queryFn: getAllTitles,
   })
-  const selectedTitleObj = titles.find((t) => t.id === selectedTitle)
+  const selectedTitleObj = titles.find((ti) => ti.id === selectedTitle)
 
   // Fetch categories for selected title
   const { data: categories = [], isLoading: categoriesLoading } = useQuery({
@@ -55,97 +57,97 @@ export default function CategoryManagementPage() {
   const createCategoryMutation = useMutation({
     mutationFn: (values) => createCategory(selectedTitle, values),
     onSuccess: () => {
-      message.success('Category created')
+      message.success(t('categoryMgmt.categoryCreated'))
       setCategoryModalOpen(false)
       categoryForm.resetFields()
       qc.invalidateQueries({ queryKey: ['portfolio-categories', selectedTitle] })
     },
-    onError: (err) => message.error(err.response?.data?.message || 'Failed to create category')
+    onError: (err) => message.error(err.response?.data?.message || t('categoryMgmt.createCategoryFailed'))
   })
 
   const updateCategoryMutation = useMutation({
     mutationFn: (values) => updateCategory(editingCategory.id, values),
     onSuccess: () => {
-      message.success('Category updated')
+      message.success(t('categoryMgmt.categoryUpdated'))
       setCategoryModalOpen(false)
       categoryForm.resetFields()
       setEditingCategory(null)
       qc.invalidateQueries({ queryKey: ['portfolio-categories', selectedTitle] })
     },
-    onError: (err) => message.error(err.response?.data?.message || 'Failed to update category')
+    onError: (err) => message.error(err.response?.data?.message || t('categoryMgmt.updateCategoryFailed'))
   })
 
   const deleteCategoryMutation = useMutation({
     mutationFn: (id) => deleteCategory(id),
     onSuccess: () => {
-      message.success('Category deleted')
+      message.success(t('categoryMgmt.categoryDeleted'))
       qc.invalidateQueries({ queryKey: ['portfolio-categories', selectedTitle] })
     },
-    onError: (err) => message.error(err.response?.data?.message || 'Cannot delete system default categories')
+    onError: (err) => message.error(err.response?.data?.message || t('categoryMgmt.cannotDeleteSystemDefault'))
   })
 
   // Mutations for rank labels (per title)
   const addRankLabelMutation = useMutation({
     mutationFn: (values) => addRankLabel(selectedTitle, values),
     onSuccess: () => {
-      message.success('Rank label added')
+      message.success(t('categoryMgmt.rankLabelAdded'))
       rankLabelForm.resetFields()
       qc.invalidateQueries({ queryKey: ['rank-labels', selectedTitle] })
       qc.invalidateQueries({ queryKey: ['employee-titles'] })
     },
-    onError: (err) => message.error(err.response?.data?.message || 'Failed to add rank label')
+    onError: (err) => message.error(err.response?.data?.message || t('categoryMgmt.addRankLabelFailed'))
   })
 
   const updateRankLabelMutation = useMutation({
     mutationFn: (values) => updateRankLabel(editingRankLabel.id, values),
     onSuccess: () => {
-      message.success('Rank label updated')
+      message.success(t('categoryMgmt.rankLabelUpdated'))
       rankLabelForm.resetFields()
       setEditingRankLabel(null)
       qc.invalidateQueries({ queryKey: ['rank-labels', selectedTitle] })
     },
-    onError: (err) => message.error(err.response?.data?.message || 'Failed to update rank label')
+    onError: (err) => message.error(err.response?.data?.message || t('categoryMgmt.updateRankLabelFailed'))
   })
 
   const deleteRankLabelMutation = useMutation({
     mutationFn: (id) => deleteRankLabel(id),
     onSuccess: () => {
-      message.success('Rank label deleted')
+      message.success(t('categoryMgmt.rankLabelDeleted'))
       qc.invalidateQueries({ queryKey: ['rank-labels', selectedTitle] })
       qc.invalidateQueries({ queryKey: ['employee-titles'] })
     },
-    onError: (err) => message.error(err.response?.data?.message || 'Failed to delete rank label')
+    onError: (err) => message.error(err.response?.data?.message || t('categoryMgmt.deleteRankLabelFailed'))
   })
 
   // Mutations for criteria
   const addCriteriaMutation = useMutation({
     mutationFn: (values) => addCriteria(editingCategory.id, values),
     onSuccess: () => {
-      message.success('Criteria added')
+      message.success(t('categoryMgmt.criteriaAdded'))
       criteriaForm.resetFields()
       qc.invalidateQueries({ queryKey: ['criteria', editingCategory.id] })
     },
-    onError: (err) => message.error(err.response?.data?.message || 'Failed to add criteria')
+    onError: (err) => message.error(err.response?.data?.message || t('categoryMgmt.addCriteriaFailed'))
   })
 
   const updateCriteriaMutation = useMutation({
     mutationFn: (values) => updateCriteria(editingCriteria.id, values),
     onSuccess: () => {
-      message.success('Criteria updated')
+      message.success(t('categoryMgmt.criteriaUpdated'))
       criteriaForm.resetFields()
       setEditingCriteria(null)
       qc.invalidateQueries({ queryKey: ['criteria', editingCategory.id] })
     },
-    onError: (err) => message.error(err.response?.data?.message || 'Failed to update criteria')
+    onError: (err) => message.error(err.response?.data?.message || t('categoryMgmt.updateCriteriaFailed'))
   })
 
   const deleteCriteriaMutation = useMutation({
     mutationFn: (id) => deleteCriteria(id),
     onSuccess: () => {
-      message.success('Criteria deleted')
+      message.success(t('categoryMgmt.criteriaDeleted'))
       qc.invalidateQueries({ queryKey: ['criteria', editingCategory.id] })
     },
-    onError: (err) => message.error(err.response?.data?.message || 'Failed to delete criteria')
+    onError: (err) => message.error(err.response?.data?.message || t('categoryMgmt.deleteCriteriaFailed'))
   })
 
   // Fetch criteria for category being managed
@@ -177,23 +179,23 @@ export default function CategoryManagementPage() {
     mutationFn: ({ code, criteriaId, maxAchievementsPerYear, mandatory, displayName }) =>
       assignAchievementModule(code, criteriaId, maxAchievementsPerYear, mandatory, displayName),
     onSuccess: () => {
-      message.success('Achievement module assigned')
+      message.success(t('categoryMgmt.moduleAssigned'))
       qc.invalidateQueries({ queryKey: ['criteria', editingCategory?.id] })
       qc.invalidateQueries({ queryKey: ['achievement-module-assignments', selectedTitle] })
       setModuleLimitPrompt(null)
       moduleLimitForm.resetFields()
     },
-    onError: (err) => message.error(err.response?.data?.message || 'Failed to assign achievement module')
+    onError: (err) => message.error(err.response?.data?.message || t('categoryMgmt.assignModuleFailed'))
   })
 
   const unassignModuleMutation = useMutation({
     mutationFn: ({ code, criteriaId }) => unassignAchievementModule(code, criteriaId),
     onSuccess: () => {
-      message.success('Achievement module unassigned')
+      message.success(t('categoryMgmt.moduleUnassigned'))
       qc.invalidateQueries({ queryKey: ['criteria', editingCategory?.id] })
       qc.invalidateQueries({ queryKey: ['achievement-module-assignments', selectedTitle] })
     },
-    onError: (err) => message.error(err.response?.data?.message || 'Failed to unassign achievement module')
+    onError: (err) => message.error(err.response?.data?.message || t('categoryMgmt.unassignModuleFailed'))
   })
 
   // Criteria Info Tools -- head-only viewers, parallel to achievement modules above but for
@@ -224,29 +226,32 @@ export default function CategoryManagementPage() {
     mutationFn: ({ code, criteriaId, displayName, repositorySourceType }) =>
       assignInfoTool(code, criteriaId, displayName, repositorySourceType),
     onSuccess: () => {
-      message.success('Info tool assigned')
+      message.success(t('categoryMgmt.infoToolAssigned'))
       qc.invalidateQueries({ queryKey: ['criteria', editingCategory?.id] })
       qc.invalidateQueries({ queryKey: ['info-tool-assignments', selectedTitle] })
       setInfoToolPrompt(null)
       infoToolForm.resetFields()
     },
-    onError: (err) => message.error(err.response?.data?.message || 'Failed to assign info tool')
+    onError: (err) => message.error(err.response?.data?.message || t('categoryMgmt.assignInfoToolFailed'))
   })
 
   const unassignInfoToolMutation = useMutation({
     mutationFn: ({ code, criteriaId, repositorySourceType }) => unassignInfoTool(code, criteriaId, repositorySourceType),
     onSuccess: () => {
-      message.success('Info tool unassigned')
+      message.success(t('categoryMgmt.infoToolUnassigned'))
       qc.invalidateQueries({ queryKey: ['criteria', editingCategory?.id] })
       qc.invalidateQueries({ queryKey: ['info-tool-assignments', selectedTitle] })
     },
-    onError: (err) => message.error(err.response?.data?.message || 'Failed to unassign info tool')
+    onError: (err) => message.error(err.response?.data?.message || t('categoryMgmt.unassignInfoToolFailed'))
   })
 
-  const INFO_TOOL_LABELS = { CENTRAL_REPOSITORY_VIEWER: 'Central Repository Viewer' }
-  const REPOSITORY_TYPE_LABELS = { EARLY_ALERT: 'Early Alert', GRADE_DISTRIBUTION: 'Grade Distribution' }
+  const INFO_TOOL_LABELS = { CENTRAL_REPOSITORY_VIEWER: t('categoryMgmt.centralRepositoryViewerLabel') }
+  const REPOSITORY_TYPE_LABELS = { EARLY_ALERT: t('categoryMgmt.earlyAlertLabel'), GRADE_DISTRIBUTION: t('categoryMgmt.gradeDistributionLabel') }
   const infoToolComboLabel = (toolCode, repositorySourceType) =>
-    `${INFO_TOOL_LABELS[toolCode] ?? toolCode} -- ${REPOSITORY_TYPE_LABELS[repositorySourceType] ?? repositorySourceType}`
+    t('categoryMgmt.comboLabel', {
+      tool: INFO_TOOL_LABELS[toolCode] ?? toolCode,
+      type: REPOSITORY_TYPE_LABELS[repositorySourceType] ?? repositorySourceType,
+    })
 
   const handleCreateCategory = () => {
     setEditingCategory(null)
@@ -272,7 +277,7 @@ export default function CategoryManagementPage() {
         await createCategoryMutation.mutateAsync(values)
       }
     } catch (err) {
-      message.error('Please fix the form errors')
+      message.error(t('categoryMgmt.fixFormErrors'))
     }
   }
 
@@ -290,7 +295,7 @@ export default function CategoryManagementPage() {
         await addRankLabelMutation.mutateAsync(values)
       }
     } catch (err) {
-      message.error('Please fix the form errors')
+      message.error(t('categoryMgmt.fixFormErrors'))
     }
   }
 
@@ -303,48 +308,48 @@ export default function CategoryManagementPage() {
         await addCriteriaMutation.mutateAsync(values)
       }
     } catch (err) {
-      message.error('Please fix the form errors')
+      message.error(t('categoryMgmt.fixFormErrors'))
     }
   }
 
   const categoriesColumns = [
     {
-      title: 'Category Name',
+      title: t('categoryMgmt.colCategoryName'),
       dataIndex: 'categoryName',
       key: 'categoryName',
       sorter: (a, b) => a.categoryName.localeCompare(b.categoryName)
     },
     {
-      title: 'Description',
+      title: t('common.description'),
       dataIndex: 'description',
       key: 'description',
       ellipsis: true
     },
     {
-      title: 'Criteria',
+      title: t('categoryMgmt.colCriteria'),
       key: 'criteriaCount',
       width: 90,
       render: (_, record) => record.criteria?.length ?? 0
     },
     {
-      title: 'System Default',
+      title: t('categoryMgmt.colSystemDefault'),
       dataIndex: 'isSystemDefault',
       key: 'isSystemDefault',
       render: (val) => val ? <CheckCircleOutlined style={{ color: '#52c41a' }} /> : '-'
     },
     {
-      title: 'Actions',
+      title: t('common.actions'),
       key: 'actions',
       render: (_, record) => (
         <Space>
           <Button type="primary" size="small" onClick={() => handleEditCategory(record)}>
-            <EditOutlined /> Edit
+            <EditOutlined /> {t('goalSetting.editButton')}
           </Button>
           <Button type="default" size="small" onClick={() => handleManageCriteria(record)}>
-            <AppstoreOutlined /> Criteria
+            <AppstoreOutlined /> {t('categoryMgmt.colCriteria')}
           </Button>
           {!record.isSystemDefault && (
-            <Popconfirm title="Delete category?" onConfirm={() => deleteCategoryMutation.mutate(record.id)}>
+            <Popconfirm title={t('categoryMgmt.deleteCategoryConfirmTitle')} onConfirm={() => deleteCategoryMutation.mutate(record.id)}>
               <Button type="primary" danger size="small">
                 <DeleteOutlined />
               </Button>
@@ -356,11 +361,11 @@ export default function CategoryManagementPage() {
   ]
 
   const rankLabelColumns = [
-    { title: 'Rank', dataIndex: 'rank', key: 'rank', width: 80, sorter: (a, b) => a.rank - b.rank },
-    { title: 'Label', dataIndex: 'label', key: 'label' },
-    { title: 'Description', dataIndex: 'description', key: 'description', ellipsis: true },
+    { title: t('categoryMgmt.colRank'), dataIndex: 'rank', key: 'rank', width: 80, sorter: (a, b) => a.rank - b.rank },
+    { title: t('categoryMgmt.colLabel'), dataIndex: 'label', key: 'label' },
+    { title: t('common.description'), dataIndex: 'description', key: 'description', ellipsis: true },
     {
-      title: 'Actions',
+      title: t('common.actions'),
       key: 'actions',
       width: 100,
       render: (_, record) => (
@@ -371,7 +376,7 @@ export default function CategoryManagementPage() {
           }}>
             <EditOutlined />
           </Button>
-          <Popconfirm title="Delete?" onConfirm={() => deleteRankLabelMutation.mutate(record.id)}>
+          <Popconfirm title={t('categoryMgmt.deleteConfirmTitle')} onConfirm={() => deleteRankLabelMutation.mutate(record.id)}>
             <Button type="primary" danger size="small"><DeleteOutlined /></Button>
           </Popconfirm>
         </Space>
@@ -380,19 +385,19 @@ export default function CategoryManagementPage() {
   ]
 
   const criteriaColumns = [
-    { title: 'Criteria Name', dataIndex: 'criteriaName', key: 'criteriaName', sorter: (a, b) => a.criteriaName.localeCompare(b.criteriaName) },
-    { title: 'Description', dataIndex: 'description', key: 'description', ellipsis: true },
+    { title: t('categoryMgmt.colCriteriaName'), dataIndex: 'criteriaName', key: 'criteriaName', sorter: (a, b) => a.criteriaName.localeCompare(b.criteriaName) },
+    { title: t('common.description'), dataIndex: 'description', key: 'description', ellipsis: true },
     {
-      title: 'Rubric', key: 'rubric', width: 90,
+      title: t('categoryMgmt.colRubric'), key: 'rubric', width: 90,
       render: (_, record) => record.rubricUnsatisfactory && record.rubricMeetsExpectations && record.rubricExceedsExpectations
-        ? <Tag color="green">Set</Tag> : <Tag color="orange">Not set</Tag>,
+        ? <Tag color="green">{t('categoryMgmt.rubricSetTag')}</Tag> : <Tag color="orange">{t('categoryMgmt.rubricNotSetTag')}</Tag>,
     },
     {
       title: (
         <div>
-          <div>Achievement Modules</div>
+          <div>{t('categoryMgmt.achievementModulesColTitle')}</div>
           <div style={{ fontWeight: 400, fontSize: 11, color: '#9ca3af' }}>
-            (Optional -- lets the user manually add an achievement for this criterion)
+            {t('categoryMgmt.achievementModulesColHint')}
           </div>
         </div>
       ),
@@ -422,15 +427,15 @@ export default function CategoryManagementPage() {
                     }}
                     onClose={(e) => { e.preventDefault(); unassignModuleMutation.mutate({ code, criteriaId: record.id }) }}>
                     {assignment?.displayName || module?.displayName || code}
-                    {assignment?.maxAchievementsPerYear ? ` · max ${assignment.maxAchievementsPerYear}/yr` : ''}
-                    {assignment?.mandatory ? ' · required' : ''}
+                    {assignment?.maxAchievementsPerYear ? t('categoryMgmt.maxPerYearSuffix', { count: assignment.maxAchievementsPerYear }) : ''}
+                    {assignment?.mandatory ? t('categoryMgmt.requiredSuffix') : ''}
                   </Tag>
                 )
               })}
             </Space>
             {availableModules.length > 0 && (
               <Select
-                size="small" style={{ width: 200 }} placeholder="+ Assign module" value={null}
+                size="small" style={{ width: 200 }} placeholder={t('categoryMgmt.assignModulePlaceholder')} value={null}
                 options={availableModules.map((m) => ({ value: m.code, label: m.displayName }))}
                 onChange={(code) => {
                   const module = achievementModules.find((m) => m.code === code)
@@ -446,9 +451,9 @@ export default function CategoryManagementPage() {
     {
       title: (
         <div>
-          <div>Info Tools</div>
+          <div>{t('categoryMgmt.infoToolsColTitle')}</div>
           <div style={{ fontWeight: 400, fontSize: 11, color: '#9ca3af' }}>
-            (Optional -- lets the evaluator pull in reference info while reviewing this criterion)
+            {t('categoryMgmt.infoToolsColHint')}
           </div>
         </div>
       ),
@@ -456,10 +461,10 @@ export default function CategoryManagementPage() {
       render: (_, record) => {
         const assignments = record.infoToolAssignments ?? []
         const usedCombos = new Set(titleInfoToolAssignments.map((a) => `${a.toolCode}::${a.repositorySourceType}`))
-        const availableCombos = infoTools.flatMap((t) =>
+        const availableCombos = infoTools.flatMap((tool) =>
           repositoryTypes
-            .filter((rt) => !usedCombos.has(`${t.code}::${rt}`))
-            .map((rt) => ({ code: t.code, repositorySourceType: rt }))
+            .filter((rt) => !usedCombos.has(`${tool.code}::${rt}`))
+            .map((rt) => ({ code: tool.code, repositorySourceType: rt }))
         )
         return (
           <Space direction="vertical" size={4}>
@@ -485,7 +490,7 @@ export default function CategoryManagementPage() {
             </Space>
             {availableCombos.length > 0 && (
               <Select
-                size="small" style={{ width: 220 }} placeholder="+ Assign tool" value={null}
+                size="small" style={{ width: 220 }} placeholder={t('categoryMgmt.assignToolPlaceholder')} value={null}
                 options={availableCombos.map((c) => ({
                   value: `${c.code}::${c.repositorySourceType}`,
                   label: infoToolComboLabel(c.code, c.repositorySourceType),
@@ -507,7 +512,7 @@ export default function CategoryManagementPage() {
       },
     },
     {
-      title: 'Actions',
+      title: t('common.actions'),
       key: 'actions',
       render: (_, record) => (
         <Space>
@@ -517,7 +522,7 @@ export default function CategoryManagementPage() {
           }}>
             <EditOutlined />
           </Button>
-          <Popconfirm title="Delete?" onConfirm={() => deleteCriteriaMutation.mutate(record.id)}>
+          <Popconfirm title={t('categoryMgmt.deleteConfirmTitle')} onConfirm={() => deleteCriteriaMutation.mutate(record.id)}>
             <Button type="primary" danger size="small"><DeleteOutlined /></Button>
           </Popconfirm>
         </Space>
@@ -528,30 +533,30 @@ export default function CategoryManagementPage() {
   return (
     <div style={{ padding: '24px' }}>
       <Card>
-        <h1>Portfolio Category Management</h1>
+        <h1>{t('categoryMgmt.pageTitle')}</h1>
 
         <Form layout="inline" style={{ marginBottom: '20px' }}>
-          <Form.Item label="Select Title">
+          <Form.Item label={t('categoryMgmt.selectTitleLabel')}>
             <Select
               style={{ width: 200 }}
-              placeholder="Select employee title"
+              placeholder={t('categoryMgmt.selectTitlePlaceholder')}
               value={selectedTitle}
               onChange={setSelectedTitle}
               loading={titlesLoading}
-              options={titles.map(t => ({ label: t.titleName, value: t.id }))}
+              options={titles.map(ti => ({ label: ti.titleName, value: ti.id }))}
             />
           </Form.Item>
           {selectedTitle && (
             <>
               <Form.Item>
                 <Button icon={<OrderedListOutlined />} onClick={() => setRankLabelDrawerOpen(true)}>
-                  Manage Rank Labels (1-5)
-                  {!selectedTitleObj?.hasRankLabels && <Tag color="warning" style={{ marginLeft: 8 }}>Not configured</Tag>}
+                  {t('categoryMgmt.manageRankLabelsButton')}
+                  {!selectedTitleObj?.hasRankLabels && <Tag color="warning" style={{ marginLeft: 8 }}>{t('categoryMgmt.notConfiguredTag')}</Tag>}
                 </Button>
               </Form.Item>
               <Form.Item>
                 <Button type="primary" icon={<PlusOutlined />} onClick={handleCreateCategory}>
-                  New Category
+                  {t('categoryMgmt.newCategoryButton')}
                 </Button>
               </Form.Item>
             </>
@@ -565,14 +570,14 @@ export default function CategoryManagementPage() {
             loading={categoriesLoading}
             rowKey="id"
             onChange={handleTableChange}
-            pagination={{ pageSize: 10, showTotal: (total) => `Total: ${total}` }}
+            pagination={{ pageSize: 10, showTotal: (total) => t('achievementLog.totalCount', { count: total }) }}
           />
         )}
       </Card>
 
       {/* Category Modal */}
       <Modal
-        title={editingCategory ? 'Edit Category' : 'Create Category'}
+        title={editingCategory ? t('categoryMgmt.editCategoryTitle') : t('categoryMgmt.createCategoryTitle')}
         open={categoryModalOpen}
         onOk={handleSaveCategory}
         onCancel={() => {
@@ -582,10 +587,10 @@ export default function CategoryManagementPage() {
         }}
       >
         <Form form={categoryForm} layout="vertical">
-          <Form.Item label="Category Name" name="categoryName" rules={[{ required: true }]}>
+          <Form.Item label={t('categoryMgmt.colCategoryName')} name="categoryName" rules={[{ required: true }]}>
             <Input />
           </Form.Item>
-          <Form.Item label="Description" name="description">
+          <Form.Item label={t('common.description')} name="description">
             <Input.TextArea rows={3} />
           </Form.Item>
         </Form>
@@ -593,15 +598,14 @@ export default function CategoryManagementPage() {
 
       {/* Rank Labels Drawer (per Title) */}
       <Drawer
-        title={`Rank Labels (1-5): ${selectedTitleObj?.titleName ?? ''}`}
+        title={t('categoryMgmt.rankLabelsDrawerTitle', { title: selectedTitleObj?.titleName ?? '' })}
         placement="right"
         onClose={() => { setRankLabelDrawerOpen(false); setEditingRankLabel(null) }}
         open={rankLabelDrawerOpen}
         width={600}
       >
         <p style={{ color: '#6b7280', fontSize: 13 }}>
-          These labels apply to every category under this title, and to the final overall rank given
-          during an evaluation cycle.
+          {t('categoryMgmt.rankLabelsIntro')}
         </p>
         <TableTotal count={rankLabels.length} />
         <Table
@@ -613,21 +617,21 @@ export default function CategoryManagementPage() {
         />
         <Card style={{ marginTop: '16px' }}>
           <Form form={rankLabelForm} layout="vertical">
-            <Form.Item label="Rank" name="rank" rules={[{ required: true }]}>
+            <Form.Item label={t('categoryMgmt.colRank')} name="rank" rules={[{ required: true }]}>
               <InputNumber min={1} max={5} />
             </Form.Item>
-            <Form.Item label="Label" name="label" rules={[{ required: true }]}>
-              <Input placeholder="e.g., Excellent" />
+            <Form.Item label={t('categoryMgmt.colLabel')} name="label" rules={[{ required: true }]}>
+              <Input placeholder={t('categoryMgmt.labelPlaceholder')} />
             </Form.Item>
-            <Form.Item label="Description" name="description">
+            <Form.Item label={t('common.description')} name="description">
               <Input.TextArea rows={2} />
             </Form.Item>
             <Space>
               <Button type="primary" onClick={handleSaveRankLabel}>
-                {editingRankLabel ? 'Update' : 'Add'} Rank Label
+                {editingRankLabel ? t('categoryMgmt.updateRankLabelButton') : t('categoryMgmt.addRankLabelButton')}
               </Button>
               {editingRankLabel && (
-                <Button onClick={() => { setEditingRankLabel(null); rankLabelForm.resetFields() }}>Cancel</Button>
+                <Button onClick={() => { setEditingRankLabel(null); rankLabelForm.resetFields() }}>{t('common.cancel')}</Button>
               )}
             </Space>
           </Form>
@@ -636,7 +640,7 @@ export default function CategoryManagementPage() {
 
       {/* Criteria Drawer (per Category) */}
       <Drawer
-        title={`Criteria: ${editingCategory?.categoryName ?? ''}`}
+        title={t('categoryMgmt.criteriaDrawerTitle', { category: editingCategory?.categoryName ?? '' })}
         placement="right"
         onClose={() => { setCriteriaDrawerOpen(false); setEditingCategory(null); setEditingCriteria(null) }}
         open={criteriaDrawerOpen}
@@ -654,36 +658,36 @@ export default function CategoryManagementPage() {
             />
             <Card style={{ marginTop: '16px' }}>
               <Form form={criteriaForm} layout="vertical">
-                <Form.Item label="Criteria Name" name="criteriaName" rules={[{ required: true }]}>
+                <Form.Item label={t('categoryMgmt.colCriteriaName')} name="criteriaName" rules={[{ required: true }]}>
                   <Input />
                 </Form.Item>
-                <Form.Item label="Description" name="description" extra="What data/evidence the faculty member must provide for this criteria">
+                <Form.Item label={t('common.description')} name="description" extra={t('categoryMgmt.criteriaDescriptionExtra')}>
                   <Input.TextArea rows={3} />
                 </Form.Item>
                 <Form.Item
-                  label="Rubric — Unsatisfactory (1)" name="rubricUnsatisfactory"
-                  extra="What the head should see to rate this criteria as Unsatisfactory"
+                  label={t('categoryMgmt.rubricUnsatisfactoryLabel')} name="rubricUnsatisfactory"
+                  extra={t('categoryMgmt.rubricUnsatisfactoryExtra')}
                 >
                   <Input.TextArea rows={3} />
                 </Form.Item>
                 <Form.Item
-                  label="Rubric — Meets Expectations (2)" name="rubricMeetsExpectations"
-                  extra="What the head should see to rate this criteria as Meets Expectations"
+                  label={t('categoryMgmt.rubricMeetsLabel')} name="rubricMeetsExpectations"
+                  extra={t('categoryMgmt.rubricMeetsExtra')}
                 >
                   <Input.TextArea rows={3} />
                 </Form.Item>
                 <Form.Item
-                  label="Rubric — Exceeds Expectations (3)" name="rubricExceedsExpectations"
-                  extra="What the head should see to rate this criteria as Exceeds Expectations"
+                  label={t('categoryMgmt.rubricExceedsLabel')} name="rubricExceedsExpectations"
+                  extra={t('categoryMgmt.rubricExceedsExtra')}
                 >
                   <Input.TextArea rows={3} />
                 </Form.Item>
                 <Space>
                   <Button type="primary" onClick={handleSaveCriteria}>
-                    {editingCriteria ? 'Update' : 'Add'} Criteria
+                    {editingCriteria ? t('categoryMgmt.updateCriteriaButton') : t('categoryMgmt.addCriteriaButton')}
                   </Button>
                   {editingCriteria && (
-                    <Button onClick={() => { setEditingCriteria(null); criteriaForm.resetFields() }}>Cancel</Button>
+                    <Button onClick={() => { setEditingCriteria(null); criteriaForm.resetFields() }}>{t('common.cancel')}</Button>
                   )}
                 </Space>
               </Form>
@@ -695,12 +699,12 @@ export default function CategoryManagementPage() {
       {/* Achievement Module assign/edit-limit prompt -- the max-per-year is required, so assigning
           (or changing it later) always goes through this one form. */}
       <Modal
-        title={moduleLimitPrompt ? `${moduleLimitPrompt.moduleName} -- Achievement Limit` : ''}
+        title={moduleLimitPrompt ? t('categoryMgmt.moduleLimitModalTitle', { name: moduleLimitPrompt.moduleName }) : ''}
         open={!!moduleLimitPrompt}
         onOk={() => moduleLimitForm.submit()}
         confirmLoading={assignModuleMutation.isPending}
         onCancel={() => { setModuleLimitPrompt(null); moduleLimitForm.resetFields() }}
-        okText="Save"
+        okText={t('common.save')}
       >
         <Form
           form={moduleLimitForm} layout="vertical" initialValues={{ mandatory: false }}
@@ -712,21 +716,21 @@ export default function CategoryManagementPage() {
           })}
         >
           <Form.Item
-            label={`Max achievements per ${academicYearLabel.toLowerCase()}`} name="maxAchievementsPerYear"
-            rules={[{ required: true, message: 'Enter a positive number' }]}
-            extra={`Once an employee records this many achievements through this tool for this criterion in a ${academicYearLabel.toLowerCase()}, the tool is disabled for them for that year.`}
+            label={t('categoryMgmt.maxAchievementsPerLabel', { yearLabel: academicYearLabel.toLowerCase() })} name="maxAchievementsPerYear"
+            rules={[{ required: true, message: t('categoryMgmt.enterPositiveNumber') }]}
+            extra={t('categoryMgmt.maxAchievementsExtra', { yearLabel: academicYearLabel.toLowerCase() })}
           >
             <InputNumber min={1} precision={0} style={{ width: '100%' }} />
           </Form.Item>
           <Form.Item
-            label="At least one achievement required" name="mandatory" valuePropName="checked"
-            extra="When on, the employee cannot submit their Annual Evaluation self-assessment without at least one achievement recorded through this tool for this criterion -- this overrides 'Nothing to report' for that criterion."
+            label={t('categoryMgmt.mandatoryLabel')} name="mandatory" valuePropName="checked"
+            extra={t('categoryMgmt.mandatoryExtra')}
           >
             <Switch />
           </Form.Item>
           <Form.Item
-            label="Button label override" name="displayName"
-            extra={`Optional -- what the employee sees on the button for this criterion. Leave blank to use the default: "${moduleLimitPrompt?.moduleName ?? ''}".`}
+            label={t('categoryMgmt.buttonLabelOverrideLabel')} name="displayName"
+            extra={t('categoryMgmt.buttonLabelOverrideExtra', { name: moduleLimitPrompt?.moduleName ?? '' })}
           >
             <Input placeholder={moduleLimitPrompt?.moduleName} />
           </Form.Item>
@@ -736,12 +740,12 @@ export default function CategoryManagementPage() {
       {/* Info Tool assign/edit prompt -- unlike achievement modules, the tool itself has no
           hardcoded name, so a display name is always required here (not just an override). */}
       <Modal
-        title={infoToolPrompt ? `${infoToolPrompt.toolLabel} -- Assign to Criterion` : ''}
+        title={infoToolPrompt ? t('categoryMgmt.infoToolModalTitle', { label: infoToolPrompt.toolLabel }) : ''}
         open={!!infoToolPrompt}
         onOk={() => infoToolForm.submit()}
         confirmLoading={assignInfoToolMutation.isPending}
         onCancel={() => { setInfoToolPrompt(null); infoToolForm.resetFields() }}
-        okText="Save"
+        okText={t('common.save')}
       >
         <Form
           form={infoToolForm} layout="vertical"
@@ -752,23 +756,23 @@ export default function CategoryManagementPage() {
           })}
         >
           <Form.Item
-            label="Button label" name="displayName"
-            rules={[{ required: true, message: 'Enter what the head will see on the button' }]}
-            extra="Shown to the head as the button label for this criterion -- there's no default, so pick something clear (e.g. 'Early Alert Data')."
+            label={t('categoryMgmt.buttonLabelLabel')} name="displayName"
+            rules={[{ required: true, message: t('categoryMgmt.enterButtonLabelMessage') }]}
+            extra={t('categoryMgmt.buttonLabelExtra')}
           >
-            <Input placeholder="e.g. Early Alert Data" />
+            <Input placeholder={t('categoryMgmt.buttonLabelPlaceholder')} />
           </Form.Item>
           <Form.Item
-            label="Repository type" name="repositorySourceType"
-            rules={[{ required: true, message: 'Select which imported data type this pulls from' }]}
+            label={t('categoryMgmt.repositoryTypeLabel')} name="repositorySourceType"
+            rules={[{ required: true, message: t('categoryMgmt.selectRepositoryTypeMessage') }]}
             extra={infoToolPrompt?.isNew
-              ? "Which type of imported data (from the Data Repository admin console) this tool will show for employees of this criterion's title."
-              : "Fixed once assigned -- unassign and re-add this tool to point it at a different repository type."}
+              ? t('categoryMgmt.repositoryTypeExtraNew')
+              : t('categoryMgmt.repositoryTypeExtraFixed')}
           >
             <Select
               disabled={!infoToolPrompt?.isNew}
-              options={repositoryTypes.map((t) => ({ value: t, label: REPOSITORY_TYPE_LABELS[t] ?? t }))}
-              placeholder="Select a type"
+              options={repositoryTypes.map((rt) => ({ value: rt, label: REPOSITORY_TYPE_LABELS[rt] ?? rt }))}
+              placeholder={t('categoryMgmt.selectTypePlaceholder')}
             />
           </Form.Item>
         </Form>

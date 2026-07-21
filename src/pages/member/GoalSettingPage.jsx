@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom'
 import { Card, Form, Button, Input, Select, Table, Modal, Space, Tag, message, Empty, Spin, Alert, Divider, Typography, Popconfirm, Checkbox } from 'antd'
 import { PlusOutlined, DeleteOutlined, BulbOutlined, SendOutlined } from '@ant-design/icons'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import * as api from '../../api/portfolio'
 import { getAcademicYears, getMostRecentAcademicYear } from '../../api/academicYears'
 import ReviewControl from '../../components/ReviewControl'
@@ -29,12 +30,13 @@ function formatElapsed(sinceIso) {
   const diffSec = Math.max(0, Math.floor((Date.now() - new Date(sinceIso).getTime()) / 1000))
   const m = Math.floor(diffSec / 60)
   const s = diffSec % 60
-  return m > 0 ? `${m}m ${s}s` : `${s}s`
+  return { m, s }
 }
 
 // Inline 3-level rubric editor for an AI-drafted (or leader-authored) suggestion card -- saves all
 // 3 fields together on blur, same pattern as evaluationDisplay.jsx's CommentsInput.
 function SuggestionRubricEditor({ suggestion, onSave }) {
+  const { t } = useTranslation()
   const [u, setU] = useState(suggestion.rubricUnsatisfactory || '')
   const [m, setM] = useState(suggestion.rubricMeetsExpectations || '')
   const [e, setE] = useState(suggestion.rubricExceedsExpectations || '')
@@ -49,19 +51,20 @@ function SuggestionRubricEditor({ suggestion, onSave }) {
   return (
     <div style={{ marginTop: 8 }}>
       <Text strong style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>
-        3-Level Rubric (required before submitting)
+        {t('goalSetting.threeLevelRubricRequired')}
       </Text>
-      <Input.TextArea rows={2} value={u} placeholder="Unsatisfactory"
+      <Input.TextArea rows={2} value={u} placeholder={t('evalDisplay.rubricUnsatisfactory')}
         onChange={(ev) => setU(ev.target.value)} onBlur={save} style={{ marginBottom: 4 }} />
-      <Input.TextArea rows={2} value={m} placeholder="Meets Expectations"
+      <Input.TextArea rows={2} value={m} placeholder={t('evalDisplay.rubricMeets')}
         onChange={(ev) => setM(ev.target.value)} onBlur={save} style={{ marginBottom: 4 }} />
-      <Input.TextArea rows={2} value={e} placeholder="Exceeds Expectations"
+      <Input.TextArea rows={2} value={e} placeholder={t('evalDisplay.rubricExceeds')}
         onChange={(ev) => setE(ev.target.value)} onBlur={save} />
     </div>
   )
 }
 
 export default function GoalSettingPage() {
+  const { t } = useTranslation()
   const { academicYearLabel } = useTerminology()
   const [searchParams] = useSearchParams()
   // Seeded from ?cycleId= when arriving via a "leader" notification (e.g. an employee just
@@ -152,11 +155,11 @@ export default function GoalSettingPage() {
   const useReuseGoalsMut = useMutation({
     mutationFn: () => api.useNextCycleGoals(selectedEmployee, academicYear, selectedReuseIds),
     onSuccess: (created) => {
-      message.success('Deployed goals from the prior evaluation')
+      message.success(t('goalSetting.deployedFromPriorEval'))
       setReuseDismissed(true)
       setCycleId(created.id)
     },
-    onError: (err) => message.error(err.response?.data?.message || 'Could not use these goals'),
+    onError: (err) => message.error(err.response?.data?.message || t('goalSetting.couldNotUseGoals')),
   })
 
   // AI goal-suggestion generation runs in the background (a model call can take a minute or
@@ -201,7 +204,7 @@ export default function GoalSettingPage() {
       setCycleId(created.id)
       setDrafts({})
     },
-    onError: (err) => message.error(err.response?.data?.message || 'Could not open goal cycle'),
+    onError: (err) => message.error(err.response?.data?.message || t('goalSetting.couldNotOpenCycle')),
   })
 
   // Opening the cycle is a no-op once one already exists for this employee/year (createOrGetCycle
@@ -222,21 +225,21 @@ export default function GoalSettingPage() {
   const saveNotesMut = useMutation({
     mutationFn: (values) => api.updateCycleNotes(cycleId, values),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['goal-cycle', cycleId] }),
-    onError: (err) => message.error(err.response?.data?.message || 'Could not save notes'),
+    onError: (err) => message.error(err.response?.data?.message || t('goalSetting.couldNotSaveNotes')),
   })
 
   const generateMut = useMutation({
     mutationFn: () => api.generateSuggestions(cycleId),
     onSuccess: () => {
-      message.success('Generation started — this can take a minute or two')
+      message.success(t('swot.generationStarted'))
       qc.invalidateQueries({ queryKey: ['goal-cycle', cycleId] })
     },
-    onError: (err) => message.error(err.response?.data?.message || 'Could not start generation — try again'),
+    onError: (err) => message.error(err.response?.data?.message || t('swot.generationStartFailed')),
   })
 
   const reviewSuggestionMut = useMutation({
     mutationFn: ({ suggestionId, payload }) => api.reviewSuggestion(cycleId, suggestionId, payload),
-    onError: (err) => message.error(err.response?.data?.message || 'Could not save review'),
+    onError: (err) => message.error(err.response?.data?.message || t('swot.saveReviewFailed')),
   })
 
   const handleSaveSuggestionReview = (_targetType, suggestionId, payload) => {
@@ -246,7 +249,7 @@ export default function GoalSettingPage() {
 
   const updateSuggestionRubricMut = useMutation({
     mutationFn: ({ suggestionId, payload }) => api.updateSuggestionRubric(cycleId, suggestionId, payload),
-    onError: (err) => message.error(err.response?.data?.message || 'Could not save rubric'),
+    onError: (err) => message.error(err.response?.data?.message || t('goalSetting.couldNotSaveRubric')),
   })
 
   const handleSaveSuggestionRubric = (suggestionId, payload) => {
@@ -256,12 +259,12 @@ export default function GoalSettingPage() {
   const addSuggestionMut = useMutation({
     mutationFn: (values) => api.addSuggestion(cycleId, values),
     onSuccess: () => {
-      message.success('Goal added')
+      message.success(t('swot.goalAdded'))
       setAddGoalOpen(false)
       addGoalForm.resetFields()
       qc.invalidateQueries({ queryKey: ['goal-suggestions', cycleId] })
     },
-    onError: (err) => message.error(err.response?.data?.message || 'Could not add goal'),
+    onError: (err) => message.error(err.response?.data?.message || t('goalSetting.couldNotAddGoal')),
   })
 
   const deleteSuggestionMut = useMutation({
@@ -272,42 +275,42 @@ export default function GoalSettingPage() {
   const submitForReviewMut = useMutation({
     mutationFn: () => api.submitCycleForReview(cycleId),
     onSuccess: () => {
-      message.success('Submitted for employee review')
+      message.success(t('goalSetting.submittedForEmployeeReview'))
       qc.invalidateQueries({ queryKey: ['goal-cycle', cycleId] })
       qc.invalidateQueries({ queryKey: ['goal-cycle-goals', cycleId] })
     },
-    onError: (err) => message.error(err.response?.data?.message || 'Could not submit for review'),
+    onError: (err) => message.error(err.response?.data?.message || t('goalSetting.couldNotSubmitForReview')),
   })
 
   const resubmitMut = useMutation({
     mutationFn: () => api.resubmitCycleForReview(cycleId),
     onSuccess: () => {
-      message.success('Resubmitted for employee review')
+      message.success(t('goalSetting.resubmittedForEmployeeReview'))
       qc.invalidateQueries({ queryKey: ['goal-cycle', cycleId] })
       qc.invalidateQueries({ queryKey: ['goal-cycle-goals', cycleId] })
     },
-    onError: (err) => message.error(err.response?.data?.message || 'Could not resubmit'),
+    onError: (err) => message.error(err.response?.data?.message || t('goalSetting.couldNotResubmit')),
   })
 
   const addGoalDirectMut = useMutation({
     mutationFn: (values) => api.addGoal(cycleId, values),
     onSuccess: () => {
-      message.success('Goal added')
+      message.success(t('swot.goalAdded'))
       setAddGoalOpen(false)
       addGoalForm.resetFields()
       qc.invalidateQueries({ queryKey: ['goal-cycle-goals', cycleId] })
     },
-    onError: (err) => message.error(err.response?.data?.message || 'Could not add goal'),
+    onError: (err) => message.error(err.response?.data?.message || t('goalSetting.couldNotAddGoal')),
   })
 
   const updateGoalMut = useMutation({
     mutationFn: ({ goalId, values }) => api.updateGoal(cycleId, goalId, values),
     onSuccess: () => {
-      message.success('Goal updated')
+      message.success(t('goalSetting.goalUpdated'))
       setEditingGoalId(null)
       qc.invalidateQueries({ queryKey: ['goal-cycle-goals', cycleId] })
     },
-    onError: (err) => message.error(err.response?.data?.message || 'Could not update goal'),
+    onError: (err) => message.error(err.response?.data?.message || t('goalSetting.couldNotUpdateGoal')),
   })
 
   const deleteGoalMut = useMutation({
@@ -333,9 +336,9 @@ export default function GoalSettingPage() {
       setBatchResults(results)
       qc.invalidateQueries({ queryKey: ['goal-cycle'] })
       const deployedCount = results.filter((r) => r.status === 'DEPLOYED').length
-      message.success(`Batch check complete -- ${deployedCount} employee${deployedCount !== 1 ? 's' : ''} updated`)
+      message.success(t('goalSetting.batchCheckComplete', { count: deployedCount }))
     },
-    onError: (err) => message.error(err.response?.data?.message || 'Batch check failed'),
+    onError: (err) => message.error(err.response?.data?.message || t('goalSetting.batchCheckFailed')),
   })
 
   const closeBatchModal = () => {
@@ -347,31 +350,30 @@ export default function GoalSettingPage() {
   return (
     <div style={{ padding: 24 }}>
       <Card>
-        <h1>Team Goal Setting</h1>
+        <h1>{t('goalSetting.title')}</h1>
         <Paragraph type="secondary">
-          Set annual improvement goals for a direct report. Enter your notes on their strengths and areas for
-          improvement, generate AI-assisted suggestions, then review each one before submitting for the employee's review.
+          {t('goalSetting.intro')}
         </Paragraph>
 
         <Form layout="inline" style={{ marginBottom: 24 }}>
           <Form.Item label={academicYearLabel}>
-            <Select style={{ width: 200 }} placeholder="Select year" value={academicYear} onChange={(v) => { setAcademicYear(v); setCycleId(null) }}
+            <Select style={{ width: 200 }} placeholder={t('goalReview.selectYearPlaceholder')} value={academicYear} onChange={(v) => { setAcademicYear(v); setCycleId(null) }}
               loading={yearsLoading} options={academicYears.map((y) => ({ value: y.id, label: y.name }))} />
           </Form.Item>
-          <Form.Item label="Employee">
-            <Select style={{ width: 250 }} placeholder="Select a direct report" value={selectedEmployee}
+          <Form.Item label={t('goalSetting.employeeLabel')}>
+            <Select style={{ width: 250 }} placeholder={t('goalSetting.selectDirectReportPlaceholder')} value={selectedEmployee}
               onChange={(v) => { setSelectedEmployee(v); setCycleId(null) }}
               showSearch filterOption={(input, option) => option.label.toLowerCase().includes(input.toLowerCase())}
               loading={teamLoading} options={employeeOptions}
-              notFoundContent={<Empty description="No direct reports found -- you must head a department to set goals" image={Empty.PRESENTED_IMAGE_SIMPLE} />} />
+              notFoundContent={<Empty description={t('goalSetting.noDirectReportsFound')} image={Empty.PRESENTED_IMAGE_SIMPLE} />} />
           </Form.Item>
         </Form>
 
         <Button style={{ marginBottom: 24 }} onClick={() => setBatchModalOpen(true)}>
-          Batch Check for Reusable Goals
+          {t('goalSetting.batchCheckButton')}
         </Button>
 
-        {!cycleId && (openCycleMut.isPending ? <Spin /> : <Empty description={`Select a ${academicYearLabel.toLowerCase()} and employee to view their goals`} />)}
+        {!cycleId && (openCycleMut.isPending ? <Spin /> : <Empty description={t('goalSetting.selectYearAndEmployee', { yearLabel: academicYearLabel.toLowerCase() })} />)}
 
         {cycle && (
           <>
@@ -381,21 +383,21 @@ export default function GoalSettingPage() {
             </Space>
 
             {isDraft && (
-              <Card size="small" title="Strengths & Areas for Improvement" style={{ marginBottom: 16 }}>
+              <Card size="small" title={t('evalDisplay.strengthsAndAreasForImprovement')} style={{ marginBottom: 16 }}>
                 <Form form={notesForm} layout="vertical" initialValues={{ leaderStrengths: cycle.leaderStrengths, leaderWeaknesses: cycle.leaderWeaknesses }}>
-                  <Form.Item label="Strengths" name="leaderStrengths"
-                    extra="Saved automatically. Private to you -- never shown to the employee or anyone else.">
-                    <Input.TextArea rows={2} placeholder="Note strengths to build upon"
+                  <Form.Item label={t('evalDisplay.strengths')} name="leaderStrengths"
+                    extra={t('goalSetting.savedAutomaticallyPrivateHint')}>
+                    <Input.TextArea rows={2} placeholder={t('evalDisplay.noteStrengthsPlaceholder')}
                       onBlur={() => saveNotesMut.mutate(notesForm.getFieldsValue())} />
                   </Form.Item>
-                  <Form.Item label="Areas for Improvement" name="leaderWeaknesses"
-                    extra="Saved automatically. Private to you -- never shown to the employee or anyone else.">
-                    <Input.TextArea rows={2} placeholder="Note areas where the employee can grow (AI will suggest goals from this)"
+                  <Form.Item label={t('evalDisplay.areasForImprovement')} name="leaderWeaknesses"
+                    extra={t('goalSetting.savedAutomaticallyPrivateHint')}>
+                    <Input.TextArea rows={2} placeholder={t('evalDisplay.noteAreasPlaceholder')}
                       onBlur={() => saveNotesMut.mutate(notesForm.getFieldsValue())} />
                   </Form.Item>
                   {!generating && !cycle.generationFailureReason && (
                     <Button icon={<BulbOutlined />} loading={generateMut.isPending} onClick={() => generateMut.mutate()}>
-                      Generate AI Suggestions
+                      {t('evalDisplay.generateAiSuggestions')}
                     </Button>
                   )}
                 </Form>
@@ -404,21 +406,23 @@ export default function GoalSettingPage() {
                   <div style={{ marginTop: 12 }}>
                     {cycle.generationFailureReason ? (
                       <Alert type="error" showIcon style={{ marginBottom: 8 }}
-                        message="AI generation failed" description={cycle.generationFailureReason} />
+                        message={t('evalDisplay.aiGenerationFailed')} description={cycle.generationFailureReason} />
                     ) : (
                       <div style={{ color: '#6b7280', marginBottom: 8 }}>
-                        AI is generating suggested goals in the background. This page checks automatically
-                        and will show them once ready.
-                        {cycle.generationRequestedAt && (
-                          <>
-                            {' '}Submitted at {new Date(cycle.generationRequestedAt).toLocaleTimeString()}
-                            {' — '}{formatElapsed(cycle.generationRequestedAt)} elapsed.
-                          </>
-                        )}
+                        {t('evalDisplay.generatingGoalsBackgroundHint')}
+                        {cycle.generationRequestedAt && (() => {
+                          const elapsed = formatElapsed(cycle.generationRequestedAt)
+                          return (
+                            <>
+                              {' '}{t('swot.submittedAt', { time: new Date(cycle.generationRequestedAt).toLocaleTimeString() })}
+                              {' — '}{elapsed.m > 0 ? t('swot.elapsedMinSec', elapsed) : t('swot.elapsedSec', elapsed)}
+                            </>
+                          )
+                        })()}
                       </div>
                     )}
                     <Button loading={generateMut.isPending} onClick={() => generateMut.mutate()}>
-                      {cycle.generationFailureReason ? 'Retry Generation' : 'Cancel & Retry Generation'}
+                      {cycle.generationFailureReason ? t('swot.retryGeneration') : t('swot.cancelRetryGeneration')}
                     </Button>
                   </div>
                 )}
@@ -428,7 +432,7 @@ export default function GoalSettingPage() {
             {isDraft && (
               <>
                 {suggestionsLoading ? <Spin /> : suggestions.length === 0 ? (
-                  <Empty description="No goals yet — generate AI suggestions or add one manually" />
+                  <Empty description={t('goalSetting.noGoalsYet')} />
                 ) : (
                   suggestions.map((s) => {
                     const draft = drafts[s.id] || { actionType: s.leaderActionType, editedTitle: s.editedTitle, editedDescription: s.editedDescription }
@@ -437,10 +441,10 @@ export default function GoalSettingPage() {
                         title={<>{s.suggestedTitle} <Tag>{s.categoryName}</Tag></>}
                         extra={<Button type="text" danger size="small" icon={<DeleteOutlined />} onClick={() => deleteSuggestionMut.mutate(s.id)} />}>
                         <Paragraph type="secondary" style={{ marginBottom: 4 }}>{s.suggestedDescription}</Paragraph>
-                        {s.rationale && <Paragraph type="secondary" style={{ fontSize: 12, marginBottom: 0 }}>Rationale: {s.rationale}</Paragraph>}
+                        {s.rationale && <Paragraph type="secondary" style={{ fontSize: 12, marginBottom: 0 }}>{t('evalDisplay.rationaleLabel', { rationale: s.rationale })}</Paragraph>}
                         <ReviewControl targetType="SUGGESTION" targetId={s.id} defaultTitle={s.suggestedTitle}
                           defaultDescription={s.suggestedDescription} draft={draft} onSave={handleSaveSuggestionReview}
-                          alternativeLabel="Edit the title/description above with your own goal instead." />
+                          alternativeLabelKey="goalSetting.editAboveInstead" />
                         <SuggestionRubricEditor suggestion={s} onSave={(payload) => handleSaveSuggestionRubric(s.id, payload)} />
                       </Card>
                     )
@@ -448,17 +452,17 @@ export default function GoalSettingPage() {
                 )}
 
                 <Button type="dashed" icon={<PlusOutlined />} style={{ marginBottom: 16 }} onClick={() => setAddGoalOpen(true)}>
-                  Add a New Goal
+                  {t('evalDisplay.addNewGoal')}
                 </Button>
 
                 <div>
-                  <Popconfirm title="Submit for employee review?" onConfirm={() => submitForReviewMut.mutate()}>
+                  <Popconfirm title={t('goalSetting.submitForReviewConfirmTitle')} onConfirm={() => submitForReviewMut.mutate()}>
                     <Button type="primary" icon={<SendOutlined />} disabled={!allSuggestionsReviewed} loading={submitForReviewMut.isPending}>
-                      Submit for Employee Review
+                      {t('goalSetting.submitForEmployeeReviewButton')}
                     </Button>
                   </Popconfirm>
                   {!allSuggestionsReviewed && suggestions.length > 0 && (
-                    <Text type="secondary" style={{ marginLeft: 8, fontSize: 12 }}>Review every goal above before submitting</Text>
+                    <Text type="secondary" style={{ marginLeft: 8, fontSize: 12 }}>{t('goalSetting.reviewEveryGoalBeforeSubmit')}</Text>
                   )}
                 </div>
               </>
@@ -472,21 +476,21 @@ export default function GoalSettingPage() {
                   rowKey="id"
                   pagination={false}
                   columns={[
-                    { title: 'Goal', dataIndex: 'goalTitle', key: 'goalTitle', sorter: (a, b) => compareStrings(a.goalTitle, b.goalTitle) },
-                    { title: 'Category', dataIndex: 'categoryName', key: 'categoryName' },
-                    { title: 'Description', dataIndex: 'description', key: 'description', ellipsis: true },
+                    { title: t('common.goal'), dataIndex: 'goalTitle', key: 'goalTitle', sorter: (a, b) => compareStrings(a.goalTitle, b.goalTitle) },
+                    { title: t('achievementLog.colCategory'), dataIndex: 'categoryName', key: 'categoryName' },
+                    { title: t('common.description'), dataIndex: 'description', key: 'description', ellipsis: true },
                     {
-                      title: 'Rubric', key: 'rubric',
+                      title: t('goalSetting.rubricColLabel'), key: 'rubric',
                       render: (_, g) => <RubricPopover criteria={{
-                        criteriaName: 'View',
+                        criteriaName: t('evalDisplay.viewButton'),
                         rubricUnsatisfactory: g.rubricUnsatisfactory,
                         rubricMeetsExpectations: g.rubricMeetsExpectations,
                         rubricExceedsExpectations: g.rubricExceedsExpectations,
                       }} />,
                     },
                     {
-                      title: 'Employee Review', key: 'employeeActionType',
-                      render: (_, g) => g.employeeActionType ? <Tag color="blue">{g.employeeActionType}</Tag> : <Tag>Pending</Tag>,
+                      title: t('goalSetting.employeeReviewColLabel'), key: 'employeeActionType',
+                      render: (_, g) => g.employeeActionType ? <Tag color="blue">{g.employeeActionType}</Tag> : <Tag>{t('goalSetting.pendingTag')}</Tag>,
                     },
                   ]}
                 />
@@ -496,8 +500,8 @@ export default function GoalSettingPage() {
             {isEmployeeSubmitted && (
               <>
                 <Alert type="info" showIcon style={{ marginBottom: 16 }}
-                  message="The employee sent these goals back for more consideration"
-                  description="Edit, add, or remove goals below based on their feedback, then resubmit." />
+                  message={t('goalSetting.employeeSentBackTitle')}
+                  description={t('goalSetting.employeeSentBackDescription')} />
                 <TableTotal count={goals.length} />
                 <Table
                   dataSource={goals}
@@ -505,28 +509,28 @@ export default function GoalSettingPage() {
                   pagination={false}
                   style={{ marginBottom: 16 }}
                   columns={[
-                    { title: 'Goal', dataIndex: 'goalTitle', key: 'goalTitle', sorter: (a, b) => compareStrings(a.goalTitle, b.goalTitle) },
-                    { title: 'Category', dataIndex: 'categoryName', key: 'categoryName' },
+                    { title: t('common.goal'), dataIndex: 'goalTitle', key: 'goalTitle', sorter: (a, b) => compareStrings(a.goalTitle, b.goalTitle) },
+                    { title: t('achievementLog.colCategory'), dataIndex: 'categoryName', key: 'categoryName' },
                     {
-                      title: 'Rubric', key: 'rubric',
+                      title: t('goalSetting.rubricColLabel'), key: 'rubric',
                       render: (_, g) => <RubricPopover criteria={{
-                        criteriaName: 'View',
+                        criteriaName: t('evalDisplay.viewButton'),
                         rubricUnsatisfactory: g.rubricUnsatisfactory,
                         rubricMeetsExpectations: g.rubricMeetsExpectations,
                         rubricExceedsExpectations: g.rubricExceedsExpectations,
                       }} />,
                     },
                     {
-                      title: "Employee's Feedback", key: 'feedback',
+                      title: t('goalSetting.employeeFeedbackColLabel'), key: 'feedback',
                       render: (_, g) => g.employeeEditedTitle || g.employeeEditedDescription ? (
                         <div>
                           {g.employeeEditedTitle && <div><Text strong>{g.employeeEditedTitle}</Text></div>}
                           {g.employeeEditedDescription && <Text type="secondary">{g.employeeEditedDescription}</Text>}
                         </div>
-                      ) : <Text type="secondary">No edits suggested</Text>,
+                      ) : <Text type="secondary">{t('goalSetting.noEditsSuggested')}</Text>,
                     },
                     {
-                      title: 'Actions', key: 'actions',
+                      title: t('common.actions'), key: 'actions',
                       render: (_, g) => (
                         <Space>
                           <Button size="small" onClick={() => {
@@ -537,8 +541,8 @@ export default function GoalSettingPage() {
                               rubricMeetsExpectations: g.rubricMeetsExpectations,
                               rubricExceedsExpectations: g.rubricExceedsExpectations,
                             })
-                          }}>Edit</Button>
-                          <Popconfirm title="Remove this goal?" onConfirm={() => deleteGoalMut.mutate(g.id)}>
+                          }}>{t('goalSetting.editButton')}</Button>
+                          <Popconfirm title={t('goalSetting.removeGoalConfirmTitle')} onConfirm={() => deleteGoalMut.mutate(g.id)}>
                             <Button size="small" danger icon={<DeleteOutlined />} />
                           </Popconfirm>
                         </Space>
@@ -547,9 +551,9 @@ export default function GoalSettingPage() {
                   ]}
                 />
                 <Space>
-                  <Button icon={<PlusOutlined />} onClick={() => setAddGoalOpen(true)}>Add a Goal</Button>
+                  <Button icon={<PlusOutlined />} onClick={() => setAddGoalOpen(true)}>{t('goalSetting.addAGoalButton')}</Button>
                   <Button type="primary" icon={<SendOutlined />} loading={resubmitMut.isPending} onClick={() => resubmitMut.mutate()}>
-                    Resubmit for Employee Review
+                    {t('goalSetting.resubmitButton')}
                   </Button>
                 </Space>
               </>
@@ -559,25 +563,23 @@ export default function GoalSettingPage() {
       </Card>
 
       <Modal
-        title="Next Cycle Goals found from a prior evaluation"
+        title={t('goalSetting.reuseModalTitle')}
         open={reuseModalOpen}
         onCancel={() => setReuseDismissed(true)}
         footer={[
-          <Button key="not-now" onClick={() => setReuseDismissed(true)}>Not Now</Button>,
+          <Button key="not-now" onClick={() => setReuseDismissed(true)}>{t('goalSetting.notNowButton')}</Button>,
           <Button key="use" type="primary" disabled={selectedReuseIds.length === 0}
             loading={useReuseGoalsMut.isPending} onClick={() => useReuseGoalsMut.mutate()}>
-            Use Selected Goals
+            {t('goalSetting.useSelectedGoalsButton')}
           </Button>,
         ]}
       >
         <Paragraph type="secondary">
-          This employee has goals drafted and approved during a prior Annual Evaluation that haven't been assigned
-          to a cycle yet. Deselect any you don't want, or choose "Not Now" to start this year's goals from scratch --
-          these will still be offered again next time.
+          {t('goalSetting.reuseModalIntro')}
         </Paragraph>
         {reusableGroups.map((group) => (
           <div key={group.evaluationId} style={{ marginBottom: 16 }}>
-            <Text strong>From the {group.academicYearName} evaluation</Text>
+            <Text strong>{t('goalSetting.fromEvaluationLabel', { yearName: group.academicYearName })}</Text>
             <div style={{ marginTop: 8 }}>
               {group.goals.map((g) => (
                 <Card key={g.id} size="small" style={{ marginBottom: 8 }}>
@@ -597,30 +599,27 @@ export default function GoalSettingPage() {
       </Modal>
 
       <Modal
-        title="Batch Check for Reusable Goals"
+        title={t('goalSetting.batchCheckButton')}
         open={batchModalOpen}
         onCancel={closeBatchModal}
         destroyOnClose
         footer={batchResults ? [
-          <Button key="close" onClick={closeBatchModal}>Close</Button>,
+          <Button key="close" onClick={closeBatchModal}>{t('evalDisplay.closeButton')}</Button>,
         ] : [
-          <Button key="cancel" onClick={closeBatchModal}>Cancel</Button>,
-          <Button key="run" type="primary" loading={batchMut.isPending} onClick={() => batchForm.submit()}>Run Check</Button>,
+          <Button key="cancel" onClick={closeBatchModal}>{t('common.cancel')}</Button>,
+          <Button key="run" type="primary" loading={batchMut.isPending} onClick={() => batchForm.submit()}>{t('goalSetting.runCheckButton')}</Button>,
         ]}
       >
         {!batchResults ? (
           <Form form={batchForm} layout="vertical" onFinish={(values) => batchMut.mutate(values)}>
             <Paragraph type="secondary">
-              For every direct report, checks whether they have a concluded evaluation (signed by you, and signed
-              or refused by them) from the year below with unassigned Next Cycle Goals, and no goals set yet for
-              the year you're deploying to. When both hold, those goals are deployed automatically -- employees
-              who already have goals for that year, or have no eligible goals to reuse, are skipped and reported below.
+              {t('goalSetting.batchCheckIntro')}
             </Paragraph>
-            <Form.Item label={`Set goals for ${academicYearLabel.toLowerCase()}`} name="targetAcademicYearId" rules={[{ required: true }]}>
-              <Select placeholder="The year with no goals yet" options={academicYears.map((y) => ({ value: y.id, label: y.name }))} />
+            <Form.Item label={t('goalSetting.setGoalsForYearLabel', { yearLabel: academicYearLabel.toLowerCase() })} name="targetAcademicYearId" rules={[{ required: true }]}>
+              <Select placeholder={t('goalSetting.yearWithNoGoalsPlaceholder')} options={academicYears.map((y) => ({ value: y.id, label: y.name }))} />
             </Form.Item>
-            <Form.Item label={`Check concluded evaluations from ${academicYearLabel.toLowerCase()}`} name="sourceAcademicYearId" rules={[{ required: true }]}>
-              <Select placeholder="The year to check for concluded evaluations" options={academicYears.map((y) => ({ value: y.id, label: y.name }))} />
+            <Form.Item label={t('goalSetting.checkConcludedEvalsFromYearLabel', { yearLabel: academicYearLabel.toLowerCase() })} name="sourceAcademicYearId" rules={[{ required: true }]}>
+              <Select placeholder={t('goalSetting.yearToCheckPlaceholder')} options={academicYears.map((y) => ({ value: y.id, label: y.name }))} />
             </Form.Item>
           </Form>
         ) : (
@@ -630,17 +629,17 @@ export default function GoalSettingPage() {
             pagination={false}
             size="small"
             columns={[
-              { title: 'Employee', dataIndex: 'employeeName', key: 'employeeName' },
+              { title: t('goalSetting.employeeLabel'), dataIndex: 'employeeName', key: 'employeeName' },
               {
-                title: 'Result', key: 'status',
+                title: t('goalSetting.resultColLabel'), key: 'status',
                 render: (_, r) => {
                   if (r.status === 'DEPLOYED') {
-                    return <Tag color="green">Deployed {r.goalsDeployed} goal{r.goalsDeployed !== 1 ? 's' : ''}</Tag>
+                    return <Tag color="green">{t('goalSetting.deployedGoalsCount', { count: r.goalsDeployed })}</Tag>
                   }
                   if (r.status === 'ALREADY_HAS_GOALS') {
-                    return <Tag>Already has goals for that year</Tag>
+                    return <Tag>{t('goalSetting.alreadyHasGoalsForYear')}</Tag>
                   }
-                  return <Tag>No eligible goals found</Tag>
+                  return <Tag>{t('goalSetting.noEligibleGoalsFound')}</Tag>
                 },
               },
             ]}
@@ -648,65 +647,65 @@ export default function GoalSettingPage() {
         )}
       </Modal>
 
-      <Modal title="Add a New Goal" open={addGoalOpen} onCancel={() => setAddGoalOpen(false)} destroyOnClose
+      <Modal title={t('evalDisplay.addNewGoal')} open={addGoalOpen} onCancel={() => setAddGoalOpen(false)} destroyOnClose
         onOk={() => addGoalForm.submit()} confirmLoading={addSuggestionMut.isPending || addGoalDirectMut.isPending}>
         <Form form={addGoalForm} layout="vertical"
           onFinish={(values) => (isEmployeeSubmitted ? addGoalDirectMut.mutate(values) : addSuggestionMut.mutate(values))}>
-          <Form.Item label="Category" name="categoryId" rules={[{ required: true }]}>
-            <Select options={categoryOptions} placeholder="Select category" />
+          <Form.Item label={t('evalDisplay.categoryLabel')} name="categoryId" rules={[{ required: true }]}>
+            <Select options={categoryOptions} placeholder={t('achievementModal.selectCategoryPlaceholder')} />
           </Form.Item>
-          <Form.Item label="Goal Title" name={isEmployeeSubmitted ? 'goalTitle' : 'title'} rules={[{ required: true }]}>
-            <Input placeholder="e.g., Develop advanced statistical analysis skills" />
+          <Form.Item label={t('evalDisplay.goalTitleFieldLabel')} name={isEmployeeSubmitted ? 'goalTitle' : 'title'} rules={[{ required: true }]}>
+            <Input placeholder={t('evalDisplay.goalTitleExamplePlaceholder')} />
           </Form.Item>
-          <Form.Item label="Description" name="description">
+          <Form.Item label={t('common.description')} name="description">
             <Input.TextArea rows={3} />
           </Form.Item>
           <Form.Item
-            label="Rubric — Unsatisfactory (1)" name="rubricUnsatisfactory" rules={[{ required: true }]}
-            extra="What the head should see to rate this goal as Unsatisfactory"
+            label={t('evalDisplay.rubricUnsatisfactoryFieldLabel')} name="rubricUnsatisfactory" rules={[{ required: true }]}
+            extra={t('goalSetting.rubricUnsatisfactoryHint')}
           >
             <Input.TextArea rows={2} />
           </Form.Item>
           <Form.Item
-            label="Rubric — Meets Expectations (3)" name="rubricMeetsExpectations" rules={[{ required: true }]}
-            extra="What the head should see to rate this goal as Meets Expectations"
+            label={t('evalDisplay.rubricMeetsFieldLabel')} name="rubricMeetsExpectations" rules={[{ required: true }]}
+            extra={t('goalSetting.rubricMeetsHint')}
           >
             <Input.TextArea rows={2} />
           </Form.Item>
           <Form.Item
-            label="Rubric — Exceeds Expectations (5)" name="rubricExceedsExpectations" rules={[{ required: true }]}
-            extra="What the head should see to rate this goal as Exceeds Expectations"
+            label={t('evalDisplay.rubricExceedsFieldLabel')} name="rubricExceedsExpectations" rules={[{ required: true }]}
+            extra={t('goalSetting.rubricExceedsHint')}
           >
             <Input.TextArea rows={2} />
           </Form.Item>
         </Form>
       </Modal>
 
-      <Modal title="Edit Goal" open={!!editingGoalId} onCancel={() => setEditingGoalId(null)} destroyOnClose
+      <Modal title={t('goalSetting.editGoalTitle')} open={!!editingGoalId} onCancel={() => setEditingGoalId(null)} destroyOnClose
         onOk={() => editGoalForm.submit()} confirmLoading={updateGoalMut.isPending}>
         <Form form={editGoalForm} layout="vertical"
           onFinish={(values) => updateGoalMut.mutate({ goalId: editingGoalId, values })}>
-          <Form.Item label="Goal Title" name="goalTitle" rules={[{ required: true }]}>
+          <Form.Item label={t('evalDisplay.goalTitleFieldLabel')} name="goalTitle" rules={[{ required: true }]}>
             <Input />
           </Form.Item>
-          <Form.Item label="Description" name="description">
+          <Form.Item label={t('common.description')} name="description">
             <Input.TextArea rows={3} />
           </Form.Item>
           <Form.Item
-            label="Rubric — Unsatisfactory (1)" name="rubricUnsatisfactory" rules={[{ required: true }]}
-            extra="What the head should see to rate this goal as Unsatisfactory"
+            label={t('evalDisplay.rubricUnsatisfactoryFieldLabel')} name="rubricUnsatisfactory" rules={[{ required: true }]}
+            extra={t('goalSetting.rubricUnsatisfactoryHint')}
           >
             <Input.TextArea rows={2} />
           </Form.Item>
           <Form.Item
-            label="Rubric — Meets Expectations (3)" name="rubricMeetsExpectations" rules={[{ required: true }]}
-            extra="What the head should see to rate this goal as Meets Expectations"
+            label={t('evalDisplay.rubricMeetsFieldLabel')} name="rubricMeetsExpectations" rules={[{ required: true }]}
+            extra={t('goalSetting.rubricMeetsHint')}
           >
             <Input.TextArea rows={2} />
           </Form.Item>
           <Form.Item
-            label="Rubric — Exceeds Expectations (5)" name="rubricExceedsExpectations" rules={[{ required: true }]}
-            extra="What the head should see to rate this goal as Exceeds Expectations"
+            label={t('evalDisplay.rubricExceedsFieldLabel')} name="rubricExceedsExpectations" rules={[{ required: true }]}
+            extra={t('goalSetting.rubricExceedsHint')}
           >
             <Input.TextArea rows={2} />
           </Form.Item>

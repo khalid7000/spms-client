@@ -3,6 +3,7 @@ import { Spin, Empty, Tabs, Tag, Segmented } from 'antd'
 import { BarChartOutlined, UnorderedListOutlined } from '@ant-design/icons'
 import { useQuery, useQueries } from '@tanstack/react-query'
 import { useParams, useSearchParams } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { getStrategy, getAchievements } from '../../api/strategies'
 import { getAcademicYears, getMostRecentAcademicYear } from '../../api/academicYears'
 import StateChip from '../../components/StateChip'
@@ -44,6 +45,7 @@ function DeptBreakdown({ entries }) {
 }
 
 function InitiativeReport({ ini, count, threshold, breakdown }) {
+  const { t } = useTranslation()
   const color = initiativeColor(count, threshold)
   return (
     <div
@@ -58,14 +60,14 @@ function InitiativeReport({ ini, count, threshold, breakdown }) {
       <div
         className={`achievement-chip ${color}`}
         style={{ flexShrink: 0, fontSize: 11 }}
-        title={`${count} achievement${count !== 1 ? 's' : ''} — threshold ${threshold}`}
+        title={t('report.achievementTooltip', { count, threshold })}
       >
         {count}
       </div>
       <div style={{ flex: 1 }}>
         <div style={{ fontSize: 13, color: '#374151' }}>{ini.title}</div>
         <div style={{ fontSize: 11, color: '#9ca3af', fontFamily: 'IBM Plex Mono, monospace' }}>
-          {count} achievement{count !== 1 ? 's' : ''} · threshold {threshold}
+          {t('report.achievementCaption', { count, threshold })}
         </div>
         <DeptBreakdown entries={breakdown} />
       </div>
@@ -154,6 +156,7 @@ function GoalReport({ goal, countMap, threshold, breakdownMap }) {
 }
 
 function PeriodReport({ strategy, countMap, threshold, breakdownMap }) {
+  const { t } = useTranslation()
   const { goals = [], areas = [] } = strategy
   const goalsByAreaId = {}
   const ungrouped = []
@@ -173,7 +176,7 @@ function PeriodReport({ strategy, countMap, threshold, breakdownMap }) {
     <div>
       {sections.map(({ area, goals: sectionGoals }) => (
         <div key={area?.id ?? 'ungrouped'} className="report-area-section">
-          <div className="report-area-title">{area ? area.name : 'Ungrouped Goals'}</div>
+          <div className="report-area-title">{area ? area.name : t('report.ungroupedGoals')}</div>
           {sectionGoals.map((goal) => (
             <GoalReport
               key={goal.id}
@@ -192,6 +195,7 @@ function PeriodReport({ strategy, countMap, threshold, breakdownMap }) {
 // ─── page ─────────────────────────────────────────────────────────────────────
 
 export default function ReportPage({ strategy: propStrategy, embedded = false }) {
+  const { t } = useTranslation()
   const params = useParams()
   const strategyId = propStrategy?.id ?? params?.strategyId
   const [searchParams] = useSearchParams()
@@ -394,7 +398,7 @@ export default function ReportPage({ strategy: propStrategy, embedded = false })
         >
           ✓
         </span>{' '}
-        ≥ {achievementThreshold} achievements
+        {t('report.legendAtOrAbove', { threshold: achievementThreshold })}
       </span>
       <span>
         <span
@@ -403,7 +407,7 @@ export default function ReportPage({ strategy: propStrategy, embedded = false })
         >
           ~
         </span>{' '}
-        1–{achievementThreshold - 1}
+        {t('report.legendBetween', { max: achievementThreshold - 1 })}
       </span>
       <span>
         <span
@@ -416,7 +420,7 @@ export default function ReportPage({ strategy: propStrategy, embedded = false })
       </span>
       {isUniversity && (
         <span style={{ marginLeft: 'auto', fontSize: 12 }}>
-          Coloured tags show each department's contribution for the selected period
+          {t('report.deptTagsCaption')}
         </span>
       )}
     </div>
@@ -424,7 +428,7 @@ export default function ReportPage({ strategy: propStrategy, embedded = false })
 
   const header = !embedded ? (
     <div className="page-header">
-      <h1 className="page-title">{strategy.title} — Report</h1>
+      <h1 className="page-title">{t('report.pageTitle', { title: strategy.title })}</h1>
       <StateChip state={strategy.state} />
     </div>
   ) : null
@@ -433,7 +437,7 @@ export default function ReportPage({ strategy: propStrategy, embedded = false })
     return (
       <div>
         {header}
-        <Empty description="No goals in this strategy" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+        <Empty description={t('report.noGoals')} image={Empty.PRESENTED_IMAGE_SIMPLE} />
       </div>
     )
   }
@@ -444,7 +448,7 @@ export default function ReportPage({ strategy: propStrategy, embedded = false })
         {header}
         {legend}
         <div style={{ textAlign: 'center', paddingTop: 40 }}>
-          <Spin tip="Loading achievement data…" size="large" />
+          <Spin tip={t('report.loadingAchievements')} size="large" />
         </div>
       </div>
     )
@@ -456,7 +460,7 @@ export default function ReportPage({ strategy: propStrategy, embedded = false })
         {header}
         {legend}
         <Empty
-          description="No reported achievements yet"
+          description={t('report.noAchievementsYet')}
           image={Empty.PRESENTED_IMAGE_SIMPLE}
         />
       </div>
@@ -468,8 +472,8 @@ export default function ReportPage({ strategy: propStrategy, embedded = false })
       value={view}
       onChange={setView}
       options={[
-        { value: 'summary', icon: <BarChartOutlined />, label: 'Summary' },
-        { value: 'detail',  icon: <UnorderedListOutlined />, label: 'Detail' },
+        { value: 'summary', icon: <BarChartOutlined />, label: t('report.summaryView') },
+        { value: 'detail',  icon: <UnorderedListOutlined />, label: t('report.detailView') },
       ]}
       style={{ marginBottom: 20 }}
     />

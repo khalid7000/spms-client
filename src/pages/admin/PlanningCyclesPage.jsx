@@ -7,6 +7,7 @@ import {
   PlusOutlined, EditOutlined, DeleteOutlined, ArrowRightOutlined,
 } from '@ant-design/icons'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import {
   getPlanningCycles, createPlanningCycle, updatePlanningCycle, deletePlanningCycle,
   getPlanningCyclePeriods, deletePeriod, getUsers,
@@ -20,6 +21,7 @@ import { useTerminology } from '../../TerminologyContext'
 const { Panel } = Collapse
 
 function CyclePanel({ cycle, allStrategies, users, usersLoading }) {
+  const { t } = useTranslation()
   const { topLevelStrategyLabel } = useTerminology()
   const [mainOpen, setMainOpen] = useState(false)
   const [unitOpen, setUnitOpen] = useState(false)
@@ -46,8 +48,9 @@ function CyclePanel({ cycle, allStrategies, users, usersLoading }) {
   const createMut = useMutation({
     mutationFn: (payload) => createAdminUniversityStrategy(payload),
     onSuccess: (strategy, vars) => {
-      const label = vars.type === 'UNIVERSITY' ? `Main ${topLevelStrategyLabel.toLowerCase()}` : 'Unit strategy'
-      message.success(`${label} created`)
+      message.success(vars.type === 'UNIVERSITY'
+        ? t('planningCycles.mainStrategyCreated', { label: topLevelStrategyLabel.toLowerCase() })
+        : t('planningCycles.unitStrategyCreated'))
       setMainOpen(false)
       setUnitOpen(false)
       mainForm.resetFields()
@@ -55,7 +58,7 @@ function CyclePanel({ cycle, allStrategies, users, usersLoading }) {
       qc.invalidateQueries({ queryKey: ['admin-strategies'] })
       navigate(`/admin/strategies/${strategy.id}`)
     },
-    onError: (err) => message.error(err.response?.data?.message || 'Failed to create strategy'),
+    onError: (err) => message.error(err.response?.data?.message || t('planningCycles.createStrategyFailed')),
   })
 
   const userOptions = users.map((u) => ({
@@ -68,7 +71,7 @@ function CyclePanel({ cycle, allStrategies, users, usersLoading }) {
       {/* Main university strategy section */}
       <div style={{ marginBottom: 16 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-          <span style={{ fontSize: 13, fontWeight: 600, color: '#374151' }}>Main {topLevelStrategyLabel}</span>
+          <span style={{ fontSize: 13, fontWeight: 600, color: '#374151' }}>{t('planningCycles.mainStrategyLabel', { label: topLevelStrategyLabel })}</span>
           {!mainStrategy && (
             <Button
               size="small"
@@ -77,7 +80,7 @@ function CyclePanel({ cycle, allStrategies, users, usersLoading }) {
               onClick={() => { mainForm.resetFields(); setMainOpen(true) }}
               style={{ background: '#13223a' }}
             >
-              Setup Main Strategy
+              {t('planningCycles.setupMainStrategyButton')}
             </Button>
           )}
         </div>
@@ -99,12 +102,12 @@ function CyclePanel({ cycle, allStrategies, users, usersLoading }) {
               icon={<ArrowRightOutlined />}
               onClick={() => navigate(`/admin/strategies/${mainStrategy.id}`)}
             >
-              Manage
+              {t('strategiesAdmin.manageButton')}
             </Button>
           </div>
         ) : (
           <div style={{ color: '#9ca3af', fontSize: 13, padding: '6px 0' }}>
-            No main {topLevelStrategyLabel.toLowerCase()} yet. Create one to start planning.
+            {t('planningCycles.noMainStrategyYet', { label: topLevelStrategyLabel.toLowerCase() })}
           </div>
         )}
       </div>
@@ -113,7 +116,7 @@ function CyclePanel({ cycle, allStrategies, users, usersLoading }) {
       <div style={{ marginBottom: 16 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
           <span style={{ fontSize: 13, fontWeight: 600, color: '#374151' }}>
-            Unit Strategies
+            {t('planningCycles.unitStrategiesLabel')}
             {unitStrategies.length > 0 && (
               <span style={{ marginLeft: 6, fontSize: 12, color: '#6b7280', fontWeight: 400 }}>
                 ({unitStrategies.length})
@@ -125,7 +128,7 @@ function CyclePanel({ cycle, allStrategies, users, usersLoading }) {
             icon={<PlusOutlined />}
             onClick={() => { unitForm.resetFields(); setUnitOpen(true) }}
           >
-            Add Unit Strategy
+            {t('planningCycles.addUnitStrategyButton')}
           </Button>
         </div>
 
@@ -149,14 +152,14 @@ function CyclePanel({ cycle, allStrategies, users, usersLoading }) {
                   icon={<ArrowRightOutlined />}
                   onClick={() => navigate(`/admin/strategies/${s.id}`)}
                 >
-                  Manage
+                  {t('strategiesAdmin.manageButton')}
                 </Button>
               </div>
             ))}
           </div>
         ) : (
           <div style={{ color: '#9ca3af', fontSize: 13, padding: '6px 0' }}>
-            No unit strategies yet.
+            {t('planningCycles.noUnitStrategiesYet')}
           </div>
         )}
       </div>
@@ -166,7 +169,7 @@ function CyclePanel({ cycle, allStrategies, users, usersLoading }) {
         <div style={{ marginBottom: 16 }}>
           <div style={{ marginBottom: 8 }}>
             <span style={{ fontSize: 13, fontWeight: 600, color: '#374151' }}>
-              Department Strategies
+              {t('planningCycles.departmentStrategiesLabel')}
               <span style={{ marginLeft: 6, fontSize: 12, color: '#6b7280', fontWeight: 400 }}>
                 ({deptStrategies.length})
               </span>
@@ -196,7 +199,7 @@ function CyclePanel({ cycle, allStrategies, users, usersLoading }) {
                   icon={<ArrowRightOutlined />}
                   onClick={() => navigate(`/admin/strategies/${s.id}`)}
                 >
-                  Manage
+                  {t('strategiesAdmin.manageButton')}
                 </Button>
               </div>
             ))}
@@ -209,7 +212,7 @@ function CyclePanel({ cycle, allStrategies, users, usersLoading }) {
         <>
           <Divider style={{ margin: '12px 0' }} />
           <div style={{ marginBottom: 6 }}>
-            <span style={{ fontSize: 12, color: '#6b7280', fontWeight: 600 }}>Assessment Periods</span>
+            <span style={{ fontSize: 12, color: '#6b7280', fontWeight: 600 }}>{t('planningCycles.assessmentPeriodsLabel')}</span>
           </div>
           <TableTotal count={periods.length} />
           <Table
@@ -218,14 +221,14 @@ function CyclePanel({ cycle, allStrategies, users, usersLoading }) {
             size="small"
             pagination={false}
             columns={[
-              { title: 'Name', dataIndex: 'name', sorter: (a, b) => compareStrings(a.name, b.name) },
-              { title: 'Start', dataIndex: 'startDate' },
-              { title: 'End', dataIndex: 'endDate' },
+              { title: t('common.name'), dataIndex: 'name', sorter: (a, b) => compareStrings(a.name, b.name) },
+              { title: t('planningCycles.startCol'), dataIndex: 'startDate' },
+              { title: t('planningCycles.endCol'), dataIndex: 'endDate' },
               {
                 title: '',
                 width: 60,
                 render: (_, r) => (
-                  <Popconfirm title="Delete period?" onConfirm={() => deletePeriodMut.mutate(r.id)}>
+                  <Popconfirm title={t('planningCycles.deletePeriodConfirm')} onConfirm={() => deletePeriodMut.mutate(r.id)}>
                     <Button size="small" danger icon={<DeleteOutlined />} />
                   </Popconfirm>
                 ),
@@ -237,7 +240,7 @@ function CyclePanel({ cycle, allStrategies, users, usersLoading }) {
 
       {/* Modal: Setup Main Top-Level Strategy */}
       <Modal
-        title={`Setup Main ${topLevelStrategyLabel} — ${cycle.name}`}
+        title={t('planningCycles.setupMainStrategyTitle', { label: topLevelStrategyLabel, cycleName: cycle.name })}
         open={mainOpen}
         onCancel={() => setMainOpen(false)}
         onOk={() => mainForm.submit()}
@@ -249,19 +252,19 @@ function CyclePanel({ cycle, allStrategies, users, usersLoading }) {
           layout="vertical"
           onFinish={(values) => createMut.mutate({ ...values, planningCycleId: cycle.id, type: 'UNIVERSITY' })}
         >
-          <Form.Item name="title" label="Strategy Title" rules={[{ required: true }]}>
+          <Form.Item name="title" label={t('planningCycles.strategyTitleLabel')} rules={[{ required: true }]}>
             <Input placeholder={`${cycle.name} ${topLevelStrategyLabel}`} />
           </Form.Item>
-          <Form.Item name="description" label="Description">
+          <Form.Item name="description" label={t('common.description')}>
             <Input.TextArea rows={2} />
           </Form.Item>
-          <Form.Item name="ownerId" label="Owner" rules={[{ required: true, message: 'Select an owner' }]}>
+          <Form.Item name="ownerId" label={t('planningCycles.ownerLabel')} rules={[{ required: true, message: t('planningCycles.selectOwnerRequired') }]}>
             <Select
               showSearch
-              placeholder="Select strategy owner…"
+              placeholder={t('planningCycles.selectStrategyOwnerPlaceholder')}
               optionFilterProp="label"
               loading={usersLoading}
-              notFoundContent={usersLoading ? <Spin size="small" /> : 'No users found'}
+              notFoundContent={usersLoading ? <Spin size="small" /> : t('planningCycles.noUsersFound')}
               options={userOptions}
             />
           </Form.Item>
@@ -270,7 +273,7 @@ function CyclePanel({ cycle, allStrategies, users, usersLoading }) {
 
       {/* Modal: Add Unit Strategy */}
       <Modal
-        title={`Add Unit Strategy — ${cycle.name}`}
+        title={t('planningCycles.addUnitStrategyTitle', { cycleName: cycle.name })}
         open={unitOpen}
         onCancel={() => setUnitOpen(false)}
         onOk={() => unitForm.submit()}
@@ -282,19 +285,19 @@ function CyclePanel({ cycle, allStrategies, users, usersLoading }) {
           layout="vertical"
           onFinish={(values) => createMut.mutate({ ...values, planningCycleId: cycle.id, type: 'UNIT' })}
         >
-          <Form.Item name="title" label="Strategy Title" rules={[{ required: true }]}>
-            <Input placeholder="e.g. Office of Research Strategic Plan" />
+          <Form.Item name="title" label={t('planningCycles.strategyTitleLabel')} rules={[{ required: true }]}>
+            <Input placeholder={t('planningCycles.unitStrategyTitlePlaceholder')} />
           </Form.Item>
-          <Form.Item name="description" label="Description">
+          <Form.Item name="description" label={t('common.description')}>
             <Input.TextArea rows={2} />
           </Form.Item>
-          <Form.Item name="ownerId" label="Owner" rules={[{ required: true, message: 'Select an owner' }]}>
+          <Form.Item name="ownerId" label={t('planningCycles.ownerLabel')} rules={[{ required: true, message: t('planningCycles.selectOwnerRequired') }]}>
             <Select
               showSearch
-              placeholder="Select strategy owner…"
+              placeholder={t('planningCycles.selectStrategyOwnerPlaceholder')}
               optionFilterProp="label"
               loading={usersLoading}
-              notFoundContent={usersLoading ? <Spin size="small" /> : 'No users found'}
+              notFoundContent={usersLoading ? <Spin size="small" /> : t('planningCycles.noUsersFound')}
               options={userOptions}
             />
           </Form.Item>
@@ -305,6 +308,7 @@ function CyclePanel({ cycle, allStrategies, users, usersLoading }) {
 }
 
 export default function PlanningCyclesPage() {
+  const { t } = useTranslation()
   const { topLevelStrategyLabel } = useTerminology()
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState(null)
@@ -364,13 +368,13 @@ export default function PlanningCyclesPage() {
         ? updatePlanningCycle(editing.id, values)
         : createPlanningCycle(values),
     onSuccess: () => {
-      message.success(editing ? 'Cycle updated' : 'Cycle and main strategy created')
+      message.success(editing ? t('planningCycles.cycleUpdated') : t('planningCycles.cycleAndMainStrategyCreated'))
       closeModal()
       qc.invalidateQueries({ queryKey: ['admin-cycles'] })
       qc.invalidateQueries({ queryKey: ['admin-strategies'] })
     },
     onError: (err) => {
-      const msg = err.response?.data?.message || err.message || 'Operation failed'
+      const msg = err.response?.data?.message || err.message || t('tree.operationFailed')
       message.error(msg)
     },
   })
@@ -378,20 +382,20 @@ export default function PlanningCyclesPage() {
   const deleteMutation = useMutation({
     mutationFn: deletePlanningCycle,
     onSuccess: () => {
-      message.success('Planning cycle deleted')
+      message.success(t('planningCycles.cycleDeleted'))
       qc.invalidateQueries({ queryKey: ['admin-cycles'] })
       qc.invalidateQueries({ queryKey: ['admin-strategies'] })
     },
-    onError: (err) => message.error(err.response?.data?.message || 'Failed to delete'),
+    onError: (err) => message.error(err.response?.data?.message || t('planningCycles.deleteFailed')),
   })
 
   return (
     <div>
       <div className="page-header">
-        <h1 className="page-title">Planning Cycles</h1>
+        <h1 className="page-title">{t('nav.planningCycles')}</h1>
         <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}
           style={{ background: '#13223a' }}>
-          New Cycle
+          {t('planningCycles.newCycleButton')}
         </Button>
       </div>
 
@@ -407,21 +411,21 @@ export default function PlanningCyclesPage() {
                 <span style={{ color: '#6b7280', fontSize: 13 }}>
                   {cycle.startYear}–{cycle.endYear}
                 </span>
-                {cycle.active && <Tag color="green">Active</Tag>}
+                {cycle.active && <Tag color="green">{t('departmentsAdmin.activeTag')}</Tag>}
                 <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
                   <Button
                     size="small"
                     icon={<EditOutlined />}
                     onClick={(e) => { e.stopPropagation(); openEdit(cycle) }}
                   >
-                    Edit
+                    {t('goalSetting.editButton')}
                   </Button>
                   {!hasStrategies && (
                     <Popconfirm
-                      title="Delete this planning cycle?"
-                      description="This will also delete all assessment periods and themes for this cycle."
+                      title={t('planningCycles.deleteCycleConfirmTitle')}
+                      description={t('planningCycles.deleteCycleConfirmDescription')}
                       onConfirm={(e) => { e?.stopPropagation(); deleteMutation.mutate(cycle.id) }}
-                      okText="Delete"
+                      okText={t('strategiesAdmin.deleteOkText')}
                       okButtonProps={{ danger: true }}
                       onPopupClick={(e) => e.stopPropagation()}
                     >
@@ -450,32 +454,32 @@ export default function PlanningCyclesPage() {
       </Collapse>
 
       <Modal
-        title={editing ? 'Edit Planning Cycle' : 'Create Planning Cycle'}
+        title={editing ? t('planningCycles.editCycleTitle') : t('planningCycles.createCycleTitle')}
         open={modalOpen}
         onCancel={closeModal}
         onOk={() => form.submit()}
         confirmLoading={saveMutation.isPending}
       >
         <Form form={form} layout="vertical" onFinish={(values) => saveMutation.mutate(values)}>
-          <Form.Item name="name" label="Cycle Name" rules={[{ required: true }]}>
-            <Input placeholder="e.g. 2025–2028 Strategic Plan" />
+          <Form.Item name="name" label={t('planningCycles.cycleNameLabel')} rules={[{ required: true }]}>
+            <Input placeholder={t('planningCycles.cycleNamePlaceholder')} />
           </Form.Item>
-          <Form.Item name="startYear" label="Start Year" rules={[{ required: true }]}>
+          <Form.Item name="startYear" label={t('planningCycles.startYearLabel')} rules={[{ required: true }]}>
             <InputNumber min={2000} max={2100} style={{ width: '100%' }} />
           </Form.Item>
-          <Form.Item name="endYear" label="End Year" rules={[{ required: true }]}>
+          <Form.Item name="endYear" label={t('planningCycles.endYearLabel')} rules={[{ required: true }]}>
             <InputNumber min={2000} max={2100} style={{ width: '100%' }} />
           </Form.Item>
           {!editing && (
             <Form.Item
               name="ownerId"
-              label="Main Strategy Owner"
-              rules={[{ required: true, message: `Select the owner for the main ${topLevelStrategyLabel.toLowerCase()}` }]}
-              extra={`A main ${topLevelStrategyLabel.toLowerCase()} will be created automatically for this cycle.`}
+              label={t('planningCycles.mainStrategyOwnerLabel')}
+              rules={[{ required: true, message: t('planningCycles.selectMainOwnerRequired', { label: topLevelStrategyLabel.toLowerCase() }) }]}
+              extra={t('planningCycles.mainStrategyAutoCreateHint', { label: topLevelStrategyLabel.toLowerCase() })}
             >
               <Select
                 showSearch
-                placeholder="Select strategy owner…"
+                placeholder={t('planningCycles.selectStrategyOwnerPlaceholder')}
                 optionFilterProp="label"
                 loading={usersLoading}
                 options={users.map((u) => ({
@@ -486,7 +490,7 @@ export default function PlanningCyclesPage() {
             </Form.Item>
           )}
           {editing && (
-            <Form.Item name="active" label="Active" valuePropName="checked">
+            <Form.Item name="active" label={t('departmentsAdmin.activeTag')} valuePropName="checked">
               <Switch />
             </Form.Item>
           )}

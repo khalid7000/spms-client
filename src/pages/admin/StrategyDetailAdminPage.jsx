@@ -6,6 +6,7 @@ import {
 import { ArrowLeftOutlined, PlusOutlined, DeleteOutlined, EditOutlined } from '@ant-design/icons'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import {
   getAdminStrategy, adminOverrideState, getStrategyAssignments,
   assignRole, deleteAssignment, getUsers, getAuditLogs
@@ -18,6 +19,7 @@ const STATES = ['CREATION', 'REVIEW', 'DEPLOYED', 'FROZEN']
 const ROLES = ['OWNER', 'EDITOR', 'COMMENTER', 'VIEWER']
 
 export default function StrategyDetailAdminPage() {
+  const { t } = useTranslation()
   const { id } = useParams()
   const navigate = useNavigate()
   const qc = useQueryClient()
@@ -44,44 +46,44 @@ export default function StrategyDetailAdminPage() {
   const overrideMutation = useMutation({
     mutationFn: (state) => adminOverrideState(id, state),
     onSuccess: () => {
-      message.success('State overridden')
+      message.success(t('strategyDetailAdmin.stateOverridden'))
       qc.invalidateQueries({ queryKey: ['admin-strategy', id] })
       qc.invalidateQueries({ queryKey: ['admin-strategies'] })
     },
-    onError: () => message.error('Failed to override state'),
+    onError: () => message.error(t('strategyDetailAdmin.overrideFailed')),
   })
 
   const assignMutation = useMutation({
     mutationFn: (values) => assignRole(id, values),
     onSuccess: () => {
-      message.success('Role assigned')
+      message.success(t('strategyDetailAdmin.roleAssigned'))
       setAssignModalOpen(false)
       qc.invalidateQueries({ queryKey: ['strategy-assignments', id] })
     },
-    onError: (err) => message.error(err.response?.data?.message || 'Failed'),
+    onError: (err) => message.error(err.response?.data?.message || t('common.failed')),
   })
 
   const editRoleMutation = useMutation({
     mutationFn: (values) => assignRole(id, values),
     onSuccess: () => {
-      message.success('Role updated')
+      message.success(t('strategyDetailAdmin.roleUpdated'))
       setEditingAssignment(null)
       qc.invalidateQueries({ queryKey: ['strategy-assignments', id] })
     },
-    onError: (err) => message.error(err.response?.data?.message || 'Failed'),
+    onError: (err) => message.error(err.response?.data?.message || t('common.failed')),
   })
 
   const removeMutation = useMutation({
     mutationFn: deleteAssignment,
     onSuccess: () => {
-      message.success('Assignment removed')
+      message.success(t('strategyDetailAdmin.assignmentRemoved'))
       qc.invalidateQueries({ queryKey: ['strategy-assignments', id] })
     },
   })
 
   const assignmentColumns = [
     {
-      title: 'User',
+      title: t('common.user'),
       render: (_, r) => (
         <span>
           <span style={{ fontWeight: 500 }}>{r.userName}</span>
@@ -91,7 +93,7 @@ export default function StrategyDetailAdminPage() {
       ),
       sorter: (a, b) => compareStrings(a.userName, b.userName),
     },
-    { title: 'Role', render: (_, r) => <RoleChip role={r.role} /> },
+    { title: t('common.role'), render: (_, r) => <RoleChip role={r.role} /> },
     {
       title: '',
       render: (_, r) => (
@@ -104,7 +106,7 @@ export default function StrategyDetailAdminPage() {
               editForm.setFieldsValue({ role: r.role })
             }}
           />
-          <Popconfirm title="Remove assignment?" onConfirm={() => removeMutation.mutate(r.id)}>
+          <Popconfirm title={t('strategyDetailAdmin.removeAssignmentConfirm')} onConfirm={() => removeMutation.mutate(r.id)}>
             <Button size="small" danger icon={<DeleteOutlined />} />
           </Popconfirm>
         </Space>
@@ -113,7 +115,7 @@ export default function StrategyDetailAdminPage() {
   ]
 
   if (isLoading || !strategy) {
-    return <div style={{ padding: 48, textAlign: 'center' }}>Loading…</div>
+    return <div style={{ padding: 48, textAlign: 'center' }}>{t('tree.loadingEllipsis')}</div>
   }
 
   const assignedUserIds = assignments.map((a) => a.userId)
@@ -127,14 +129,14 @@ export default function StrategyDetailAdminPage() {
         onClick={() => navigate('/admin/strategies')}
         style={{ marginBottom: 16, color: '#6b7280' }}
       >
-        Back to Strategies
+        {t('strategyDetailAdmin.backToStrategies')}
       </Button>
 
       <Card
         style={{ marginBottom: 20 }}
         extra={
           <Space>
-            <span style={{ fontSize: 13, color: '#6b7280' }}>Override state:</span>
+            <span style={{ fontSize: 13, color: '#6b7280' }}>{t('strategyDetailAdmin.overrideStateLabel')}</span>
             <Select
               value={strategy.state}
               style={{ width: 140 }}
@@ -157,12 +159,12 @@ export default function StrategyDetailAdminPage() {
           }
           column={2}
         >
-          <Descriptions.Item label="Planning Cycle">{strategy.planningCycleName}</Descriptions.Item>
-          <Descriptions.Item label="Department">{strategy.departmentName || '—'}</Descriptions.Item>
-          <Descriptions.Item label="Achievement Threshold">
+          <Descriptions.Item label={t('strategyCreation.colPlanningCycle')}>{strategy.planningCycleName}</Descriptions.Item>
+          <Descriptions.Item label={t('common.department')}>{strategy.departmentName || '—'}</Descriptions.Item>
+          <Descriptions.Item label={t('strategyDetailAdmin.achievementThresholdLabel')}>
             {strategy.achievementThreshold}
           </Descriptions.Item>
-          <Descriptions.Item label="Description" span={2}>
+          <Descriptions.Item label={t('common.description')} span={2}>
             {strategy.description || '—'}
           </Descriptions.Item>
         </Descriptions>
@@ -172,7 +174,7 @@ export default function StrategyDetailAdminPage() {
         items={[
           {
             key: 'assignments',
-            label: `Role Assignments (${assignments.length})`,
+            label: t('strategyDetailAdmin.roleAssignmentsTab', { count: assignments.length }),
             children: (
               <div>
                 <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
@@ -182,7 +184,7 @@ export default function StrategyDetailAdminPage() {
                     onClick={() => { form.resetFields(); setAssignModalOpen(true) }}
                     style={{ background: '#13223a' }}
                   >
-                    Assign User
+                    {t('strategyDetailAdmin.assignUserButton')}
                   </Button>
                 </div>
                 <Table
@@ -196,7 +198,7 @@ export default function StrategyDetailAdminPage() {
           },
           {
             key: 'areas',
-            label: `Vision Areas (${strategy.areas?.length ?? 0})`,
+            label: t('strategyDetailAdmin.visionAreasTab', { count: strategy.areas?.length ?? 0 }),
             children: (
               <Table
                 dataSource={strategy.areas || []}
@@ -204,10 +206,10 @@ export default function StrategyDetailAdminPage() {
                 pagination={false}
                 columns={[
                   {
-                    title: 'Name', dataIndex: 'name', render: (v) => <span style={{ fontWeight: 500 }}>{v}</span>,
+                    title: t('strategyDetailAdmin.nameColLabel'), dataIndex: 'name', render: (v) => <span style={{ fontWeight: 500 }}>{v}</span>,
                     sorter: (a, b) => compareStrings(a.name, b.name),
                   },
-                  { title: 'Sort Order', dataIndex: 'sortOrder', align: 'center' },
+                  { title: t('strategyDetail.sortOrderLabel'), dataIndex: 'sortOrder', align: 'center' },
                 ]}
               />
             ),
@@ -216,7 +218,7 @@ export default function StrategyDetailAdminPage() {
       />
 
       <Modal
-        title="Assign User Role"
+        title={t('strategyDetailAdmin.assignUserRoleTitle')}
         open={assignModalOpen}
         onCancel={() => setAssignModalOpen(false)}
         onOk={() => form.submit()}
@@ -224,7 +226,7 @@ export default function StrategyDetailAdminPage() {
         destroyOnClose
       >
         <Form form={form} layout="vertical" onFinish={assignMutation.mutate}>
-          <Form.Item name="userId" label="User" rules={[{ required: true }]}>
+          <Form.Item name="userId" label={t('common.user')} rules={[{ required: true }]}>
             <Select
               showSearch
               optionFilterProp="label"
@@ -232,17 +234,17 @@ export default function StrategyDetailAdminPage() {
                 value: u.id,
                 label: `${u.fname} ${u.lname} (${u.email})`,
               }))}
-              placeholder="Select a user"
+              placeholder={t('strategyDetailAdmin.selectUserPlaceholder')}
             />
           </Form.Item>
-          <Form.Item name="role" label="Role" rules={[{ required: true }]}>
+          <Form.Item name="role" label={t('common.role')} rules={[{ required: true }]}>
             <Select options={ROLES.map((r) => ({ value: r, label: r }))} />
           </Form.Item>
         </Form>
       </Modal>
 
       <Modal
-        title={`Change Role — ${editingAssignment?.userName ?? ''}`}
+        title={t('strategyDetailAdmin.changeRoleTitle', { name: editingAssignment?.userName ?? '' })}
         open={!!editingAssignment}
         onCancel={() => setEditingAssignment(null)}
         onOk={() => editForm.submit()}
@@ -256,7 +258,7 @@ export default function StrategyDetailAdminPage() {
             editRoleMutation.mutate({ userId: editingAssignment.userId, role: values.role })
           }
         >
-          <Form.Item name="role" label="Role" rules={[{ required: true }]}>
+          <Form.Item name="role" label={t('common.role')} rules={[{ required: true }]}>
             <Select options={ROLES.map((r) => ({ value: r, label: r }))} />
           </Form.Item>
         </Form>

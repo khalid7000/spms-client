@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import {
   Tabs, Button, Card, Modal, Form, Input, InputNumber, Select,
   Descriptions, message, Tag, Space, Spin, Popconfirm, Table,
@@ -6,22 +6,25 @@ import {
 import {
   ArrowLeftOutlined, PlusOutlined, SettingOutlined, EditOutlined,
   DeleteOutlined, DownloadOutlined, LockOutlined, UnlockOutlined,
-  TeamOutlined, RocketOutlined,
+  TeamOutlined, RocketOutlined, SwapOutlined,
 } from '@ant-design/icons'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import {
-  getStrategy, changeState, setThreshold, createGoal, createArea, updateArea, deleteArea,
-  downloadPdf, downloadExcel, getMembers, assignMember, revokeMember, searchUsers,
+  changeState, setThreshold, createGoal, createArea, updateArea, deleteArea,
+  downloadPdf, downloadExcel, getMembers, assignMember, revokeMember, transferOwnership, searchUsers,
   getStrategyAuditLog,
 } from '../../api/strategies'
-import { getAcademicYears, getMostRecentAcademicYear, lockAcademicYear, unlockAcademicYear } from '../../api/academicYears'
+import { lockAcademicYear, unlockAcademicYear } from '../../api/academicYears'
 import { getComments } from '../../api/comments'
 import { getDashboard } from '../../api/dashboard'
 import { getStrategyApprovalStatus, approveStrategy } from '../../api/approvals'
 import { getSwotStatus } from '../../api/swot'
 import { useAuth } from '../../auth/AuthContext'
 import { useTerminology } from '../../TerminologyContext'
+import { useStrategyYearContext } from '../../hooks/useStrategyYearContext'
+import { recordStrategyVisit } from '../../hooks/useRecentStrategyVisits'
 import StateChip from '../../components/StateChip'
 import RoleChip from '../../components/RoleChip'
 import TableTotal from '../../components/TableTotal'
@@ -64,6 +67,14 @@ const STATE_TRANSITIONS = {
   FROZEN: ['DEPLOYED'],
 }
 
+// DEPLOYED gets its own "Request Deployment" copy (handled separately); the rest just show the
+// translated state name.
+const STATE_LABEL_KEYS = {
+  CREATION: 'state.creation',
+  REVIEW: 'state.review',
+  FROZEN: 'state.frozen',
+}
+
 function canComment(role, state) {
   if (state === 'APPROVAL_PENDING') return false
   if (state === 'FROZEN') return role === 'OWNER'
@@ -72,18 +83,19 @@ function canComment(role, state) {
 
 // Modal for managing academic year locks
 function FreezeYearModal({ open, onClose, academicYears, onToggle, isPending }) {
+  const { t } = useTranslation()
   const { academicYearLabel } = useTerminology()
   return (
     <Modal
-      title={`Freeze / Unfreeze ${academicYearLabel}s`}
+      title={t('freezeYear.title', { yearLabel: `${academicYearLabel}s` })}
       open={open}
       onCancel={onClose}
-      footer={<Button onClick={onClose}>Close</Button>}
+      footer={<Button onClick={onClose}>{t('common.close')}</Button>}
       width={480}
     >
       {academicYears.length === 0 ? (
         <div style={{ color: '#9ca3af', textAlign: 'center', padding: '24px 0' }}>
-          No {academicYearLabel.toLowerCase()}s have been created yet.
+          {t('freezeYear.noneCreated', { yearLabel: `${academicYearLabel.toLowerCase()}s` })}
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -103,16 +115,18 @@ function FreezeYearModal({ open, onClose, academicYears, onToggle, isPending }) 
                   : <UnlockOutlined style={{ color: '#52c41a' }} />}
                 <span style={{ fontWeight: 500 }}>{year.name}</span>
                 <Tag color={year.closed ? 'error' : 'success'} style={{ margin: 0 }}>
-                  {year.closed ? 'Frozen' : 'Open'}
+                  {year.closed ? t('freezeYear.frozen') : t('freezeYear.open')}
                 </Tag>
               </div>
               <Popconfirm
-                title={year.closed ? `Unfreeze ${year.name}?` : `Freeze ${year.name}?`}
+                title={year.closed
+                  ? t('freezeYear.confirmUnfreeze', { name: year.name })
+                  : t('freezeYear.confirmFreeze', { name: year.name })}
                 description={year.closed
-                  ? 'Achievement recording will be re-enabled for this year.'
-                  : 'No new achievements can be added for this year across all initiatives.'}
+                  ? t('freezeYear.unfreezeDescription')
+                  : t('freezeYear.freezeDescription')}
                 onConfirm={() => onToggle(year.id, year.closed)}
-                okText={year.closed ? 'Unfreeze' : 'Freeze'}
+                okText={year.closed ? t('freezeYear.unfreezeAction') : t('freezeYear.freezeAction')}
                 okButtonProps={{ danger: !year.closed }}
               >
                 <Button
@@ -121,7 +135,7 @@ function FreezeYearModal({ open, onClose, academicYears, onToggle, isPending }) 
                   danger={!year.closed}
                   loading={isPending}
                 >
-                  {year.closed ? 'Unfreeze' : 'Freeze'}
+                  {year.closed ? t('freezeYear.unfreezeAction') : t('freezeYear.freezeAction')}
                 </Button>
               </Popconfirm>
             </div>
@@ -133,6 +147,7 @@ function FreezeYearModal({ open, onClose, academicYears, onToggle, isPending }) 
 }
 
 function AuditLogTab({ strategyId }) {
+  const { t } = useTranslation()
   const [page, setPage] = useState(0)
   const { data: logsPage, isLoading } = useQuery({
     queryKey: ['strategy-audit-log', strategyId, page],
@@ -143,7 +158,7 @@ function AuditLogTab({ strategyId }) {
 
   const columns = [
     {
-      title: 'Time',
+      title: t('auditLog.colTime'),
       dataIndex: 'createdAt',
       width: 160,
       render: (v) => (
@@ -154,7 +169,7 @@ function AuditLogTab({ strategyId }) {
       sorter: (a, b) => new Date(a.createdAt) - new Date(b.createdAt),
     },
     {
-      title: 'Action',
+      title: t('auditLog.colAction'),
       dataIndex: 'action',
       width: 180,
       render: (v) => (
@@ -168,18 +183,18 @@ function AuditLogTab({ strategyId }) {
       ),
     },
     {
-      title: 'User',
+      title: t('auditLog.colUser'),
       dataIndex: 'userName',
       width: 160,
       render: (v) => v || '—',
     },
     {
-      title: 'Entity',
+      title: t('auditLog.colEntity'),
       width: 120,
       render: (_, r) => r.entityType ? `${r.entityType} #${r.entityId}` : '—',
     },
     {
-      title: 'Details',
+      title: t('auditLog.colDetails'),
       dataIndex: 'details',
       ellipsis: true,
     },
@@ -197,20 +212,20 @@ function AuditLogTab({ strategyId }) {
         pageSize: 50,
         total,
         onChange: (p) => setPage(p - 1),
-        showTotal: (t) => `${t} entries`,
+        showTotal: (count) => t('auditLog.entriesTotal', { count }),
       }}
     />
   )
 }
 
-const ROLE_OPTIONS = [
-  { value: 'OWNER', label: 'Owner' },
-  { value: 'EDITOR', label: 'Editor' },
-  { value: 'COMMENTER', label: 'Commenter' },
-  { value: 'VIEWER', label: 'Viewer' },
-]
-
-function MembersTab({ strategyId }) {
+function MembersTab({ strategyId, onOwnershipTransferred }) {
+  const { t } = useTranslation()
+  const roleOptions = [
+    { value: 'OWNER', label: t('role.owner') },
+    { value: 'EDITOR', label: t('role.editor') },
+    { value: 'COMMENTER', label: t('role.commenter') },
+    { value: 'VIEWER', label: t('role.viewer') },
+  ]
   const qc = useQueryClient()
   const [addOpen, setAddOpen] = useState(false)
   const [addForm] = Form.useForm()
@@ -226,14 +241,29 @@ function MembersTab({ strategyId }) {
 
   const assignMut = useMutation({
     mutationFn: (values) => assignMember(strategyId, values),
-    onSuccess: () => { message.success('Member updated'); setAddOpen(false); addForm.resetFields(); refresh() },
-    onError: (err) => message.error(err.response?.data?.message || 'Failed'),
+    onSuccess: () => { message.success(t('members.updateSuccess')); setAddOpen(false); addForm.resetFields(); refresh() },
+    onError: (err) => message.error(err.response?.data?.message || t('common.failed')),
   })
 
   const revokeMut = useMutation({
     mutationFn: (userId) => revokeMember(strategyId, userId),
-    onSuccess: () => { message.success('Access revoked'); refresh() },
-    onError: (err) => message.error(err.response?.data?.message || 'Failed'),
+    onSuccess: () => { message.success(t('members.revokeSuccess')); refresh() },
+    onError: (err) => message.error(err.response?.data?.message || t('common.failed')),
+  })
+
+  const transferMut = useMutation({
+    mutationFn: (userId) => transferOwnership(strategyId, userId),
+    onSuccess: () => {
+      message.success(t('members.transferSuccess'))
+      refresh()
+      // myRole/isOwner on the parent page are derived from the 'dashboard' query, not from this
+      // tab's own 'members' query -- invalidate it so the Members/Audit Log tabs actually disappear
+      // now that this user is no longer Owner, instead of staying visible (and broken -- getMembers
+      // requires Owner) until something else happens to refetch the dashboard.
+      qc.invalidateQueries({ queryKey: ['dashboard'] })
+      onOwnershipTransferred?.()
+    },
+    onError: (err) => message.error(err.response?.data?.message || t('members.transferError')),
   })
 
   const handleSearch = async (q) => {
@@ -251,21 +281,21 @@ function MembersTab({ strategyId }) {
   }
 
   const columns = [
-    { title: 'Name', dataIndex: 'userName', key: 'name', sorter: (a, b) => compareStrings(a.userName, b.userName) },
-    { title: 'Email', dataIndex: 'userEmail', key: 'email' },
+    { title: t('common.name'), dataIndex: 'userName', key: 'name', sorter: (a, b) => compareStrings(a.userName, b.userName) },
+    { title: t('common.email'), dataIndex: 'userEmail', key: 'email' },
     {
-      title: 'Role',
+      title: t('common.role'),
       dataIndex: 'role',
       key: 'role',
       render: (role) => <RoleChip role={role} />,
     },
     {
-      title: 'Actions',
+      title: t('common.actions'),
       key: 'actions',
-      width: 220,
+      width: 270,
       render: (_, record) => {
         if (record.role === 'OWNER') {
-          return <span style={{ color: '#9ca3af', fontSize: 12 }}>Strategy Owner</span>
+          return <span style={{ color: '#9ca3af', fontSize: 12 }}>{t('members.strategyOwner')}</span>
         }
         return (
           <Space>
@@ -273,15 +303,24 @@ function MembersTab({ strategyId }) {
               size="small"
               value={record.role}
               style={{ width: 120 }}
-              options={ROLE_OPTIONS.filter((o) => o.value !== 'OWNER')}
+              options={roleOptions.filter((o) => o.value !== 'OWNER')}
               loading={assignMut.isPending}
               onChange={(newRole) => assignMut.mutate({ userId: record.userId, role: newRole })}
             />
             <Popconfirm
-              title="Revoke access?"
-              description={`Remove ${record.userName}'s access to this strategy?`}
+              title={t('members.confirmTransferTitle')}
+              description={t('members.confirmTransferDescription', { name: record.userName })}
+              onConfirm={() => transferMut.mutate(record.userId)}
+              okText={t('members.transferButton')}
+            >
+              <Button size="small" icon={<SwapOutlined />} loading={transferMut.isPending}
+                title={t('members.transferTooltip')} />
+            </Popconfirm>
+            <Popconfirm
+              title={t('members.confirmRevokeTitle')}
+              description={t('members.confirmRevokeDescription', { name: record.userName })}
               onConfirm={() => revokeMut.mutate(record.userId)}
-              okText="Revoke"
+              okText={t('members.revokeButton')}
               okButtonProps={{ danger: true }}
             >
               <Button size="small" danger icon={<DeleteOutlined />} loading={revokeMut.isPending} />
@@ -301,7 +340,7 @@ function MembersTab({ strategyId }) {
           onClick={() => { addForm.resetFields(); setUserOptions([]); setAddOpen(true) }}
           style={{ background: '#13223a' }}
         >
-          Add Member
+          {t('members.addMember')}
         </Button>
       </div>
       <TableTotal count={members.length} />
@@ -314,7 +353,7 @@ function MembersTab({ strategyId }) {
         pagination={false}
       />
       <Modal
-        title="Add / Update Member"
+        title={t('members.addModalTitle')}
         open={addOpen}
         onCancel={() => setAddOpen(false)}
         onOk={() => addForm.submit()}
@@ -322,19 +361,19 @@ function MembersTab({ strategyId }) {
         destroyOnClose
       >
         <Form form={addForm} layout="vertical" onFinish={assignMut.mutate}>
-          <Form.Item name="userId" label="User" rules={[{ required: true, message: 'Select a user' }]}>
+          <Form.Item name="userId" label={t('common.user')} rules={[{ required: true, message: t('members.selectUserRequired') }]}>
             <Select
               showSearch
               filterOption={false}
               onSearch={handleSearch}
               loading={searching}
               options={userOptions}
-              placeholder="Type name or email to search..."
-              notFoundContent={searching ? <Spin size="small" /> : 'No results'}
+              placeholder={t('members.searchPlaceholder')}
+              notFoundContent={searching ? <Spin size="small" /> : t('members.noResults')}
             />
           </Form.Item>
-          <Form.Item name="role" label="Role" rules={[{ required: true }]}>
-            <Select options={ROLE_OPTIONS} placeholder="Select role" />
+          <Form.Item name="role" label={t('common.role')} rules={[{ required: true }]}>
+            <Select options={roleOptions} placeholder={t('members.selectRolePlaceholder')} />
           </Form.Item>
         </Form>
       </Modal>
@@ -343,15 +382,24 @@ function MembersTab({ strategyId }) {
 }
 
 export default function StrategyDetailPage() {
+  const { t } = useTranslation()
   const { academicYearLabel } = useTerminology()
   const { strategyId } = useParams()
   const [searchParams, setSearchParams] = useSearchParams()
   const requestedTab = searchParams.get('tab')
   const navigate = useNavigate()
   const qc = useQueryClient()
+
+  // Controlled (not defaultActiveKey) so we can force navigation back to Strategic Plan when the
+  // Members/Audit Log tabs are about to disappear out from under the user -- e.g. right after they
+  // transfer ownership away and lose access to both.
+  const [activeTab, setActiveTab] = useState(requestedTab || 'plan')
+  const goToTab = (key) => {
+    setActiveTab(key)
+    setSearchParams(key === 'plan' ? {} : { tab: key }, { replace: true })
+  }
   const { user } = useAuth()
 
-  const [academicYearId, setAcademicYearId] = useState(null)
   const [commentOpen, setCommentOpen] = useState(false)
   const [commentEntity, setCommentEntity] = useState({ type: null, id: null, label: '' })
   const [addGoalOpen, setAddGoalOpen] = useState(false)
@@ -365,13 +413,16 @@ export default function StrategyDetailPage() {
   const [freezeYearOpen, setFreezeYearOpen] = useState(false)
   const [showValidation, setShowValidation] = useState(false)
 
-  const stratKey = ['strategy', strategyId, academicYearId]
-  const commentsKey = ['comments', strategyId]
+  const {
+    strategy, strategyLoading: isLoading, stratKey,
+    academicYearId, setAcademicYearId, academicYears, assessmentPeriods,
+  } = useStrategyYearContext(strategyId)
 
-  const { data: strategy, isLoading } = useQuery({
-    queryKey: stratKey,
-    queryFn: () => getStrategy(strategyId, academicYearId),
-  })
+  useEffect(() => {
+    recordStrategyVisit(strategyId)
+  }, [strategyId])
+
+  const commentsKey = ['comments', strategyId]
 
   const { data: comments = [] } = useQuery({
     queryKey: commentsKey,
@@ -388,57 +439,6 @@ export default function StrategyDetailPage() {
     qc.invalidateQueries({ queryKey: stratKey })
     qc.invalidateQueries({ queryKey: commentsKey })
   }
-
-  const { data: allAcademicYears = [] } = useQuery({
-    queryKey: ['academic-years'],
-    queryFn: getAcademicYears,
-    enabled: !!strategy && (strategy.state === 'DEPLOYED' || strategy.state === 'FROZEN'),
-  })
-  // Academic years belong to one university strategy's cycle -- only years under this strategy's
-  // own planning cycle apply here (a department strategy shares its cycle with the university
-  // strategy overseeing it). Without this, every strategy's picker would list every academic year
-  // in the system, including ones from unrelated cycles with nothing actually copied for it.
-  const academicYears = allAcademicYears.filter((y) => y.planningCycleId === strategy?.planningCycleId)
-
-  // Default to the most recent year instead of leaving the tree on "Base Plan (no year)" --
-  // achievements/initiatives added while no year is selected attach to the year-less base
-  // structure and become invisible under every specific year filter afterward (see
-  // AcademicYearService.backfillInitiativeCopiesForNewlyDeployedStrategy for the backend half of
-  // this fix). The user still has full control to switch back to "Base Plan" manually.
-  //
-  // yearManagedRef guards BOTH effects below against looping: it's a ref (not state), so flipping
-  // it never itself triggers a re-render/re-run, and once it's true neither effect touches
-  // academicYearId again -- whether because the user picked a year themselves (see the Select's
-  // onChange) or because the auto-pick's fallback below already ran once.
-  const yearManagedRef = useRef(false)
-  useEffect(() => {
-    if (!academicYearId && !yearManagedRef.current && academicYears.length > 0) {
-      setAcademicYearId(getMostRecentAcademicYear(academicYears).id)
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [academicYearId, academicYears.length])
-
-  // Safety net for strategies that were never actually frozen/copied for any academic year (e.g.
-  // seeded directly rather than through the normal deploy flow): if the year we auto-picked above
-  // comes back with zero initiatives anywhere in the tree, that's not "nothing to show for this
-  // year" -- it's "this strategy has no year-scoped copies at all", and its real plan/achievements
-  // live entirely in the Base Plan. Fall back there once, rather than silently rendering an empty
-  // tree that looks like the whole plan vanished. Only applies to the auto-pick -- a year the user
-  // deliberately chose themselves (yearManagedRef already true by then) is left alone even if
-  // it's genuinely empty.
-  useEffect(() => {
-    if (!yearManagedRef.current && academicYearId && strategy) {
-      const hasAnyInitiative = (strategy.goals ?? []).some((g) =>
-        (g.objectives ?? []).some((o) => (o.initiatives ?? []).length > 0)
-      )
-      if (!hasAnyInitiative) {
-        yearManagedRef.current = true
-        setAcademicYearId(null)
-      }
-    }
-  }, [academicYearId, strategy])
-
-  const assessmentPeriods = strategy?.assessmentPeriods ?? []
 
   const { data: dashboardData = [] } = useQuery({
     queryKey: ['dashboard'],
@@ -471,22 +471,22 @@ export default function StrategyDetailPage() {
   const approveMut = useMutation({
     mutationFn: () => approveStrategy(strategyId),
     onSuccess: () => {
-      message.success('Strategy approved')
+      message.success(t('approvals.approveSuccess'))
       qc.invalidateQueries({ queryKey: ['approvals', strategyId] })
       qc.invalidateQueries({ queryKey: ['pending-approvals'] })
       refreshStrategy()
     },
-    onError: (err) => message.error(err.response?.data?.message || 'Approval failed'),
+    onError: (err) => message.error(err.response?.data?.message || t('approvals.approveError')),
   })
 
   const changeStateMut = useMutation({
     mutationFn: (newState) => changeState(strategyId, newState),
     onSuccess: () => {
-      message.success('State updated')
+      message.success(t('strategyDetail.stateUpdated'))
       setShowValidation(false)
       refreshStrategy()
     },
-    onError: (err) => message.error(err.response?.data?.message || 'State change failed'),
+    onError: (err) => message.error(err.response?.data?.message || t('strategyDetail.stateChangeError')),
   })
 
   const validationErrors = showValidation ? computeValidationErrors(strategy) : null
@@ -496,7 +496,7 @@ export default function StrategyDetailPage() {
       const errors = computeValidationErrors(strategy)
       if (errors.areaIds.size || errors.goalIds.size || errors.objectiveIds.size || errors.initiativeIds.size) {
         setShowValidation(true)
-        message.error('Some items are incomplete — review the highlighted items before advancing.')
+        message.error(t('strategyDetail.validationIncomplete'))
         return
       }
     }
@@ -506,7 +506,7 @@ export default function StrategyDetailPage() {
   const setThresholdMut = useMutation({
     mutationFn: (values) => setThreshold(strategyId, values.threshold),
     onSuccess: () => {
-      message.success('Threshold updated')
+      message.success(t('strategyDetail.thresholdUpdated'))
       setThresholdOpen(false)
       refreshStrategy()
     },
@@ -515,27 +515,27 @@ export default function StrategyDetailPage() {
   const addGoalMut = useMutation({
     mutationFn: (values) => createGoal(strategyId, values),
     onSuccess: () => {
-      message.success('Goal added')
+      message.success(t('strategyDetail.goalAdded'))
       setAddGoalOpen(false)
       refreshStrategy()
     },
-    onError: (err) => message.error(err.response?.data?.message || 'Create failed'),
+    onError: (err) => message.error(err.response?.data?.message || t('common.createFailed')),
   })
 
   const addAreaMut = useMutation({
     mutationFn: (values) => createArea(strategyId, values),
     onSuccess: () => {
-      message.success('Vision area created')
+      message.success(t('strategyDetail.areaCreated'))
       setAddAreaOpen(false)
       refreshStrategy()
     },
-    onError: (err) => message.error(err.response?.data?.message || 'Create failed'),
+    onError: (err) => message.error(err.response?.data?.message || t('common.createFailed')),
   })
 
   const updateAreaMut = useMutation({
     mutationFn: (values) => updateArea(editingArea?.id, values),
     onSuccess: () => {
-      message.success('Area updated')
+      message.success(t('strategyDetail.areaUpdated'))
       setEditAreaOpen(false)
       refreshStrategy()
     },
@@ -544,31 +544,31 @@ export default function StrategyDetailPage() {
   const deleteAreaMut = useMutation({
     mutationFn: deleteArea,
     onSuccess: () => {
-      message.success('Area deleted')
+      message.success(t('strategyDetail.areaDeleted'))
       refreshStrategy()
     },
     // The backend now rejects this (400) if the area still has goals assigned, instead of
     // silently ungrouping them — surface that reason instead of failing silently.
-    onError: (err) => message.error(err.response?.data?.message || 'Could not delete area'),
+    onError: (err) => message.error(err.response?.data?.message || t('strategyDetail.areaDeleteError')),
   })
 
   // Lock/unlock by specific year ID (used from the Freeze modal)
   const lockMut = useMutation({
     mutationFn: (id) => lockAcademicYear(id),
     onSuccess: () => {
-      message.success(`${academicYearLabel} frozen`)
+      message.success(t('strategyDetail.yearFrozen', { yearLabel: academicYearLabel }))
       qc.invalidateQueries({ queryKey: ['academic-years'] })
     },
-    onError: (err) => message.error(err.response?.data?.message || 'Failed to freeze year'),
+    onError: (err) => message.error(err.response?.data?.message || t('strategyDetail.freezeYearError')),
   })
 
   const unlockMut = useMutation({
     mutationFn: (id) => unlockAcademicYear(id),
     onSuccess: () => {
-      message.success(`${academicYearLabel} unfrozen`)
+      message.success(t('strategyDetail.yearUnfrozen', { yearLabel: academicYearLabel }))
       qc.invalidateQueries({ queryKey: ['academic-years'] })
     },
-    onError: (err) => message.error(err.response?.data?.message || 'Failed to unfreeze year'),
+    onError: (err) => message.error(err.response?.data?.message || t('strategyDetail.unfreezeYearError')),
   })
 
   const handleToggleYearLock = (id, currentlyClosed) => {
@@ -580,9 +580,9 @@ export default function StrategyDetailPage() {
     const label =
       entityType === 'GOAL'
         ? strategy?.goals?.find((g) => g.id === entityId)?.title
-        : entityType === 'OBJECTIVE' ? 'Objective'
-        : entityType === 'INITIATIVE' ? 'Initiative'
-        : 'Measurement'
+        : entityType === 'OBJECTIVE' ? t('common.objective')
+        : entityType === 'INITIATIVE' ? t('common.initiative')
+        : t('common.measurement')
     setCommentEntity({ type: entityType, id: entityId, label: label || entityType })
     setCommentOpen(true)
   }
@@ -597,7 +597,7 @@ export default function StrategyDetailPage() {
       a.click()
       window.URL.revokeObjectURL(url)
     } catch {
-      message.error('Download failed')
+      message.error(t('strategyDetail.downloadFailed'))
     }
   }
 
@@ -620,7 +620,7 @@ export default function StrategyDetailPage() {
         onClick={() => navigate('/dashboard')}
         style={{ marginBottom: 16, color: '#6b7280' }}
       >
-        My Strategies
+        {t('nav.myStrategies')}
       </Button>
 
       <Card
@@ -633,23 +633,23 @@ export default function StrategyDetailPage() {
                 loading={changeStateMut.isPending}
                 style={{ fontSize: 12 }}
               >
-                → {ns === 'DEPLOYED' ? 'Request Deployment' : ns}
+                → {ns === 'DEPLOYED' ? t('strategyDetail.requestDeployment') : (STATE_LABEL_KEYS[ns] ? t(STATE_LABEL_KEYS[ns]) : ns)}
               </Button>
             ))}
             {strategy.state === 'APPROVAL_PENDING' && iAmPendingApprover && (
               <Popconfirm
-                title="Approve deployment?"
-                description="Once all required approvers approve, the strategy will be deployed."
+                title={t('strategyDetail.approveDeployTitle')}
+                description={t('strategyDetail.approveDeployDescription')}
                 onConfirm={() => approveMut.mutate()}
               >
                 <Button size="small" type="primary" loading={approveMut.isPending}
                   style={{ background: '#52c41a', borderColor: '#52c41a', fontSize: 12 }}>
-                  Approve Deployment
+                  {t('strategyDetail.approveDeployButton')}
                 </Button>
               </Popconfirm>
             )}
-            <Button size="small" icon={<DownloadOutlined />} onClick={() => handleDownload('pdf')}>PDF</Button>
-            <Button size="small" icon={<DownloadOutlined />} onClick={() => handleDownload('excel')}>Excel</Button>
+            <Button size="small" icon={<DownloadOutlined />} onClick={() => handleDownload('pdf')}>{t('common.pdf')}</Button>
+            <Button size="small" icon={<DownloadOutlined />} onClick={() => handleDownload('excel')}>{t('common.excel')}</Button>
           </Space>
         }
       >
@@ -663,15 +663,15 @@ export default function StrategyDetailPage() {
           }
           column={3} size="small"
         >
-          <Descriptions.Item label="Type">
+          <Descriptions.Item label={t('common.type')}>
             <Tag color={strategy.strategyType === 'UNIVERSITY' ? 'geekblue' : 'green'}>
               {strategy.strategyType}
             </Tag>
           </Descriptions.Item>
-          <Descriptions.Item label="Planning Cycle">{strategy.planningCycleName}</Descriptions.Item>
-          <Descriptions.Item label="Department">{strategy.departmentName || '—'}</Descriptions.Item>
+          <Descriptions.Item label={t('strategyCreation.colPlanningCycle')}>{strategy.planningCycleName}</Descriptions.Item>
+          <Descriptions.Item label={t('common.department')}>{strategy.departmentName || '—'}</Descriptions.Item>
           {strategy.description && (
-            <Descriptions.Item label="Description" span={3}>{strategy.description}</Descriptions.Item>
+            <Descriptions.Item label={t('common.description')} span={3}>{strategy.description}</Descriptions.Item>
           )}
         </Descriptions>
       </Card>
@@ -689,50 +689,50 @@ export default function StrategyDetailPage() {
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
             <div>
               <div style={{ fontWeight: 600, color: '#13223a', display: 'flex', alignItems: 'center', gap: 8 }}>
-                <RocketOutlined /> {swotCompleted ? "This strategy's SWOT analysis" : "Collaborate on this strategy's SWOT analysis"}
+                <RocketOutlined /> {swotCompleted ? t('strategyDetail.swotCardTitleDone') : t('strategyDetail.swotCardTitleOpen')}
               </div>
               <div style={{ fontSize: 12, color: '#6b7280', marginTop: 2 }}>
                 {swotCompleted
-                  ? 'The SWOT workflow is complete. Revisit the vote results or word board any time for reference.'
-                  : "Run a guided SWOT analysis with your team, vote on the strongest ideas, and let AI suggest focus areas and goals to review before drafting this strategy."}
+                  ? t('strategyDetail.swotCardBodyDone')
+                  : t('strategyDetail.swotCardBodyOpen')}
               </div>
             </div>
             <Button onClick={() => navigate(`/strategies/${strategyId}/swot`)}
               style={{ borderColor: '#13223a', color: '#13223a' }}>
-              {swotCompleted ? 'View SWOT Reports' : 'Open SWOT Workflow'}
+              {swotCompleted ? t('strategyDetail.viewSwotReports') : t('strategyDetail.openSwotWorkflow')}
             </Button>
           </div>
         </Card>
       )}
 
       <Tabs
-        defaultActiveKey={requestedTab || 'plan'}
-        onChange={(key) => setSearchParams(key === 'plan' ? {} : { tab: key }, { replace: true })}
+        activeKey={activeTab}
+        onChange={goToTab}
         items={[
           {
             key: 'plan',
-            label: 'Strategic Plan',
+            label: t('strategyDetail.tabPlan'),
             children: (
               <div>
                 {/* Vision Areas management (Owner only) */}
                 {isOwner && (
                   <Card
                     size="small"
-                    title={<span style={{ fontSize: 13, fontWeight: 600, color: '#13223a' }}>Vision Concentration Areas</span>}
+                    title={<span style={{ fontSize: 13, fontWeight: 600, color: '#13223a' }}>{t('strategyDetail.visionAreasTitle')}</span>}
                     extra={
                       <Space>
                         <Button size="small" icon={<PlusOutlined />}
                           onClick={() => { areaForm.resetFields(); setAddAreaOpen(true) }}>
-                          Add Area
+                          {t('strategyDetail.addArea')}
                         </Button>
                         <Button size="small" icon={<SettingOutlined />}
                           onClick={() => { thresholdForm.setFieldsValue({ threshold: strategy.achievementThreshold }); setThresholdOpen(true) }}>
-                          Threshold: {strategy.achievementThreshold}
+                          {t('strategyDetail.thresholdButton', { value: strategy.achievementThreshold })}
                         </Button>
                         {(strategy.state === 'DEPLOYED' || strategy.state === 'FROZEN') && (
                           <Button size="small" icon={<LockOutlined />}
                             onClick={() => setFreezeYearOpen(true)}>
-                            Freeze {academicYearLabel}
+                            {t('strategyDetail.freezeYearButton', { yearLabel: academicYearLabel })}
                           </Button>
                         )}
                       </Space>
@@ -754,8 +754,8 @@ export default function StrategyDetailPage() {
                               areaForm.setFieldsValue({ name: area.name, sortOrder: area.sortOrder })
                               setEditAreaOpen(true)
                             }} />
-                          <Popconfirm title="Delete this area?"
-                            description="Only possible if it has no goals assigned — move or delete its goals first."
+                          <Popconfirm title={t('strategyDetail.deleteAreaConfirmTitle')}
+                            description={t('strategyDetail.deleteAreaConfirmDescription')}
                             onConfirm={() => deleteAreaMut.mutate(area.id)}>
                             <Button type="text" size="small" icon={<DeleteOutlined />}
                               style={{ color: '#ef4444', padding: 0, height: 'auto' }} />
@@ -763,7 +763,7 @@ export default function StrategyDetailPage() {
                         </div>
                       ))}
                       {(strategy.areas || []).length === 0 && (
-                        <span style={{ color: '#9ca3af', fontSize: 13 }}>No areas defined yet</span>
+                        <span style={{ color: '#9ca3af', fontSize: 13 }}>{t('strategyDetail.noAreasYet')}</span>
                       )}
                     </div>
                   </Card>
@@ -775,7 +775,7 @@ export default function StrategyDetailPage() {
                     <Button icon={<PlusOutlined />}
                       onClick={() => { goalForm.resetFields(); setAddGoalOpen(true) }}
                       style={{ borderColor: '#13223a', color: '#13223a' }}>
-                      Add Goal
+                      {t('strategyDetail.addGoal')}
                     </Button>
                   </div>
                 )}
@@ -785,10 +785,10 @@ export default function StrategyDetailPage() {
                   <div style={{ marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
                     <span style={{ fontSize: 13, color: '#6b7280', fontWeight: 500 }}>{academicYearLabel}:</span>
                     <Select
-                      placeholder="Base plan (no year)"
+                      placeholder={t('strategyDetail.basePlanNoYear')}
                       allowClear
                       value={academicYearId ?? undefined}
-                      onChange={(v) => { yearManagedRef.current = true; setAcademicYearId(v ?? null) }}
+                      onChange={(v) => setAcademicYearId(v ?? null)}
                       style={{ width: 240 }}
                       options={academicYears.map((y) => ({
                         value: y.id,
@@ -797,7 +797,7 @@ export default function StrategyDetailPage() {
                     />
                     {yearLocked && (
                       <Tag icon={<LockOutlined />} color="warning">
-                        Frozen — achievement recording disabled
+                        {t('strategyDetail.frozenTagLabel')}
                       </Tag>
                     )}
                   </div>
@@ -820,7 +820,7 @@ export default function StrategyDetailPage() {
           },
           {
             key: 'report',
-            label: 'Report',
+            label: t('report.title'),
             children: <ReportPage strategy={strategy} embedded />,
           },
           ...(isOwner ? [
@@ -829,14 +829,14 @@ export default function StrategyDetailPage() {
               label: (
                 <span>
                   <TeamOutlined style={{ marginRight: 6 }} />
-                  Members
+                  {t('strategyDetail.tabMembers')}
                 </span>
               ),
-              children: <MembersTab strategyId={strategyId} />,
+              children: <MembersTab strategyId={strategyId} onOwnershipTransferred={() => goToTab('plan')} />,
             },
             {
               key: 'audit-log',
-              label: 'Audit Log',
+              label: t('strategyDetail.tabAuditLog'),
               children: <AuditLogTab strategyId={strategyId} />,
             },
           ] : []),
@@ -855,16 +855,16 @@ export default function StrategyDetailPage() {
       />
 
       {/* Add Goal Modal */}
-      <Modal title="Add Goal" open={addGoalOpen} onCancel={() => setAddGoalOpen(false)}
+      <Modal title={t('strategyDetail.addGoal')} open={addGoalOpen} onCancel={() => setAddGoalOpen(false)}
         onOk={() => goalForm.submit()} confirmLoading={addGoalMut.isPending} destroyOnClose>
         <Form form={goalForm} layout="vertical" onFinish={addGoalMut.mutate}>
-          <Form.Item name="title" label="Title" rules={[{ required: true }]}><Input /></Form.Item>
-          <Form.Item name="description" label="Description"><Input.TextArea rows={2} /></Form.Item>
+          <Form.Item name="title" label={t('common.title')} rules={[{ required: true }]}><Input /></Form.Item>
+          <Form.Item name="description" label={t('common.description')}><Input.TextArea rows={2} /></Form.Item>
           {(strategy.areas || []).length > 0 && (
-            <Form.Item name="visionAreaId" label="Vision Concentration Area">
+            <Form.Item name="visionAreaId" label={t('strategyDetail.visionAreaLabel')}>
               <Select
                 allowClear
-                placeholder="No area (assign later)"
+                placeholder={t('strategyDetail.noAreaPlaceholder')}
                 options={(strategy.areas || []).map((a) => ({ value: a.id, label: a.name }))}
               />
             </Form.Item>
@@ -873,32 +873,32 @@ export default function StrategyDetailPage() {
       </Modal>
 
       {/* Add Area Modal */}
-      <Modal title="Create Vision Area" open={addAreaOpen} onCancel={() => setAddAreaOpen(false)}
+      <Modal title={t('strategyDetail.createAreaTitle')} open={addAreaOpen} onCancel={() => setAddAreaOpen(false)}
         onOk={() => areaForm.submit()} confirmLoading={addAreaMut.isPending} destroyOnClose>
         <Form form={areaForm} layout="vertical" onFinish={addAreaMut.mutate}>
-          <Form.Item name="name" label="Area Name" rules={[{ required: true }]}><Input /></Form.Item>
-          <Form.Item name="sortOrder" label="Sort Order" initialValue={0}>
+          <Form.Item name="name" label={t('strategyDetail.areaNameLabel')} rules={[{ required: true }]}><Input /></Form.Item>
+          <Form.Item name="sortOrder" label={t('strategyDetail.sortOrderLabel')} initialValue={0}>
             <InputNumber min={0} style={{ width: '100%' }} />
           </Form.Item>
         </Form>
       </Modal>
 
       {/* Edit Area Modal */}
-      <Modal title="Edit Vision Area" open={editAreaOpen} onCancel={() => setEditAreaOpen(false)}
+      <Modal title={t('strategyDetail.editAreaTitle')} open={editAreaOpen} onCancel={() => setEditAreaOpen(false)}
         onOk={() => areaForm.submit()} confirmLoading={updateAreaMut.isPending} destroyOnClose>
         <Form form={areaForm} layout="vertical" onFinish={updateAreaMut.mutate}>
-          <Form.Item name="name" label="Area Name" rules={[{ required: true }]}><Input /></Form.Item>
-          <Form.Item name="sortOrder" label="Sort Order">
+          <Form.Item name="name" label={t('strategyDetail.areaNameLabel')} rules={[{ required: true }]}><Input /></Form.Item>
+          <Form.Item name="sortOrder" label={t('strategyDetail.sortOrderLabel')}>
             <InputNumber min={0} style={{ width: '100%' }} />
           </Form.Item>
         </Form>
       </Modal>
 
       {/* Threshold Modal */}
-      <Modal title="Set Achievement Threshold" open={thresholdOpen} onCancel={() => setThresholdOpen(false)}
+      <Modal title={t('strategyDetail.setThresholdTitle')} open={thresholdOpen} onCancel={() => setThresholdOpen(false)}
         onOk={() => thresholdForm.submit()} confirmLoading={setThresholdMut.isPending} destroyOnClose>
         <Form form={thresholdForm} layout="vertical" onFinish={setThresholdMut.mutate}>
-          <Form.Item name="threshold" label="Threshold value (minimum achievements for green status)"
+          <Form.Item name="threshold" label={t('strategyDetail.thresholdFieldLabel')}
             rules={[{ required: true }]}>
             <InputNumber min={1} style={{ width: '100%' }} />
           </Form.Item>

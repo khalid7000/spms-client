@@ -3,6 +3,7 @@ import { Card, Radio, Input, Button, Space, message, Popconfirm, Spin, Typograph
 import { ArrowLeftOutlined, DeleteOutlined, PlusOutlined } from '@ant-design/icons'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import {
   getSwotFinalizationSummary, saveSwotFinalDecisions, submitSwotFinalization,
   proposeSwotGoalAddition, deleteSwotGoalAddition,
@@ -11,17 +12,11 @@ import { useAuth } from '../../../auth/AuthContext'
 
 const { Paragraph, Text } = Typography
 
-const ACTIONS = [
-  { value: 'REJECT', label: 'Reject' },
-  { value: 'APPROVE_AS_IS', label: 'Approve as-is' },
-  { value: 'APPROVE_WITH_EDITS', label: 'Approve with edits' },
-]
-
-const ACTION_LABELS = {
-  REJECT: 'Reject',
-  APPROVE_AS_IS: 'Approve as-is',
-  APPROVE_WITH_EDITS: 'Approve with edits',
-  PROPOSE_ALTERNATIVE: 'Prefers alternative',
+const ACTION_LABEL_KEYS = {
+  REJECT: 'swot.actionReject',
+  APPROVE_AS_IS: 'swot.actionApproveAsIs',
+  APPROVE_WITH_EDITS: 'swot.actionApproveWithEdits',
+  PROPOSE_ALTERNATIVE: 'swot.actionPrefersAlternative',
 }
 
 // finalize()'s validation errors (thrown when a required AREA/GOAL decision is still missing)
@@ -49,10 +44,11 @@ function findMissingTarget(errorMessage, suggestions) {
 // one) with a one-click "Use this" that adopts their exact text as the owner's starting point —
 // the owner can still tweak it afterward via FinalDecisionControl below.
 function ReviewerVerdicts({ items, onUse }) {
+  const { t } = useTranslation()
   if (!items.length) return null
   return (
     <div style={{ marginBottom: 12 }}>
-      <Text strong style={{ fontSize: 12, color: '#6b7280' }}>Editor reviews</Text>
+      <Text strong style={{ fontSize: 12, color: '#6b7280' }}>{t('swot.editorReviews')}</Text>
       {items.map((i) => (
         <div key={i.id} style={{
           marginTop: 6, padding: '6px 10px', background: '#f8faff',
@@ -60,10 +56,10 @@ function ReviewerVerdicts({ items, onUse }) {
         }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
             <span style={{ fontSize: 12 }}>
-              <b>{i.reviewerName}</b>: {ACTION_LABELS[i.actionType] ?? i.actionType}
+              <b>{i.reviewerName}</b>: {ACTION_LABEL_KEYS[i.actionType] ? t(ACTION_LABEL_KEYS[i.actionType]) : i.actionType}
             </span>
             {i.actionType !== 'PROPOSE_ALTERNATIVE' && (
-              <Button size="small" onClick={() => onUse(i)}>Use this</Button>
+              <Button size="small" onClick={() => onUse(i)}>{t('swot.useThisButton')}</Button>
             )}
           </div>
           {i.actionType === 'APPROVE_WITH_EDITS' && (
@@ -74,7 +70,7 @@ function ReviewerVerdicts({ items, onUse }) {
           )}
           {i.actionType === 'PROPOSE_ALTERNATIVE' && (
             <div style={{ marginTop: 4, fontSize: 12, color: '#6b7280' }}>
-              Prefers a different area — see their proposal under "Team-proposed alternative areas" below.
+              {t('swot.prefersDifferentAreaHint')}
             </div>
           )}
         </div>
@@ -84,6 +80,12 @@ function ReviewerVerdicts({ items, onUse }) {
 }
 
 function FinalDecisionControl({ targetType, targetId, defaultTitle, defaultDescription, draft, onSave }) {
+  const { t } = useTranslation()
+  const ACTIONS = [
+    { value: 'REJECT', label: t('swot.actionReject') },
+    { value: 'APPROVE_AS_IS', label: t('swot.actionApproveAsIs') },
+    { value: 'APPROVE_WITH_EDITS', label: t('swot.actionApproveWithEdits') },
+  ]
   const current = draft || {}
   const [title, setTitle] = useState(current.editedTitle ?? defaultTitle)
   const [description, setDescription] = useState(current.editedDescription ?? defaultDescription)
@@ -112,7 +114,7 @@ function FinalDecisionControl({ targetType, targetId, defaultTitle, defaultDescr
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             onBlur={() => onSave(targetType, targetId, { actionType: current.actionType, editedTitle: title, editedDescription: description })}
-            placeholder="Final title"
+            placeholder={t('swot.finalTitlePlaceholder')}
             style={{ marginBottom: 6 }}
           />
           <Input.TextArea
@@ -120,7 +122,7 @@ function FinalDecisionControl({ targetType, targetId, defaultTitle, defaultDescr
             onChange={(e) => setDescription(e.target.value)}
             onBlur={() => onSave(targetType, targetId, { actionType: current.actionType, editedTitle: title, editedDescription: description })}
             rows={2}
-            placeholder="Final description"
+            placeholder={t('swot.finalDescriptionPlaceholder')}
           />
         </div>
       )}
@@ -129,6 +131,7 @@ function FinalDecisionControl({ targetType, targetId, defaultTitle, defaultDescr
 }
 
 export default function SwotFinalizationPage() {
+  const { t } = useTranslation()
   const { strategyId } = useParams()
   const navigate = useNavigate()
   const qc = useQueryClient()
@@ -163,7 +166,7 @@ export default function SwotFinalizationPage() {
 
   const saveMut = useMutation({
     mutationFn: (decision) => saveSwotFinalDecisions(strategyId, [decision]),
-    onError: (err) => message.error(err.response?.data?.message || 'Could not save decision'),
+    onError: (err) => message.error(err.response?.data?.message || t('swot.saveDecisionFailed')),
   })
 
   const handleSave = (targetType, targetId, payload) => {
@@ -184,31 +187,31 @@ export default function SwotFinalizationPage() {
       await saveMut.mutateAsync({ targetType: 'GOAL_ADDITION', targetId: created.id, actionType: 'APPROVE_AS_IS' })
     },
     onSuccess: () => {
-      message.success('Goal added')
+      message.success(t('swot.goalAdded'))
       setGoalModalAreaId(null)
       goalForm.resetFields()
       qc.invalidateQueries({ queryKey: ['swot-finalization-summary', strategyId] })
     },
-    onError: (err) => message.error(err.response?.data?.message || 'Could not add goal'),
+    onError: (err) => message.error(err.response?.data?.message || t('swot.addGoalFailed')),
   })
 
   const deleteGoalAdditionMut = useMutation({
     mutationFn: (id) => deleteSwotGoalAddition(strategyId, id),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['swot-finalization-summary', strategyId] }),
-    onError: (err) => message.error(err.response?.data?.message || 'Could not remove goal'),
+    onError: (err) => message.error(err.response?.data?.message || t('swot.removeGoalFailed')),
   })
 
   const finalizeMut = useMutation({
     mutationFn: () => submitSwotFinalization(strategyId),
     onSuccess: () => {
       setMissingTarget(null)
-      message.success('Draft strategy created')
+      message.success(t('swot.draftCreated'))
       qc.invalidateQueries({ queryKey: ['strategy', strategyId] })
       navigate(`/strategies/${strategyId}`)
     },
     onError: (err) => {
       const msg = err.response?.data?.message
-      message.error(msg || 'Finalization failed')
+      message.error(msg || t('swot.finalizationFailed'))
       // In addition to the popup, jump to and highlight the exact card still needing a decision.
       setMissingTarget(findMissingTarget(msg, summary?.suggestions || []))
     },
@@ -237,13 +240,11 @@ export default function SwotFinalizationPage() {
       <Button type="text" icon={<ArrowLeftOutlined />}
         onClick={() => navigate(`/strategies/${strategyId}/swot`)}
         style={{ marginBottom: 16, color: '#6b7280' }}>
-        Back to SWOT Overview
+        {t('swot.backToOverview')}
       </Button>
 
       <Paragraph>
-        As owner, you make the final call on every suggested (and proposed alternative) area and goal.
-        Each Editor's review is shown below the original AI suggestion — click "Use this" to adopt
-        one of their versions as your starting point, then edit it further if you like.
+        {t('swot.finalizationIntro')}
       </Paragraph>
       {/* Every decision below is saved to the server as soon as you make it (saveSwotFinalDecisions
           fires immediately, not just on final submit) — this makes that behavior visible so the
@@ -252,8 +253,8 @@ export default function SwotFinalizationPage() {
         type="info"
         showIcon
         style={{ marginBottom: 16 }}
-        message="Your progress saves automatically"
-        description={'Each decision you make below is saved right away. Feel free to close this page and come back later — nothing is final until you click "Finalize & Create Draft Strategy" below.'}
+        message={t('swot.autoSaveTitle')}
+        description={t('swot.autoSaveDescription')}
       />
 
       {(summary.suggestions || []).map((area) => {
@@ -273,7 +274,7 @@ export default function SwotFinalizationPage() {
             <Paragraph type="secondary">{area.rationale}</Paragraph>
             {areaMissing && (
               <Text type="danger" style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4 }}>
-                ⚠ This area still needs a final decision before you can finalize
+                ⚠ {t('swot.areaMissingDecision')}
               </Text>
             )}
             <ReviewerVerdicts
@@ -291,7 +292,7 @@ export default function SwotFinalizationPage() {
                 {area.goals?.length > 0 && (
                   <>
                     <Divider style={{ margin: '16px 0' }} />
-                    <Text strong style={{ fontSize: 13 }}>Goals</Text>
+                    <Text strong style={{ fontSize: 13 }}>{t('dashboard.goalsLabel')}</Text>
                     {area.goals.map((goal) => {
                       const goalMissing = missingTarget?.type === 'GOAL' && missingTarget.id === goal.id
                       return (
@@ -308,7 +309,7 @@ export default function SwotFinalizationPage() {
                         <Paragraph type="secondary" style={{ marginBottom: 0 }}>{goal.description}</Paragraph>
                         {goalMissing && (
                           <Text type="danger" style={{ display: 'block', fontSize: 12, fontWeight: 600, marginTop: 4 }}>
-                            ⚠ This goal still needs a final decision before you can finalize
+                            ⚠ {t('swot.goalMissingDecision')}
                           </Text>
                         )}
                         <ReviewerVerdicts
@@ -332,7 +333,7 @@ export default function SwotFinalizationPage() {
                   <div key={g.id} style={{ marginTop: 12, paddingLeft: 12, borderLeft: '2px solid #c9a24b' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
                       <div style={{ fontWeight: 500 }}>
-                        {g.title} <Text type="secondary" style={{ fontWeight: 400, fontSize: 12 }}>— proposed by {g.proposedByName}</Text>
+                        {g.title} <Text type="secondary" style={{ fontWeight: 400, fontSize: 12 }}>{t('swot.proposedBy', { name: g.proposedByName })}</Text>
                       </div>
                       {/* Only the proposer can delete (enforced server-side too) — for an Editor's
                           proposal, reject it via the decision control below instead. */}
@@ -355,7 +356,7 @@ export default function SwotFinalizationPage() {
                   style={{ marginTop: 12 }}
                   onClick={() => setGoalModalAreaId(area.id)}
                 >
-                  Add a Goal to this Area
+                  {t('swot.addGoalToArea')}
                 </Button>
               </>
             )}
@@ -365,13 +366,13 @@ export default function SwotFinalizationPage() {
 
       {(summary.alternatives || []).length > 0 && (
         <>
-          <Divider>Team-proposed alternative areas (optional)</Divider>
+          <Divider>{t('swot.teamProposedAlternatives')}</Divider>
           {summary.alternatives.map((alt) => {
             const altDraft = drafts[`ALTERNATIVE_AREA:${alt.id}`]
             const altRejected = !altDraft || altDraft.actionType === 'REJECT'
             return (
               <Card key={alt.id} style={{ marginBottom: 16 }}
-                title={<>{alt.name} <Text type="secondary" style={{ fontWeight: 400, fontSize: 12 }}>— proposed by {alt.proposedByName}</Text></>}>
+                title={<>{alt.name} <Text type="secondary" style={{ fontWeight: 400, fontSize: 12 }}>{t('swot.proposedBy', { name: alt.proposedByName })}</Text></>}>
                 <Paragraph type="secondary">{alt.rationale}</Paragraph>
                 <FinalDecisionControl
                   targetType="ALTERNATIVE_AREA" targetId={alt.id}
@@ -402,26 +403,26 @@ export default function SwotFinalizationPage() {
 
       <Space>
         <Popconfirm
-          title="Finalize the draft strategy?"
-          description="This creates real vision areas and goals from your decisions and completes the SWOT workflow."
+          title={t('swot.finalizeConfirmTitle')}
+          description={t('swot.finalizeConfirmDescription')}
           onConfirm={() => finalizeMut.mutate()}
         >
           <Button type="primary" loading={finalizeMut.isPending} style={{ background: '#13223a' }}>
-            Finalize & Create Draft Strategy
+            {t('swot.finalizeButton')}
           </Button>
         </Popconfirm>
         {/* Nothing left to actually save here — every decision above already persisted on selection.
             This just gives the owner an explicit, reassuring way to step away mid-review. */}
         <Button onClick={() => {
-          message.success('Your progress is saved — come back anytime to finish')
+          message.success(t('swot.progressSavedExit'))
           navigate(`/strategies/${strategyId}/swot`)
         }}>
-          Save & Exit
+          {t('swot.saveAndExit')}
         </Button>
       </Space>
 
       <Modal
-        title="Add a Goal"
+        title={t('swot.addGoalModalTitle')}
         open={goalModalAreaId != null}
         onCancel={() => setGoalModalAreaId(null)}
         onOk={() => goalForm.submit()}
@@ -430,10 +431,10 @@ export default function SwotFinalizationPage() {
       >
         <Form form={goalForm} layout="vertical"
           onFinish={(values) => proposeGoalMut.mutate({ areaId: goalModalAreaId, values })}>
-          <Form.Item name="title" label="Goal title" rules={[{ required: true, message: 'Title required' }]}>
+          <Form.Item name="title" label={t('swot.goalTitleLabel')} rules={[{ required: true, message: t('swot.titleRequired') }]}>
             <Input />
           </Form.Item>
-          <Form.Item name="description" label="Description (optional)">
+          <Form.Item name="description" label={t('swot.descriptionOptionalLabel')}>
             <Input.TextArea rows={2} />
           </Form.Item>
         </Form>

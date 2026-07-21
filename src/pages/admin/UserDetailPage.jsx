@@ -4,6 +4,7 @@ import { Button, Card, Descriptions, Table, Tag, Popconfirm, message } from 'ant
 import { ArrowLeftOutlined, DeleteOutlined } from '@ant-design/icons'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import { getUsers, getUserAssignments, deleteAssignment } from '../../api/admin'
 import StateChip from '../../components/StateChip'
 import RoleChip from '../../components/RoleChip'
@@ -11,6 +12,7 @@ import TableTotal from '../../components/TableTotal'
 import { compareStrings } from '../../hooks/useTablePrefs'
 
 export default function UserDetailPage() {
+  const { t } = useTranslation()
   const { id } = useParams()
   const navigate = useNavigate()
   const qc = useQueryClient()
@@ -26,15 +28,15 @@ export default function UserDetailPage() {
   const deleteMutation = useMutation({
     mutationFn: deleteAssignment,
     onSuccess: () => {
-      message.success('Assignment removed')
+      message.success(t('userDetail.assignmentRemoved'))
       qc.invalidateQueries({ queryKey: ['user-assignments', id] })
     },
-    onError: () => message.error('Failed to remove assignment'),
+    onError: () => message.error(t('userDetail.removeAssignmentFailed')),
   })
 
   const columns = [
     {
-      title: 'Strategy',
+      title: t('approvals.colStrategy'),
       render: (_, r) => (
         <span
           style={{ fontWeight: 500, cursor: 'pointer', color: '#2563eb' }}
@@ -45,16 +47,16 @@ export default function UserDetailPage() {
       ),
       sorter: (a, b) => compareStrings(a.strategyTitle, b.strategyTitle),
     },
-    { title: 'Role', render: (_, r) => <RoleChip role={r.role} /> },
+    { title: t('common.role'), render: (_, r) => <RoleChip role={r.role} /> },
     {
-      title: 'Actions',
+      title: t('common.actions'),
       render: (_, r) => (
         <Popconfirm
-          title="Remove this assignment?"
+          title={t('userDetail.removeAssignmentConfirm')}
           onConfirm={() => deleteMutation.mutate(r.id)}
         >
           <Button size="small" danger icon={<DeleteOutlined />}>
-            Remove
+            {t('userDetail.removeButton')}
           </Button>
         </Popconfirm>
       ),
@@ -69,34 +71,34 @@ export default function UserDetailPage() {
         onClick={() => navigate('/admin/users')}
         style={{ marginBottom: 16, color: '#6b7280' }}
       >
-        Back to Users
+        {t('userDetail.backToUsers')}
       </Button>
 
       {user && (
         <Card style={{ marginBottom: 20 }}>
           <Descriptions title={`${user.fname} ${user.lname}`} column={2}>
-            <Descriptions.Item label="Email">{user.email}</Descriptions.Item>
-            <Descriptions.Item label="Title">{user.title || '—'}</Descriptions.Item>
-            <Descriptions.Item label="Department">
+            <Descriptions.Item label={t('common.email')}>{user.email}</Descriptions.Item>
+            <Descriptions.Item label={t('common.title')}>{user.title || '—'}</Descriptions.Item>
+            <Descriptions.Item label={t('common.department')}>
               {user.department?.name || '—'}
             </Descriptions.Item>
-            <Descriptions.Item label="Org Group">
+            <Descriptions.Item label={t('usersAdmin.orgGroupLabel')}>
               {user.orgGroup?.title || '—'}
             </Descriptions.Item>
-            <Descriptions.Item label="Role">
-              {user.systemRoles?.includes('ADMIN') && <Tag color="purple">Admin</Tag>}
-              {user.systemRoles?.includes('HR') && <Tag color="blue">HR</Tag>}
-              {user.systemRoles?.includes('USER_ADMIN') && <Tag color="cyan">User Admin</Tag>}
-              {!user.systemRoles?.length && <Tag>Employee</Tag>}
+            <Descriptions.Item label={t('common.role')}>
+              {user.systemRoles?.includes('ADMIN') && <Tag color="purple">{t('usersAdmin.adminRoleTag')}</Tag>}
+              {user.systemRoles?.includes('HR') && <Tag color="blue">{t('usersAdmin.hrRoleTag')}</Tag>}
+              {user.systemRoles?.includes('USER_ADMIN') && <Tag color="cyan">{t('usersAdmin.userAdminRoleTag')}</Tag>}
+              {!user.systemRoles?.length && <Tag>{t('usersAdmin.employeeRoleTag')}</Tag>}
             </Descriptions.Item>
-            <Descriptions.Item label="Status">
-              {user.active ? <Tag color="green">Active</Tag> : <Tag>Inactive</Tag>}
+            <Descriptions.Item label={t('common.status')}>
+              {user.active ? <Tag color="green">{t('departmentsAdmin.activeTag')}</Tag> : <Tag>{t('departmentsAdmin.inactiveTag')}</Tag>}
             </Descriptions.Item>
           </Descriptions>
         </Card>
       )}
 
-      <Card title="Strategy Assignments">
+      <Card title={t('userDetail.strategyAssignmentsTitle')}>
         <TableTotal count={assignments.length} />
         <Table
           dataSource={assignments}
@@ -104,7 +106,7 @@ export default function UserDetailPage() {
           rowKey="id"
           loading={isLoading}
           pagination={false}
-          locale={{ emptyText: 'No strategy assignments' }}
+          locale={{ emptyText: t('userDetail.noAssignments') }}
         />
       </Card>
     </div>

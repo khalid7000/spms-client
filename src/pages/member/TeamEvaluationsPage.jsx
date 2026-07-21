@@ -7,6 +7,7 @@ import { useSearchParams } from 'react-router-dom'
 import { Card, Select, Table, Tag, Button, message, Descriptions, Alert, Empty, Space, Typography, Modal, Form, Input, Popconfirm } from 'antd'
 import { CheckCircleOutlined, UndoOutlined } from '@ant-design/icons'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import { getAcademicYears, getMostRecentAcademicYear } from '../../api/academicYears'
 import { getRankLabels } from '../../api/portfolio'
 import {
@@ -28,6 +29,7 @@ const { Paragraph, Text } = Typography
 const TABLE_PREFS_KEY = 'spms.teamEvaluationsTable.prefs'
 
 export default function TeamEvaluationsPage() {
+  const { t } = useTranslation()
   const { academicYearLabel } = useTerminology()
   const qc = useQueryClient()
   const [searchParams] = useSearchParams()
@@ -115,47 +117,47 @@ export default function TeamEvaluationsPage() {
   const criteriaRankMut = useMutation({
     mutationFn: ({ criteriaId, rank }) => updateCriteriaRank(evaluationId, criteriaId, rank),
     onSuccess: invalidate,
-    onError: (err) => message.error(err.response?.data?.message || 'Failed to update rank'),
+    onError: (err) => message.error(err.response?.data?.message || t('teamEval.updateRankFailed')),
   })
   const categoryRankMut = useMutation({
     mutationFn: ({ categoryId, rank }) => updateCategoryHeadRank(evaluationId, categoryId, rank),
     onSuccess: invalidate,
-    onError: (err) => message.error(err.response?.data?.message || 'Failed to update rank'),
+    onError: (err) => message.error(err.response?.data?.message || t('teamEval.updateRankFailed')),
   })
   const categoryCommentsMut = useMutation({
     mutationFn: ({ categoryId, strengths, improvements }) => updateCategoryHeadComments(evaluationId, categoryId, strengths, improvements),
     onSuccess: invalidate,
-    onError: (err) => message.error(err.response?.data?.message || 'Failed to save comments'),
+    onError: (err) => message.error(err.response?.data?.message || t('annualEval.saveCommentsFailed')),
   })
   const goalRankMut = useMutation({
     mutationFn: ({ goalId, rank }) => updateGoalHeadRank(evaluationId, goalId, rank),
     onSuccess: invalidate,
-    onError: (err) => message.error(err.response?.data?.message || 'Failed to update rank'),
+    onError: (err) => message.error(err.response?.data?.message || t('teamEval.updateRankFailed')),
   })
   const goalsCommentsMut = useMutation({
     mutationFn: ({ strengths, improvements }) => updateGoalsHeadComments(evaluationId, strengths, improvements),
     onSuccess: invalidate,
-    onError: (err) => message.error(err.response?.data?.message || 'Failed to save comments'),
+    onError: (err) => message.error(err.response?.data?.message || t('annualEval.saveCommentsFailed')),
   })
   const goalsRankMut = useMutation({
     mutationFn: (rank) => updateGoalsHeadRank(evaluationId, rank),
     onSuccess: invalidate,
-    onError: (err) => message.error(err.response?.data?.message || 'Failed to update rank'),
+    onError: (err) => message.error(err.response?.data?.message || t('teamEval.updateRankFailed')),
   })
   const overallRankMut = useMutation({
     mutationFn: (rank) => updateOverallRank(evaluationId, rank),
     onSuccess: invalidate,
-    onError: (err) => message.error(err.response?.data?.message || 'Failed to update rank'),
+    onError: (err) => message.error(err.response?.data?.message || t('teamEval.updateRankFailed')),
   })
   const submitAndSignMut = useMutation({
     mutationFn: (signatureName) => submitAndSignHeadEvaluation(evaluationId, signatureName),
-    onSuccess: () => { message.success('Evaluation signed and submitted'); setSubmitSignOpen(false); signForm.resetFields(); invalidate() },
-    onError: (err) => message.error(err.response?.data?.message || 'Failed to submit'),
+    onSuccess: () => { message.success(t('teamEval.evaluationSignedSubmitted')); setSubmitSignOpen(false); signForm.resetFields(); invalidate() },
+    onError: (err) => message.error(err.response?.data?.message || t('annualEval.submitFailed')),
   })
   const returnToEmployeeMut = useMutation({
     mutationFn: () => returnToEmployeeForReview(evaluationId),
-    onSuccess: () => { message.success('Returned to employee for review and update'); invalidate() },
-    onError: (err) => message.error(err.response?.data?.message || 'Failed to return to employee'),
+    onSuccess: () => { message.success(t('teamEval.returnedToEmployeeSuccess')); invalidate() },
+    onError: (err) => message.error(err.response?.data?.message || t('teamEval.returnToEmployeeFailed')),
   })
 
   const canEdit = evaluation?.state === 'EMPLOYEE_SUBMITTED' && !evaluation.locked
@@ -188,7 +190,7 @@ export default function TeamEvaluationsPage() {
   const handleSubmitClick = () => {
     if (!readyToSubmit) {
       setHighlightMissing(true)
-      message.warning('Complete the highlighted fields below before submitting')
+      message.warning(t('teamEval.completeHighlightedFields'))
       return
     }
     setSubmitSignOpen(true)
@@ -196,24 +198,22 @@ export default function TeamEvaluationsPage() {
 
   const teamColumns = [
     {
-      title: 'Employee', dataIndex: 'employeeName', key: 'employeeName',
+      title: t('goalSetting.employeeLabel'), dataIndex: 'employeeName', key: 'employeeName',
       sorter: (a, b) => compareStrings(a.employeeName, b.employeeName), sortOrder: sortOrderFor('employeeName'),
     },
-    { title: 'Status', dataIndex: 'state', key: 'state', render: (s) => <Tag color={STATE_COLORS[s]}>{s}</Tag> },
+    { title: t('common.status'), dataIndex: 'state', key: 'state', render: (s) => <Tag color={STATE_COLORS[s]}>{s}</Tag> },
     {
-      title: 'Actions', key: 'actions',
-      render: (_, row) => <Button size="small" onClick={() => setEvaluationId(row.id)}>Review</Button>,
+      title: t('common.actions'), key: 'actions',
+      render: (_, row) => <Button size="small" onClick={() => setEvaluationId(row.id)}>{t('teamEval.reviewButton')}</Button>,
     },
   ]
 
   return (
     <div style={{ padding: 24 }}>
       <Card>
-        <h1>Team Annual Evaluations</h1>
+        <h1>{t('teamEval.title')}</h1>
         <Paragraph type="secondary">
-          Rate each direct report's achievements against every criterion, give an overall category rank, then an
-          overall annual performance rank. Optionally return the evaluation to the employee once for another round
-          of edits before you Sign and Submit, which sends it to them for signature or refusal.
+          {t('teamEval.intro')}
         </Paragraph>
 
         <Select
@@ -223,23 +223,23 @@ export default function TeamEvaluationsPage() {
         />
 
         {!academicYearId ? (
-          <Empty description={`Select a ${academicYearLabel}`} />
+          <Empty description={t('goalReview.selectYearEmpty', { yearLabel: academicYearLabel })} />
         ) : !evaluationId ? (
           <Table
             dataSource={teamEvaluations} columns={teamColumns} rowKey="id" loading={teamLoading}
-            locale={{ emptyText: 'No direct reports have an evaluation for this year yet' }}
+            locale={{ emptyText: t('teamEval.noDirectReportsHaveEval') }}
             pagination={{
               current: prefs.current, pageSize: prefs.pageSize, showSizeChanger: true,
-              showTotal: (total) => `Total: ${total}`,
+              showTotal: (total) => t('achievementLog.totalCount', { count: total }),
             }}
             onChange={handleTableChange}
           />
         ) : evaluation && (
           <>
-            <Button style={{ marginBottom: 16 }} onClick={() => setEvaluationId(null)}>&larr; Back to team</Button>
+            <Button style={{ marginBottom: 16 }} onClick={() => setEvaluationId(null)}>&larr; {t('teamEval.backToTeam')}</Button>
             <Descriptions column={2} style={{ marginBottom: 16 }}>
-              <Descriptions.Item label="Employee">{evaluation.employeeName}</Descriptions.Item>
-              <Descriptions.Item label="Status"><Tag color={STATE_COLORS[evaluation.state]}>{evaluation.state}</Tag></Descriptions.Item>
+              <Descriptions.Item label={t('goalSetting.employeeLabel')}>{evaluation.employeeName}</Descriptions.Item>
+              <Descriptions.Item label={t('common.status')}><Tag color={STATE_COLORS[evaluation.state]}>{evaluation.state}</Tag></Descriptions.Item>
             </Descriptions>
 
             <EvaluationScoreSummary
@@ -248,7 +248,7 @@ export default function TeamEvaluationsPage() {
               highlightMissing={highlightMissing}
             />
 
-            <Card size="small" title="Evaluation Details" style={{ marginBottom: 16 }} />
+            <Card size="small" title={t('annualEval.evaluationDetailsTitle')} style={{ marginBottom: 16 }} />
 
             {orderedCategoryResults(evaluation.categoryResults).map((cat, idx) => {
               const color = categoryColor(idx)
@@ -259,31 +259,31 @@ export default function TeamEvaluationsPage() {
                   styles={{ header: { background: color.tint } }}
                   extra={
                     <Space>
-                      <span>Category rank:</span>
+                      <span>{t('teamEval.categoryRankLabel')}</span>
                       {canEdit ? (
-                        <Select style={{ width: 240 }} value={cat.headCategoryRank} placeholder="Rank"
+                        <Select style={{ width: 240 }} value={cat.headCategoryRank} placeholder={t('evalDisplay.rankPlaceholder')}
                           status={highlightMissing && !cat.headCategoryRank ? 'error' : undefined}
                           options={[1, 2, 3, 4, 5].map((r) => ({ value: r, label: rankLabelText(rankLabels, r) }))}
                           onChange={(v) => categoryRankMut.mutate({ categoryId: cat.categoryId, rank: v })} />
                       ) : (cat.headCategoryRank ? (
                         <Tag color="green">{rankLabelText(rankLabels, cat.headCategoryRank)}</Tag>
-                      ) : <Tag>Not yet rated</Tag>)}
-                      <Tag color="magenta">Self: {cat.employeeSelfRank ? rankLabelText(rankLabels, cat.employeeSelfRank) : '—'}</Tag>
+                      ) : <Tag>{t('annualEval.notYetRated')}</Tag>)}
+                      <Tag color="magenta">{t('teamEval.selfLabel', { rank: cat.employeeSelfRank ? rankLabelText(rankLabels, cat.employeeSelfRank) : '—' })}</Tag>
                     </Space>
                   }
                 >
                   {evaluation.criteriaResults.filter((c) => c.categoryId === cat.categoryId).map((crit) => (
                     <div key={crit.criteriaId} style={{ marginBottom: 16, paddingBottom: 16, borderBottom: '1px solid #e8eef6' }}>
                       <div style={{ marginBottom: 8 }}>
-                        <Text strong>Criterion: </Text>
+                        <Text strong>{t('annualEval.criterionLabel')} </Text>
                         <RubricPopover criteria={crit} />
-                        {crit.employeeNothingToReport && <Tag color="gold" style={{ marginLeft: 8 }}>Employee: nothing to report</Tag>}
+                        {crit.employeeNothingToReport && <Tag color="gold" style={{ marginLeft: 8 }}>{t('evalDisplay.employeeNothingToReport')}</Tag>}
                       </div>
                       <div style={{ marginBottom: 8 }}>
-                        <Text strong style={{ display: 'block', marginBottom: 4 }}>Criterion Achievements:</Text>
+                        <Text strong style={{ display: 'block', marginBottom: 4 }}>{t('annualEval.criterionAchievementsLabel')}</Text>
                         <AchievementList
                           entries={evaluation.entries.filter((e) => e.criteriaId === crit.criteriaId)}
-                          emptyText={crit.employeeNothingToReport ? 'Employee reported nothing for this criteria' : 'No achievements tagged to this criteria'}
+                          emptyText={crit.employeeNothingToReport ? t('teamEval.employeeReportedNothingCriteria') : t('annualEval.noAchievementsTaggedCriteria')}
                           color={color}
                         />
                       </div>
@@ -301,12 +301,12 @@ export default function TeamEvaluationsPage() {
                         </Space>
                       )}
                       <Space align="center" style={{ width: '100%', justifyContent: 'flex-end' }}>
-                        <Tag color="magenta">Self: {cat.employeeSelfRank ? rankLabelText(rankLabels, cat.employeeSelfRank) : '—'}</Tag>
+                        <Tag color="magenta">{t('teamEval.selfLabel', { rank: cat.employeeSelfRank ? rankLabelText(rankLabels, cat.employeeSelfRank) : '—' })}</Tag>
                         {canEdit && (
                           <Button size="small"
                             disabled={!crit.rubricUnsatisfactory && !crit.rubricMeetsExpectations && !crit.rubricExceedsExpectations}
                             title={!crit.rubricUnsatisfactory && !crit.rubricMeetsExpectations && !crit.rubricExceedsExpectations
-                              ? 'No rubric defined for this criterion' : undefined}
+                              ? t('teamEval.noRubricDefinedCriterion') : undefined}
                             onClick={() => setAssistant({
                               targetType: 'CRITERIA', targetId: crit.criteriaId,
                               title: crit.criteriaName,
@@ -314,12 +314,12 @@ export default function TeamEvaluationsPage() {
                               entries: evaluation.entries.filter((e) => e.criteriaId === crit.criteriaId),
                               onApply: (score) => criteriaRankMut.mutate({ criteriaId: crit.criteriaId, rank: score }),
                             })}>
-                            Rating Assistant
+                            {t('evalDisplay.ratingAssistant')}
                           </Button>
                         )}
-                        <span>Rank:</span>
+                        <span>{t('evalDisplay.rankLabel')}</span>
                         {canEdit ? (
-                          <Select style={{ width: 220 }} value={crit.headRank} placeholder="Rank"
+                          <Select style={{ width: 220 }} value={crit.headRank} placeholder={t('evalDisplay.rankPlaceholder')}
                             status={highlightMissing && !crit.headRank ? 'error' : undefined}
                             options={[1, 2, 3, 4, 5].map((r) => ({ value: r, label: rankLabelText(rankLabels, r) }))}
                             onChange={(v) => criteriaRankMut.mutate({ criteriaId: crit.criteriaId, rank: v })} />
@@ -332,7 +332,7 @@ export default function TeamEvaluationsPage() {
                   {unlinked.length > 0 && (
                     <div style={{ marginBottom: 16 }}>
                       <Text type="secondary" style={{ display: 'block', marginBottom: 4 }}>
-                        <Tag color="gold" style={{ marginRight: 6 }}>Needs review</Tag>Not linked to a specific criteria
+                        <Tag color="gold" style={{ marginRight: 6 }}>{t('teamEval.needsReviewTag')}</Tag>{t('teamEval.notLinkedToCriteria')}
                       </Text>
                       <AchievementList entries={unlinked} emptyText="" color={UNLINKED_COLOR} />
                     </div>
@@ -365,7 +365,7 @@ export default function TeamEvaluationsPage() {
               highlightMissing={highlightMissing}
             />
 
-            <EmployeeReflectionBlock comments={evaluation.employeeFinalSummary} heading="General Final Summary Statement" required />
+            <EmployeeReflectionBlock comments={evaluation.employeeFinalSummary} heading={t('annualEval.finalSummaryHeading')} required />
 
             <NextCycleGoalsSection
               evaluationId={evaluationId} evaluation={liveEvaluation} canHeadEdit={canEdit} canEmployeeReview={false}
@@ -388,16 +388,16 @@ export default function TeamEvaluationsPage() {
                     ? { background: '#13223a' }
                     : { background: '#f5f5f5', color: 'rgba(0, 0, 0, 0.45)', borderColor: '#d9d9d9' }}
                 >
-                  Sign and Submit
+                  {t('teamEval.signAndSubmitButton')}
                 </Button>
                 {!evaluation.returnedToEmployeeAt && (
                   <Popconfirm
-                    title="Return this evaluation to the employee?"
-                    description="They'll be able to edit their self-assessment, add missed achievements, and comment on the Next Cycle Goals, then resubmit. This can only be done once."
+                    title={t('teamEval.returnConfirmTitle')}
+                    description={t('teamEval.returnConfirmDescription')}
                     onConfirm={() => returnToEmployeeMut.mutate()}
                   >
                     <Button icon={<UndoOutlined />} loading={returnToEmployeeMut.isPending}>
-                      Return to Employee for Review and Update
+                      {t('teamEval.returnToEmployeeButton')}
                     </Button>
                   </Popconfirm>
                 )}
@@ -405,38 +405,39 @@ export default function TeamEvaluationsPage() {
             )}
             {canSubmit && !readyToSubmit && (
               <Alert type="info" showIcon style={{ marginTop: 12 }}
-                message="Rank every category, criteria, and goal, plus an overall rank for the Annual Goals section, fill in comments for every category and the Annual Goals section, and add at least one Next Cycle Goal before submitting."
-                description="Click Sign and Submit to highlight exactly which fields are still missing." />
+                message={t('teamEval.notReadyMessage')}
+                description={t('teamEval.notReadyDescription')} />
             )}
             {evaluation.state === 'RETURNED_TO_EMPLOYEE' && (
               <Alert type="info" showIcon
-                message="Waiting for the employee to review and resubmit their self-assessment." />
+                message={t('teamEval.waitingForEmployeeResubmit')} />
             )}
             {evaluation.state === 'HEAD_SUBMITTED' && (
               <Alert type="info" showIcon
-                message={`Signed and submitted by you${evaluation.headSignatureName ? ` as ${evaluation.headSignatureName}` : ''}. Waiting for the employee to sign or refuse.`} />
+                message={evaluation.headSignatureName
+                  ? t('teamEval.signedSubmittedByYouAs', { name: evaluation.headSignatureName })
+                  : t('teamEval.signedSubmittedByYou')} />
             )}
             {evaluation.state === 'CONCLUDED' && (
               <Alert type="success" showIcon
                 message={evaluation.headSignatureName
-                  ? `This evaluation is concluded. Signed by ${evaluation.headSignatureName}.`
-                  : 'This evaluation is concluded.'} />
+                  ? t('teamEval.concludedSignedBy', { name: evaluation.headSignatureName })
+                  : t('annualEval.evaluationConcluded')} />
             )}
           </>
         )}
       </Card>
 
       <Modal
-        title="Sign and Submit Evaluation" open={submitSignOpen} onCancel={() => setSubmitSignOpen(false)} destroyOnClose
-        onOk={() => signForm.submit()} confirmLoading={submitAndSignMut.isPending} okText="Sign and Submit"
+        title={t('teamEval.signSubmitModalTitle')} open={submitSignOpen} onCancel={() => setSubmitSignOpen(false)} destroyOnClose
+        onOk={() => signForm.submit()} confirmLoading={submitAndSignMut.isPending} okText={t('teamEval.signAndSubmitButton')}
       >
         <Paragraph type="secondary">
-          Type your full name below to sign and submit this evaluation. It will then go to the employee for their
-          signature or refusal.
+          {t('teamEval.signSubmitModalIntro')}
         </Paragraph>
         <Form form={signForm} layout="vertical" onFinish={(values) => submitAndSignMut.mutate(values.signatureName)}>
-          <Form.Item name="signatureName" label="Type your name to sign" rules={[{ required: true, message: 'Type your name to sign' }]}>
-            <Input placeholder="Your full name" />
+          <Form.Item name="signatureName" label={t('annualEval.typeNameToSignLabel')} rules={[{ required: true, message: t('annualEval.typeNameToSignLabel') }]}>
+            <Input placeholder={t('annualEval.yourFullNamePlaceholder')} />
           </Form.Item>
         </Form>
       </Modal>

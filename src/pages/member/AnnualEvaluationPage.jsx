@@ -8,6 +8,7 @@ import { useState, useEffect } from 'react'
 import { Card, Select, Table, Tag, Button, Modal, Form, Input, Checkbox, message, Descriptions, Alert, Empty, Space, Typography, Tooltip, Popconfirm } from 'antd'
 import { CheckCircleOutlined, CloseCircleOutlined, DownloadOutlined, LockOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import { getAcademicYears, getMostRecentAcademicYear } from '../../api/academicYears'
 import { getRankLabels, getAchievementModules } from '../../api/portfolio'
 import {
@@ -32,6 +33,7 @@ const ACHIEVEMENT_MODULE_COMPONENTS = {
 }
 
 export default function AnnualEvaluationPage() {
+  const { t } = useTranslation()
   const { defaultHeadTitleLabel, academicYearLabel } = useTerminology()
   const qc = useQueryClient()
   const [academicYearId, setAcademicYearId] = useState(null)
@@ -88,73 +90,73 @@ export default function AnnualEvaluationPage() {
     mutationFn: ({ entryId, categoryId, criteriaId, goalId }) =>
       updateEntryDesignation(evaluation.id, entryId, { categoryId, criteriaId, goalId }),
     onSuccess: invalidate,
-    onError: (err) => message.error(err.response?.data?.message || 'Failed to update designation'),
+    onError: (err) => message.error(err.response?.data?.message || t('annualEval.updateDesignationFailed')),
   })
 
   const selfRankMut = useMutation({
     mutationFn: ({ categoryId, rank }) => updateSelfRank(evaluation.id, categoryId, rank),
     onSuccess: invalidate,
-    onError: (err) => message.error(err.response?.data?.message || 'Failed to update self-rank'),
+    onError: (err) => message.error(err.response?.data?.message || t('annualEval.updateSelfRankFailed')),
   })
 
   const goalsSelfRankMut = useMutation({
     mutationFn: (rank) => updateGoalsSelfRank(evaluation.id, rank),
     onSuccess: invalidate,
-    onError: (err) => message.error(err.response?.data?.message || 'Failed to update self-rank'),
+    onError: (err) => message.error(err.response?.data?.message || t('annualEval.updateSelfRankFailed')),
   })
 
   const criteriaNtrMut = useMutation({
     mutationFn: ({ criteriaId, nothingToReport }) => markCriteriaNothingToReport(evaluation.id, criteriaId, nothingToReport),
     onSuccess: invalidate,
-    onError: (err) => message.error(err.response?.data?.message || 'Failed to update'),
+    onError: (err) => message.error(err.response?.data?.message || t('common.updateFailed')),
   })
 
   const goalNtrMut = useMutation({
     mutationFn: ({ goalId, nothingToReport }) => markGoalNothingToReport(evaluation.id, goalId, nothingToReport),
     onSuccess: invalidate,
-    onError: (err) => message.error(err.response?.data?.message || 'Failed to update'),
+    onError: (err) => message.error(err.response?.data?.message || t('common.updateFailed')),
   })
 
   const categoryEmployeeCommentsMut = useMutation({
     mutationFn: ({ categoryId, comments }) => updateCategoryEmployeeComments(evaluation.id, categoryId, comments),
     onSuccess: invalidate,
-    onError: (err) => message.error(err.response?.data?.message || 'Failed to save comments'),
+    onError: (err) => message.error(err.response?.data?.message || t('annualEval.saveCommentsFailed')),
   })
 
   const criteriaEmployeeCommentsMut = useMutation({
     mutationFn: ({ criteriaId, comments }) => updateCriterionEmployeeComments(evaluation.id, criteriaId, comments),
     onSuccess: invalidate,
-    onError: (err) => message.error(err.response?.data?.message || 'Failed to save comments'),
+    onError: (err) => message.error(err.response?.data?.message || t('annualEval.saveCommentsFailed')),
   })
 
   const goalsEmployeeCommentsMut = useMutation({
     mutationFn: (comments) => updateGoalsEmployeeComments(evaluation.id, comments),
     onSuccess: invalidate,
-    onError: (err) => message.error(err.response?.data?.message || 'Failed to save comments'),
+    onError: (err) => message.error(err.response?.data?.message || t('annualEval.saveCommentsFailed')),
   })
 
   const finalSummaryMut = useMutation({
     mutationFn: (comments) => updateEmployeeFinalSummary(evaluation.id, comments),
     onSuccess: invalidate,
-    onError: (err) => message.error(err.response?.data?.message || 'Failed to save comments'),
+    onError: (err) => message.error(err.response?.data?.message || t('annualEval.saveCommentsFailed')),
   })
 
   const submitMut = useMutation({
     mutationFn: () => submitEmployeeSelfAssessment(evaluation.id),
-    onSuccess: () => { message.success('Self-assessment submitted'); invalidate() },
-    onError: (err) => message.error(err.response?.data?.message || 'Failed to submit'),
+    onSuccess: () => { message.success(t('annualEval.selfAssessmentSubmitted')); invalidate() },
+    onError: (err) => message.error(err.response?.data?.message || t('annualEval.submitFailed')),
   })
 
   const signMut = useMutation({
     mutationFn: (signatureName) => signAsEmployee(evaluation.id, signatureName),
-    onSuccess: () => { message.success('Signed'); setSignOpen(false); signForm.resetFields(); invalidate() },
-    onError: (err) => message.error(err.response?.data?.message || 'Failed to sign'),
+    onSuccess: () => { message.success(t('annualEval.signedSuccess')); setSignOpen(false); signForm.resetFields(); invalidate() },
+    onError: (err) => message.error(err.response?.data?.message || t('annualEval.signFailed')),
   })
 
   const refuseMut = useMutation({
     mutationFn: () => refuseToSign(evaluation.id, rationale),
-    onSuccess: () => { message.success('Refusal recorded'); setRefuseOpen(false); setRationale(''); invalidate() },
-    onError: (err) => message.error(err.response?.data?.message || 'Failed to record refusal'),
+    onSuccess: () => { message.success(t('annualEval.refusalRecorded')); setRefuseOpen(false); setRationale(''); invalidate() },
+    onError: (err) => message.error(err.response?.data?.message || t('annualEval.refusalFailed')),
   })
 
   const handleDownload = async () => {
@@ -167,7 +169,7 @@ export default function AnnualEvaluationPage() {
       a.click()
       window.URL.revokeObjectURL(url)
     } catch {
-      message.error('Failed to download report')
+      message.error(t('annualEval.downloadFailed'))
     }
   }
 
@@ -189,10 +191,10 @@ export default function AnnualEvaluationPage() {
 
   const entryColumns = [
     {
-      title: 'Achievement', dataIndex: 'achievementTitle', key: 'achievementTitle', width: 260,
+      title: t('achievementLog.colAchievement'), dataIndex: 'achievementTitle', key: 'achievementTitle', width: 260,
       render: (title, row) => (
         <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-          <Tooltip title={row.achievementDetails || 'No additional details'}>
+          <Tooltip title={row.achievementDetails || t('tree.noAdditionalDetails')}>
             <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', cursor: 'pointer' }}
               onClick={() => setViewingAchievement(row)}>
               {title}
@@ -203,7 +205,7 @@ export default function AnnualEvaluationPage() {
               onClick={() => setEditingAchievement(row)} style={{ color: '#6b7280', flexShrink: 0 }} />
           )}
           {row.canDelete && (
-            <Popconfirm title="Delete this achievement?" description="This also removes it from your portfolio."
+            <Popconfirm title={t('annualEval.deleteAchievementConfirmTitle')} description={t('annualEval.deleteAchievementConfirmDescription')}
               onConfirm={() => deleteAchMut.mutate(row.achievementId)}>
               <Button type="text" size="small" icon={<DeleteOutlined />} style={{ color: '#ef4444', flexShrink: 0 }} />
             </Popconfirm>
@@ -212,24 +214,24 @@ export default function AnnualEvaluationPage() {
       ),
     },
     {
-      title: 'Category', dataIndex: 'categoryId', key: 'categoryId', width: 180,
+      title: t('achievementLog.colCategory'), dataIndex: 'categoryId', key: 'categoryId', width: 180,
       render: (categoryId, row) => (canEmployeeEdit && !row.createdByModuleCode) ? (
         <Select
-          style={{ width: '100%' }} value={pendingCategoryByEntry[row.entryId] ?? categoryId} placeholder="Select category"
+          style={{ width: '100%' }} value={pendingCategoryByEntry[row.entryId] ?? categoryId} placeholder={t('achievementModal.selectCategoryPlaceholder')}
           options={(evaluation.categoryResults ?? []).map((c) => ({ value: c.categoryId, label: c.categoryName }))}
           onChange={(value) => {
             // Staged only -- criteria must belong to the category it's tagged under, so switching
             // categories can't reassign the criterion (or clear it) on its own. Nothing is saved
             // until a criterion within this new category is chosen below.
             setPendingCategoryByEntry((prev) => ({ ...prev, [row.entryId]: value }))
-            message.info('Now select a criterion within the new category to complete the reassignment.')
+            message.info(t('annualEval.selectCriterionInNewCategory'))
           }}
         />
       ) : (
         <Space size={4}>
           {evaluation.categoryResults.find((c) => c.categoryId === categoryId)?.categoryName ?? '—'}
           {row.createdByModuleCode && (
-            <Tooltip title="Fixed by the achievement-recording tool that generated this achievement">
+            <Tooltip title={t('achievementModal.categoryFixedByTool')}>
               <LockOutlined style={{ color: '#9ca3af', fontSize: 12 }} />
             </Tooltip>
           )}
@@ -237,14 +239,14 @@ export default function AnnualEvaluationPage() {
       ),
     },
     {
-      title: 'Criteria', dataIndex: 'criteriaId', key: 'criteriaId', width: 220,
+      title: t('achievementModal.criteriaLabel'), dataIndex: 'criteriaId', key: 'criteriaId', width: 220,
       render: (criteriaId, row) => (canEmployeeEdit && !row.createdByModuleCode) ? (() => {
         const pendingCategoryId = pendingCategoryByEntry[row.entryId]
         const effectiveCategoryId = pendingCategoryId ?? row.categoryId
         return (
           <Select
             style={{ width: '100%' }} value={pendingCategoryId ? undefined : criteriaId}
-            placeholder={pendingCategoryId ? 'Select criteria in the new category' : 'Select criteria'}
+            placeholder={pendingCategoryId ? t('annualEval.selectCriteriaInNewCategory') : t('achievementModal.selectCriteriaPlaceholder')}
             disabled={!effectiveCategoryId}
             options={criteriaOptionsFor(effectiveCategoryId)}
             onChange={(value) => {
@@ -259,9 +261,9 @@ export default function AnnualEvaluationPage() {
         )
       })() : (
         <Space size={4}>
-          {evaluation.criteriaResults.find((c) => c.criteriaId === criteriaId)?.criteriaName ?? <Tag color="red">Not tagged</Tag>}
+          {evaluation.criteriaResults.find((c) => c.criteriaId === criteriaId)?.criteriaName ?? <Tag color="red">{t('annualEval.notTagged')}</Tag>}
           {row.createdByModuleCode && (
-            <Tooltip title="Fixed by the achievement-recording tool that generated this achievement">
+            <Tooltip title={t('achievementModal.categoryFixedByTool')}>
               <LockOutlined style={{ color: '#9ca3af', fontSize: 12 }} />
             </Tooltip>
           )}
@@ -269,10 +271,10 @@ export default function AnnualEvaluationPage() {
       ),
     },
     {
-      title: 'Goal (optional)', dataIndex: 'goalId', key: 'goalId', width: 220,
+      title: t('annualEval.goalOptionalLabel'), dataIndex: 'goalId', key: 'goalId', width: 220,
       render: (goalId, row) => canEmployeeEdit ? (
         <Select
-          style={{ width: '100%' }} value={goalId} placeholder="Link to a goal" allowClear
+          style={{ width: '100%' }} value={goalId} placeholder={t('achievementModal.linkToGoalPlaceholder')} allowClear
           options={goalOptions}
           onChange={(value) => designationMut.mutate({ entryId: row.entryId, categoryId: row.categoryId, criteriaId: row.criteriaId, goalId: value })}
         />
@@ -305,21 +307,21 @@ export default function AnnualEvaluationPage() {
     && !missingMandatoryModule
 
   const missingItems = [
-    missingSelfRank && 'Give every category a self-assessment rank.',
-    missingGoalsSelfRank && 'Give your Annual Goals section an overall self-assessment rank.',
-    missingCriteria && 'Tag every achievement logged this year to a criteria.',
-    uncoveredCriteria && 'Give every criteria either an achievement or mark it "Nothing to report".',
-    uncoveredGoals && 'Give every goal either an achievement or mark it "Nothing to report".',
-    missingCategoryComments && 'Add your comments and reflection for every category.',
-    missingGoalsComments && 'Add your comments and reflection for your Annual Goals.',
-    missingFinalSummary && 'Add a General Final Summary Statement.',
-    missingMandatoryModule && `Log at least one achievement for: ${criteriaMissingMandatoryModule.map((c) => c.criteriaName).join(', ')}.`,
+    missingSelfRank && t('annualEval.missingSelfRank'),
+    missingGoalsSelfRank && t('annualEval.missingGoalsSelfRank'),
+    missingCriteria && t('annualEval.missingCriteria'),
+    uncoveredCriteria && t('annualEval.uncoveredCriteria'),
+    uncoveredGoals && t('annualEval.uncoveredGoals'),
+    missingCategoryComments && t('annualEval.missingCategoryComments'),
+    missingGoalsComments && t('annualEval.missingGoalsComments'),
+    missingFinalSummary && t('annualEval.missingFinalSummary'),
+    missingMandatoryModule && t('annualEval.missingMandatoryModule', { criteria: criteriaMissingMandatoryModule.map((c) => c.criteriaName).join(', ') }),
   ].filter(Boolean)
 
   const handleSubmitClick = () => {
     if (missingItems.length > 0) {
       Modal.warning({
-        title: 'Not ready to submit yet',
+        title: t('annualEval.notReadyToSubmitTitle'),
         content: (
           <ul style={{ paddingLeft: 18, margin: 0 }}>
             {missingItems.map((item) => <li key={item}>{item}</li>)}
@@ -334,14 +336,9 @@ export default function AnnualEvaluationPage() {
   return (
     <div style={{ padding: 24 }}>
       <Card>
-        <h1>My Annual Evaluation</h1>
+        <h1>{t('annualEval.title')}</h1>
         <Paragraph type="secondary">
-          Review each achievement logged this {academicYearLabel.toLowerCase()}, confirm which category, criteria, and (optionally) goal
-          it counts toward, give yourself a self-assessed rank per category and one overall rank for your annual
-          goals, then submit for your head's review. Every criteria and goal needs either an achievement or an
-          explicit "nothing to report." Comments and reflection are required for every category, for your annual
-          goals, and for an overall General Final Summary Statement, and optional for each criteria -- your head
-          may return the evaluation to you once for another round of edits before their final review.
+          {t('annualEval.intro', { yearLabel: academicYearLabel.toLowerCase() })}
         </Paragraph>
 
         <Select
@@ -350,25 +347,25 @@ export default function AnnualEvaluationPage() {
         />
 
         {!academicYearId ? (
-          <Empty description={`Select a ${academicYearLabel} to view your evaluation`} />
+          <Empty description={t('annualEval.selectYearToView', { yearLabel: academicYearLabel })} />
         ) : isLoading || !evaluation ? null : (
           <>
             <Descriptions column={2} style={{ marginBottom: 16 }}>
               <Descriptions.Item label={evaluation.headTitle ?? defaultHeadTitleLabel}>{evaluation.headName}</Descriptions.Item>
-              <Descriptions.Item label="Status"><Tag>{evaluation.state}</Tag></Descriptions.Item>
+              <Descriptions.Item label={t('common.status')}><Tag>{evaluation.state}</Tag></Descriptions.Item>
             </Descriptions>
 
             <EvaluationScoreSummary evaluation={evaluation} rankLabels={rankLabels} />
 
-            <Card size="small" title="Evaluation Details" style={{ marginBottom: 16 }} />
+            <Card size="small" title={t('annualEval.evaluationDetailsTitle')} style={{ marginBottom: 16 }} />
 
             {(evaluation.entries ?? []).length === 0 && (
-              <Empty description={`No achievements logged this ${academicYearLabel.toLowerCase()} yet`} style={{ marginBottom: 24 }} />
+              <Empty description={t('annualEval.noneLoggedThisYear', { yearLabel: academicYearLabel.toLowerCase() })} style={{ marginBottom: 24 }} />
             )}
 
             {uncategorizedEntries.length > 0 && (
               <div style={{ marginBottom: 16 }}>
-                <Text strong style={{ display: 'block', marginBottom: 4 }}>Not yet categorized</Text>
+                <Text strong style={{ display: 'block', marginBottom: 4 }}>{t('annualEval.notYetCategorized')}</Text>
                 <Table
                   dataSource={uncategorizedEntries} columns={entryColumns} rowKey="entryId"
                   pagination={false} size="small"
@@ -386,15 +383,15 @@ export default function AnnualEvaluationPage() {
                   styles={{ header: { background: color.tint } }}
                   extra={
                     <Space>
-                      <span>Your self-rank:</span>
+                      <span>{t('annualEval.yourSelfRankLabel')}</span>
                       {canEmployeeEdit ? (
-                        <Select style={{ width: 220 }} value={cat.employeeSelfRank} placeholder="Select rank"
+                        <Select style={{ width: 220 }} value={cat.employeeSelfRank} placeholder={t('annualEval.selectRankPlaceholder')}
                           options={[1, 2, 3, 4, 5].map((r) => ({ value: r, label: rankLabelText(rankLabels, r) }))}
                           onChange={(value) => selfRankMut.mutate({ categoryId: cat.categoryId, rank: value })} />
                       ) : (
                         <Tag color="magenta">{cat.employeeSelfRank ? rankLabelText(rankLabels, cat.employeeSelfRank) : '—'}</Tag>
                       )}
-                      <Tag color="green">Head: {cat.headCategoryRank ? rankLabelText(rankLabels, cat.headCategoryRank) : 'Not yet rated'}</Tag>
+                      <Tag color="green">{t('annualEval.headRankLabel', { rank: cat.headCategoryRank ? rankLabelText(rankLabels, cat.headCategoryRank) : t('annualEval.notYetRated') })}</Tag>
                     </Space>
                   }
                 >
@@ -403,7 +400,7 @@ export default function AnnualEvaluationPage() {
                     return (
                       <div key={crit.criteriaId} style={{ marginBottom: 16, paddingBottom: 16, borderBottom: '1px solid #e8eef6' }}>
                         <div style={{ marginBottom: 8 }}>
-                          <Text strong>Criterion: </Text>
+                          <Text strong>{t('annualEval.criterionLabel')} </Text>
                           <Text>{crit.criteriaName}</Text>
                           {canEmployeeEdit ? (
                             <Checkbox
@@ -411,23 +408,23 @@ export default function AnnualEvaluationPage() {
                               onChange={(e) => criteriaNtrMut.mutate({ criteriaId: crit.criteriaId, nothingToReport: e.target.checked })}
                               style={{ marginLeft: 12 }}
                             >
-                              Nothing to report
+                              {t('annualEval.nothingToReport')}
                             </Checkbox>
                           ) : (
-                            crit.employeeNothingToReport && <Tag color="gold" style={{ marginLeft: 8 }}>Nothing to report</Tag>
+                            crit.employeeNothingToReport && <Tag color="gold" style={{ marginLeft: 8 }}>{t('annualEval.nothingToReport')}</Tag>
                           )}
                         </div>
                         <div style={{ marginBottom: 8 }}>
-                          <Text strong style={{ display: 'block', marginBottom: 4 }}>Criterion Achievements:</Text>
+                          <Text strong style={{ display: 'block', marginBottom: 4 }}>{t('annualEval.criterionAchievementsLabel')}</Text>
                           {canEmployeeEdit ? (
                             <div style={{ background: color.tint, borderLeft: `3px solid ${color.accent}`, borderRadius: 4, padding: 10 }}>
                               <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>
-                                You can change the category, criteria, or goal mapping of any achievement using the dropdowns below.
+                                {t('annualEval.changeMappingHint')}
                               </Text>
                               <Table
                                 dataSource={critEntries} columns={entryColumns} rowKey="entryId"
                                 pagination={false} size="small"
-                                locale={{ emptyText: 'No achievements tagged to this criteria yet' }}
+                                locale={{ emptyText: t('annualEval.noAchievementsTaggedYet') }}
                               />
                               {crit.achievementModuleCodes?.length > 0 && (
                                 <Space style={{ marginTop: 8 }} wrap>
@@ -448,7 +445,7 @@ export default function AnnualEvaluationPage() {
                                           maxAchievementsPerYear={maxAchievementsPerYear}
                                         />
                                         {mandatory && (
-                                          <Tag color={countSoFar > 0 ? 'green' : 'red'}>{countSoFar > 0 ? 'Required ✓' : 'Required'}</Tag>
+                                          <Tag color={countSoFar > 0 ? 'green' : 'red'}>{countSoFar > 0 ? t('annualEval.requiredMet') : t('annualEval.requiredNotMet')}</Tag>
                                         )}
                                       </span>
                                     ) : null
@@ -459,7 +456,7 @@ export default function AnnualEvaluationPage() {
                           ) : (
                             <AchievementList
                               entries={critEntries}
-                              emptyText={crit.employeeNothingToReport ? 'You reported nothing for this criteria' : 'No achievements tagged to this criteria'}
+                              emptyText={crit.employeeNothingToReport ? t('annualEval.reportedNothingForCriteria') : t('annualEval.noAchievementsTaggedCriteria')}
                               color={color}
                             />
                           )}
@@ -472,7 +469,7 @@ export default function AnnualEvaluationPage() {
                         />
                         <div style={{ textAlign: 'right' }}>
                           <Tag color="green">
-                            Head: {crit.headRank ? rankLabelText(rankLabels, crit.headRank) : 'Not yet rated'}
+                            {t('annualEval.headRankLabel', { rank: crit.headRank ? rankLabelText(rankLabels, crit.headRank) : t('annualEval.notYetRated') })}
                           </Tag>
                         </div>
                       </div>
@@ -481,7 +478,7 @@ export default function AnnualEvaluationPage() {
                   {catUnlinked.length > 0 && (
                     <div>
                       <Text type="secondary" style={{ display: 'block', marginBottom: 4 }}>
-                        <Tag color="gold" style={{ marginRight: 6 }}>Needs a criteria</Tag>Not yet linked to a specific criteria
+                        <Tag color="gold" style={{ marginRight: 6 }}>{t('annualEval.needsCriteriaTag')}</Tag>{t('annualEval.notYetLinkedToCriteria')}
                       </Text>
                       <Table dataSource={catUnlinked} columns={entryColumns} rowKey="entryId" pagination={false} size="small" />
                     </div>
@@ -512,7 +509,7 @@ export default function AnnualEvaluationPage() {
 
             <EmployeeReflectionBlock
               comments={evaluation.employeeFinalSummary}
-              heading="General Final Summary Statement"
+              heading={t('annualEval.finalSummaryHeading')}
               required
               onSave={canEmployeeEdit ? (comments) => finalSummaryMut.mutate(comments) : undefined}
             />
@@ -525,7 +522,7 @@ export default function AnnualEvaluationPage() {
 
             {isReturnedToEmployee && (
               <Alert type="warning" showIcon style={{ marginBottom: 12 }}
-                message="Your head returned this evaluation for another round -- update your self-assessment, add any achievements you missed, and comment on the Next Cycle Goals below, then resubmit." />
+                message={t('annualEval.returnedForAnotherRound')} />
             )}
 
             {canEmployeeEdit && (
@@ -534,47 +531,47 @@ export default function AnnualEvaluationPage() {
                 style={canSubmit
                   ? { background: '#13223a' }
                   : { background: '#f5f5f5', color: 'rgba(0, 0, 0, 0.45)', borderColor: '#d9d9d9' }}>
-                {isReturnedToEmployee ? 'Resubmit for Head Review' : 'Submit for Head Review'}
+                {isReturnedToEmployee ? t('annualEval.resubmitForHeadReview') : t('annualEval.submitForHeadReview')}
               </Button>
             )}
             {canEmployeeEdit && !canSubmit && (
               <Alert type="info" showIcon style={{ marginTop: 12 }}
-                message="Click Submit for Head Review to see exactly what's still needed before you can submit." />
+                message={t('annualEval.clickSubmitToSeeNeeded')} />
             )}
 
             {isEmployeeSubmitted && (
-              <Alert type="info" showIcon message="Submitted -- waiting for your head to complete their review." />
+              <Alert type="info" showIcon message={t('annualEval.submittedWaitingHead')} />
             )}
 
             {(isHeadSubmitted || isConcluded) && (
               <>
                 {evaluation.employeeRefused && (
                   <Alert type="warning" showIcon style={{ marginBottom: 12 }}
-                    message="You refused to sign this evaluation"
+                    message={t('annualEval.youRefusedToSign')}
                     description={evaluation.employeeRefusalRationale} />
                 )}
                 {isHeadSubmitted && !employeeHasActed && (
                   <Space>
                     <Button type="primary" icon={<CheckCircleOutlined />}
                       onClick={() => setSignOpen(true)} style={{ background: '#13223a' }}>
-                      Sign
+                      {t('annualEval.signButton')}
                     </Button>
                     <Button danger icon={<CloseCircleOutlined />} onClick={() => setRefuseOpen(true)}>
-                      Refuse to Sign
+                      {t('annualEval.refuseToSignButton')}
                     </Button>
                   </Space>
                 )}
                 {evaluation.employeeSignedAt && (
                   <Alert type="success" showIcon style={{ marginBottom: 12 }}
-                    message={`Signed by ${evaluation.employeeSignatureName} on ${new Date(evaluation.employeeSignedAt).toLocaleDateString()}`} />
+                    message={t('annualEval.signedByOn', { name: evaluation.employeeSignatureName, date: new Date(evaluation.employeeSignedAt).toLocaleDateString() })} />
                 )}
                 {employeeHasActed && !evaluation.headSignedAt && (
-                  <Alert type="info" showIcon message="Waiting for your head's signature." />
+                  <Alert type="info" showIcon message={t('annualEval.waitingForHeadSignature')} />
                 )}
                 {isConcluded && (
                   <>
-                    <Alert type="success" showIcon style={{ marginBottom: 12 }} message="This evaluation is concluded." />
-                    <Button icon={<DownloadOutlined />} onClick={handleDownload}>Download Report</Button>
+                    <Alert type="success" showIcon style={{ marginBottom: 12 }} message={t('annualEval.evaluationConcluded')} />
+                    <Button icon={<DownloadOutlined />} onClick={handleDownload}>{t('annualEval.downloadReportButton')}</Button>
                   </>
                 )}
               </>
@@ -584,24 +581,24 @@ export default function AnnualEvaluationPage() {
       </Card>
 
       <Modal
-        title="Refuse to Sign" open={refuseOpen} onCancel={() => setRefuseOpen(false)}
+        title={t('annualEval.refuseToSignTitle')} open={refuseOpen} onCancel={() => setRefuseOpen(false)}
         onOk={() => refuseMut.mutate()} confirmLoading={refuseMut.isPending}
         okButtonProps={{ danger: true, disabled: !rationale.trim() }}
       >
-        <Text>Please provide a rationale for refusing to sign this evaluation:</Text>
+        <Text>{t('annualEval.refuseRationalePrompt')}</Text>
         <Input.TextArea rows={4} style={{ marginTop: 8 }} value={rationale} onChange={(e) => setRationale(e.target.value)} />
       </Modal>
 
       <Modal
-        title="Sign Evaluation" open={signOpen} onCancel={() => setSignOpen(false)} destroyOnClose
-        onOk={() => signForm.submit()} confirmLoading={signMut.isPending} okText="Sign"
+        title={t('annualEval.signEvaluationTitle')} open={signOpen} onCancel={() => setSignOpen(false)} destroyOnClose
+        onOk={() => signForm.submit()} confirmLoading={signMut.isPending} okText={t('annualEval.signButton')}
       >
         <Paragraph type="secondary">
-          Type your full name below to sign and confirm this evaluation.
+          {t('annualEval.typeNameToSignHint')}
         </Paragraph>
         <Form form={signForm} layout="vertical" onFinish={(values) => signMut.mutate(values.signatureName)}>
-          <Form.Item name="signatureName" label="Type your name to sign" rules={[{ required: true, message: 'Type your name to sign' }]}>
-            <Input placeholder="Your full name" />
+          <Form.Item name="signatureName" label={t('annualEval.typeNameToSignLabel')} rules={[{ required: true, message: t('annualEval.typeNameToSignLabel') }]}>
+            <Input placeholder={t('annualEval.yourFullNamePlaceholder')} />
           </Form.Item>
         </Form>
       </Modal>
@@ -610,7 +607,7 @@ export default function AnnualEvaluationPage() {
         open={!!editingAchievement} onClose={() => setEditingAchievement(null)}
         onSave={(values) => editAchMut.mutate({ achievementId: editingAchievement.achievementId, values })}
         loading={editAchMut.isPending}
-        title="Edit Achievement"
+        title={t('tree.editAchievementTitle')}
         assessmentPeriods={[]}
         academicYears={evaluation ? [{ id: evaluation.academicYearId, name: evaluation.academicYearName, closed: false }] : []}
         academicYearId={evaluation?.academicYearId}

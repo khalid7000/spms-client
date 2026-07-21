@@ -2,17 +2,30 @@
 // adapt the app's wording to whatever organization it's deployed at -- see TerminologyContext.jsx
 // for how the rest of the app reads these. Edit-only: the key set itself is seeded by migration
 // (V72__organization_settings.sql), not created/deleted here.
-import { useState } from 'react'
-import { Table, Button, Modal, Form, Input, message } from 'antd'
+import { useEffect, useState } from 'react'
+import { Table, Button, Modal, Form, Input, Checkbox, message } from 'antd'
 import { EditOutlined } from '@ant-design/icons'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import { getOrganizationSettings, updateOrganizationSetting } from '../../api/admin'
+import { loadLanguageManifest } from '../../i18n/languageManifest'
 import TableTotal from '../../components/TableTotal'
 
+const LANGUAGES_KEY = 'ENABLED_LANGUAGES'
+
 export default function OrganizationSettingsPage() {
+  const { t } = useTranslation()
   const [editing, setEditing] = useState(null)
   const [form] = Form.useForm()
   const qc = useQueryClient()
+
+  // The full set of languages the system has an XML for (not just the currently-enabled subset)
+  // -- this is what populates the "Enabled Languages" checkbox list. See languageManifest.js.
+  const [languageOptions, setLanguageOptions] = useState([])
+  useEffect(() => {
+    loadLanguageManifest().then((langs) =>
+      setLanguageOptions(langs.map((l) => ({ value: l.code, label: l.displayName }))))
+  }, [])
 
   const { data: settings = [], isLoading } = useQuery({
     queryKey: ['admin-organization-settings'],
@@ -21,27 +34,31 @@ export default function OrganizationSettingsPage() {
 
   const openEdit = (s) => {
     setEditing(s)
-    form.setFieldsValue({ value: s.value })
+    form.setFieldsValue({
+      value: s.key === LANGUAGES_KEY ? s.value.split(',').filter(Boolean) : s.value,
+    })
   }
 
   const saveMutation = useMutation({
-    mutationFn: (values) => updateOrganizationSetting(editing.key, values),
+    mutationFn: (values) => updateOrganizationSetting(editing.key, {
+      value: Array.isArray(values.value) ? values.value.join(',') : values.value,
+    }),
     onSuccess: () => {
-      message.success('Setting updated')
+      message.success(t('orgSettings.settingUpdated'))
       setEditing(null)
       qc.invalidateQueries({ queryKey: ['admin-organization-settings'] })
       qc.invalidateQueries({ queryKey: ['organization-settings-public'] })
     },
-    onError: (err) => message.error(err.response?.data?.message || 'Update failed'),
+    onError: (err) => message.error(err.response?.data?.message || t('common.updateFailed')),
   })
 
   const columns = [
-    { title: 'Setting', dataIndex: 'description', render: (v) => <span style={{ fontWeight: 500 }}>{v}</span> },
-    { title: 'Current Value', dataIndex: 'value' },
+    { title: t('orgSettings.colSetting'), dataIndex: 'description', render: (v) => <span style={{ fontWeight: 500 }}>{v}</span> },
+    { title: t('orgSettings.colCurrentValue'), dataIndex: 'value' },
     {
-      title: 'Actions',
+      title: t('common.actions'),
       render: (_, r) => (
-        <Button size="small" icon={<EditOutlined />} onClick={() => openEdit(r)}>Edit</Button>
+        <Button size="small" icon={<EditOutlined />} onClick={() => openEdit(r)}>{t('goalSetting.editButton')}</Button>
       ),
     },
   ]
@@ -49,11 +66,10 @@ export default function OrganizationSettingsPage() {
   return (
     <div>
       <div className="page-header">
-        <h1 className="page-title">Organization Settings</h1>
+        <h1 className="page-title">{t('orgSettings.title')}</h1>
       </div>
       <p style={{ color: '#6b7280', marginBottom: 16 }}>
-        These labels are used throughout the app in place of the university-specific terms they
-        default to, so the system reads naturally for any organization it's deployed at.
+        {t('orgSettings.intro')}
       </p>
 
       <TableTotal count={settings.length} />
@@ -66,7 +82,7 @@ export default function OrganizationSettingsPage() {
       />
 
       <Modal
-        title="Edit Setting"
+        title={t('orgSettings.editModalTitle')}
         open={!!editing}
         onCancel={() => setEditing(null)}
         onOk={() => form.submit()}
@@ -76,9 +92,16 @@ export default function OrganizationSettingsPage() {
       >
         <Form form={form} layout="vertical" onFinish={saveMutation.mutate}>
           <p style={{ color: '#6b7280', marginBottom: 16 }}>{editing?.description}</p>
-          <Form.Item name="value" label="Value" rules={[{ required: true }]}>
-            <Input />
-          </Form.Item>
+          {editing?.key === LANGUAGES_KEY ? (
+            <Form.Item name="value" label={t('orgSettings.enabledLanguagesLabel')}
+              rules={[{ required: true, message: t('orgSettings.selectAtLeastOneLanguage') }]}>
+              <Checkbox.Group options={languageOptions} />
+            </Form.Item>
+          ) : (
+            <Form.Item name="value" label={t('orgSettings.valueLabel')} rules={[{ required: true }]}>
+              <Input />
+            </Form.Item>
+          )}
         </Form>
       </Modal>
     </div>

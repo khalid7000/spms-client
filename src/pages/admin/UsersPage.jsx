@@ -8,6 +8,7 @@ import {
   UploadOutlined, DownloadOutlined, InboxOutlined, SearchOutlined,
 } from '@ant-design/icons'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { Trans, useTranslation } from 'react-i18next'
 import { getUsers, createUser, updateUser, getDepartments, getOrgGroups, importUsers } from '../../api/admin'
 import { getAllTitles } from '../../api/portfolio'
 import { useNavigate } from 'react-router-dom'
@@ -36,6 +37,7 @@ const TABLE_PREFS_KEY = 'spms.adminUsersTable.prefs'
 // Table sort + page size are persisted (see useTablePrefs) so the admin's
 // preferred view survives navigating away and coming back.
 export default function UsersPage() {
+  const { t } = useTranslation()
   const { user: currentUser } = useAuth()
   // A User Admin (limited role, granted only by a true Admin) reaches this page too, but must
   // never see or submit the Roles field -- the server enforces this independently regardless
@@ -78,7 +80,7 @@ export default function UsersPage() {
 
   const deptOptions = departments.map((d) => ({ value: d.id, label: d.name }))
   const orgGroupOptions = orgGroups.map((g) => ({ value: g.id, label: g.title }))
-  const titleOptions = allTitles.map((t) => ({ value: t.titleName, label: t.titleName }))
+  const titleOptions = allTitles.map((ti) => ({ value: ti.titleName, label: ti.titleName }))
 
   const filteredUsers = users.filter((u) => {
     if (!search) return true
@@ -114,11 +116,11 @@ export default function UsersPage() {
     mutationFn: (values) =>
       editing ? updateUser(editing.id, values) : createUser(values),
     onSuccess: () => {
-      message.success(editing ? 'User updated' : 'User created')
+      message.success(editing ? t('usersAdmin.userUpdated') : t('usersAdmin.userCreated'))
       setModalOpen(false)
       qc.invalidateQueries({ queryKey: ['admin-users'] })
     },
-    onError: (err) => message.error(err.response?.data?.message || 'Operation failed'),
+    onError: (err) => message.error(err.response?.data?.message || t('usersAdmin.operationFailed')),
   })
 
   // ── CSV import ──────────────────────────────────────────────────────────────
@@ -139,19 +141,19 @@ export default function UsersPage() {
       setSelectedFile(null)
       qc.invalidateQueries({ queryKey: ['admin-users'] })
     },
-    onError: (err) => message.error(err.response?.data?.message || 'Import failed'),
+    onError: (err) => message.error(err.response?.data?.message || t('usersAdmin.importFailed')),
   })
 
   const errorColumns = [
-    { title: 'Row', dataIndex: 'row', width: 70 },
-    { title: 'Reason', dataIndex: 'message' },
+    { title: t('usersAdmin.rowColLabel'), dataIndex: 'row', width: 70 },
+    { title: t('usersAdmin.reasonColLabel'), dataIndex: 'message' },
   ]
 
   // ── table columns ───────────────────────────────────────────────────────────
 
   const columns = [
     {
-      title: 'Name',
+      title: t('common.name'),
       key: 'name',
       render: (_, r) => (
         <span style={{ fontWeight: 500 }}>
@@ -162,14 +164,14 @@ export default function UsersPage() {
       sortOrder: sortOrderFor('name'),
     },
     {
-      title: 'Email',
+      title: t('common.email'),
       key: 'email',
       dataIndex: 'email',
       sorter: (a, b) => compareStrings(a.email, b.email),
       sortOrder: sortOrderFor('email'),
     },
     {
-      title: 'Title',
+      title: t('common.title'),
       key: 'title',
       dataIndex: 'title',
       render: (v) => v || '—',
@@ -177,47 +179,47 @@ export default function UsersPage() {
       sortOrder: sortOrderFor('title'),
     },
     {
-      title: 'Department',
+      title: t('common.department'),
       key: 'department',
       render: (_, r) => r.department?.name || '—',
       sorter: (a, b) => compareStrings(a.department?.name, b.department?.name),
       sortOrder: sortOrderFor('department'),
     },
     {
-      title: 'Roles',
+      title: t('usersAdmin.rolesColLabel'),
       key: 'role',
       render: (_, r) => (
         <>
-          {r.systemRoles?.includes('ADMIN') && <Tag color="purple">Admin</Tag>}
-          {r.systemRoles?.includes('HR') && <Tag color="blue">HR</Tag>}
-          {r.systemRoles?.includes('USER_ADMIN') && <Tag color="cyan">User Admin</Tag>}
-          {!r.systemRoles?.length && <Tag color="default">Employee</Tag>}
+          {r.systemRoles?.includes('ADMIN') && <Tag color="purple">{t('usersAdmin.adminRoleTag')}</Tag>}
+          {r.systemRoles?.includes('HR') && <Tag color="blue">{t('usersAdmin.hrRoleTag')}</Tag>}
+          {r.systemRoles?.includes('USER_ADMIN') && <Tag color="cyan">{t('usersAdmin.userAdminRoleTag')}</Tag>}
+          {!r.systemRoles?.length && <Tag color="default">{t('usersAdmin.employeeRoleTag')}</Tag>}
         </>
       ),
       sorter: (a, b) => (a.systemRoles?.length || 0) - (b.systemRoles?.length || 0),
       sortOrder: sortOrderFor('role'),
     },
     {
-      title: 'Status',
+      title: t('common.status'),
       key: 'status',
       render: (_, r) =>
-        r.active ? <Tag color="green">Active</Tag> : <Tag color="default">Inactive</Tag>,
+        r.active ? <Tag color="green">{t('departmentsAdmin.activeTag')}</Tag> : <Tag color="default">{t('departmentsAdmin.inactiveTag')}</Tag>,
       sorter: (a, b) => Number(a.active) - Number(b.active),
       sortOrder: sortOrderFor('status'),
     },
     {
-      title: 'Actions',
+      title: t('common.actions'),
       render: (_, r) => (
         <div style={{ display: 'flex', gap: 8 }}>
           <Button size="small" icon={<EditOutlined />} onClick={() => openEdit(r)}>
-            Edit
+            {t('goalSetting.editButton')}
           </Button>
           <Button
             size="small"
             icon={<UserOutlined />}
             onClick={() => navigate(`/admin/users/${r.id}`)}
           >
-            Assignments
+            {t('usersAdmin.assignmentsButton')}
           </Button>
         </div>
       ),
@@ -227,20 +229,20 @@ export default function UsersPage() {
   return (
     <div>
       <div className="page-header">
-        <h1 className="page-title">Users</h1>
+        <h1 className="page-title">{t('usersAdmin.pageTitle')}</h1>
         <div style={{ display: 'flex', gap: 8 }}>
           <Button icon={<UploadOutlined />} onClick={openImport}>
-            Import CSV
+            {t('usersAdmin.importCsvButton')}
           </Button>
           <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}
             style={{ background: '#13223a' }}>
-            New User
+            {t('usersAdmin.newUserButton')}
           </Button>
         </div>
       </div>
 
       <Input
-        placeholder="Search users by name, email, title, or department…"
+        placeholder={t('usersAdmin.searchPlaceholder')}
         prefix={<SearchOutlined />}
         value={search}
         onChange={(e) => setSearch(e.target.value)}
@@ -258,7 +260,7 @@ export default function UsersPage() {
           pageSize: prefs.pageSize,
           showSizeChanger: true,
           pageSizeOptions: ['20', '50', '100'],
-          showTotal: (total) => `Total: ${total}`,
+          showTotal: (total) => t('achievementLog.totalCount', { count: total }),
         }}
         onChange={handleTableChange}
         size="middle"
@@ -266,7 +268,7 @@ export default function UsersPage() {
 
       {/* ── Create / Edit modal ─────────────────────────────────────────────── */}
       <Modal
-        title={editing ? 'Edit User' : 'Create User'}
+        title={editing ? t('usersAdmin.editUserTitle') : t('usersAdmin.createUserTitle')}
         open={modalOpen}
         onCancel={() => setModalOpen(false)}
         onOk={() => form.submit()}
@@ -274,23 +276,23 @@ export default function UsersPage() {
         destroyOnClose
       >
         <Form form={form} layout="vertical" onFinish={saveMutation.mutate}>
-          <Form.Item name="fname" label="First Name" rules={[{ required: true }]}>
+          <Form.Item name="fname" label={t('usersAdmin.firstNameLabel')} rules={[{ required: true }]}>
             <Input />
           </Form.Item>
-          <Form.Item name="lname" label="Last Name" rules={[{ required: true }]}>
+          <Form.Item name="lname" label={t('usersAdmin.lastNameLabel')} rules={[{ required: true }]}>
             <Input />
           </Form.Item>
           {!editing && (
-            <Form.Item name="email" label="Email" rules={[{ required: true, type: 'email' }]}>
+            <Form.Item name="email" label={t('common.email')} rules={[{ required: true, type: 'email' }]}>
               <Input />
             </Form.Item>
           )}
           {!editing && (
-            <Form.Item name="password" label="Password">
-              <Input.Password placeholder="Leave blank for default (changeme)" />
+            <Form.Item name="password" label={t('usersAdmin.passwordLabel')}>
+              <Input.Password placeholder={t('usersAdmin.passwordPlaceholder')} />
             </Form.Item>
           )}
-          <Form.Item name="title" label="Title">
+          <Form.Item name="title" label={t('common.title')}>
             {isFullAdmin ? (
               <Input />
             ) : (
@@ -298,27 +300,27 @@ export default function UsersPage() {
                 showSearch
                 options={titleOptions}
                 allowClear
-                placeholder="Select an existing title"
+                placeholder={t('usersAdmin.selectExistingTitlePlaceholder')}
                 optionFilterProp="label"
               />
             )}
           </Form.Item>
-          <Form.Item name="departmentId" label="Department">
-            <Select options={deptOptions} allowClear placeholder="No department" />
+          <Form.Item name="departmentId" label={t('common.department')}>
+            <Select options={deptOptions} allowClear placeholder={t('usersAdmin.noDepartmentPlaceholder')} />
           </Form.Item>
-          <Form.Item name="orgGroupId" label="Org Group">
-            <Select options={orgGroupOptions} allowClear placeholder="No org group" />
+          <Form.Item name="orgGroupId" label={t('usersAdmin.orgGroupLabel')}>
+            <Select options={orgGroupOptions} allowClear placeholder={t('usersAdmin.noOrgGroupPlaceholder')} />
           </Form.Item>
           <Text type="secondary" style={{ fontSize: 12, display: 'block', marginTop: -12, marginBottom: 16 }}>
-            A user must have a department, an org group, or both.
+            {t('usersAdmin.departmentOrOrgGroupRequired')}
           </Text>
           {isFullAdmin && (
-            <Form.Item name="systemRoles" label="Roles">
+            <Form.Item name="systemRoles" label={t('usersAdmin.rolesColLabel')}>
               <Checkbox.Group
                 options={[
-                  { label: 'Admin', value: 'ADMIN' },
-                  { label: 'HR', value: 'HR' },
-                  { label: 'User Admin', value: 'USER_ADMIN' },
+                  { label: t('usersAdmin.adminRoleTag'), value: 'ADMIN' },
+                  { label: t('usersAdmin.hrRoleTag'), value: 'HR' },
+                  { label: t('usersAdmin.userAdminRoleTag'), value: 'USER_ADMIN' },
                 ]}
               />
             </Form.Item>
@@ -328,17 +330,17 @@ export default function UsersPage() {
 
       {/* ── CSV Import modal ────────────────────────────────────────────────── */}
       <Modal
-        title="Import Users from CSV"
+        title={t('usersAdmin.importCsvTitle')}
         open={importOpen}
         onCancel={() => setImportOpen(false)}
         footer={
           importResult ? (
             <Button type="primary" onClick={() => setImportOpen(false)}>
-              Done
+              {t('usersAdmin.doneButton')}
             </Button>
           ) : (
             <>
-              <Button onClick={() => setImportOpen(false)}>Cancel</Button>
+              <Button onClick={() => setImportOpen(false)}>{t('common.cancel')}</Button>
               <Button
                 type="primary"
                 icon={<UploadOutlined />}
@@ -347,7 +349,7 @@ export default function UsersPage() {
                 onClick={() => importMutation.mutate()}
                 style={{ background: '#13223a' }}
               >
-                Run Import
+                {t('dataRepo.runImportButton')}
               </Button>
             </>
           )
@@ -363,7 +365,7 @@ export default function UsersPage() {
                 icon={<DownloadOutlined />}
                 onClick={downloadTemplate}
               >
-                Download template
+                {t('usersAdmin.downloadTemplateButton')}
               </Button>
             </div>
 
@@ -380,20 +382,15 @@ export default function UsersPage() {
               <p className="ant-upload-drag-icon">
                 <InboxOutlined />
               </p>
-              <p className="ant-upload-text">Click or drag a CSV file here</p>
+              <p className="ant-upload-text">{t('usersAdmin.dragCsvText')}</p>
               <p className="ant-upload-hint">
-                Columns: <Text code>fname, lname, email, title, department, orgGroup</Text>
+                {t('usersAdmin.csvColumnsLabel')} <Text code>fname, lname, email, title, department, orgGroup</Text>
                 <br />
-                The <Text code>department</Text> column expects a department <strong>code</strong> (e.g.{' '}
-                <Text code>ENG</Text>, <Text code>CS</Text>), not the full name. The{' '}
-                <Text code>orgGroup</Text> column expects an org group's <strong>title</strong>, exactly
-                as it appears in the Org Groups admin page.
+                <Trans i18nKey="usersAdmin.csvHintLine1" components={{ code: <Text code />, strong: <strong /> }} />
                 <br />
-                Every user needs a department, an org group, or both — a row with neither will be
-                skipped.
+                {t('usersAdmin.csvHintLine2')}
                 <br />
-                Existing users (matched by email) will be updated. New emails will be created
-                with a default password.
+                {t('usersAdmin.csvHintLine3')}
               </p>
             </Dragger>
           </>
@@ -402,21 +399,21 @@ export default function UsersPage() {
             <Row gutter={24} style={{ marginBottom: 24 }}>
               <Col span={8}>
                 <Statistic
-                  title="New Users Created"
+                  title={t('usersAdmin.newUsersCreatedStat')}
                   value={importResult.imported}
                   valueStyle={{ color: '#52c41a' }}
                 />
               </Col>
               <Col span={8}>
                 <Statistic
-                  title="Existing Users Updated"
+                  title={t('usersAdmin.existingUsersUpdatedStat')}
                   value={importResult.updated}
                   valueStyle={{ color: '#1677ff' }}
                 />
               </Col>
               <Col span={8}>
                 <Statistic
-                  title="Rows Skipped"
+                  title={t('usersAdmin.rowsSkippedStat')}
                   value={importResult.errors?.length ?? 0}
                   valueStyle={{ color: importResult.errors?.length ? '#ff4d4f' : '#8c8c8c' }}
                 />
@@ -426,12 +423,12 @@ export default function UsersPage() {
             {importResult.errors?.length > 0 && (
               <>
                 <Divider orientation="left" style={{ fontSize: 13 }}>
-                  Skipped rows
+                  {t('usersAdmin.skippedRowsDivider')}
                 </Divider>
                 <Alert
                   type="warning"
                   showIcon
-                  message={`${importResult.errors.length} row(s) could not be imported`}
+                  message={t('usersAdmin.rowsCouldNotBeImported', { count: importResult.errors.length })}
                   style={{ marginBottom: 12 }}
                 />
                 <Table
@@ -446,7 +443,7 @@ export default function UsersPage() {
             )}
 
             {importResult.errors?.length === 0 && (
-              <Alert type="success" showIcon message="All rows processed successfully." />
+              <Alert type="success" showIcon message={t('usersAdmin.allRowsProcessed')} />
             )}
           </>
         )}

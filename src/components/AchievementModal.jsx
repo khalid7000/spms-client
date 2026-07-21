@@ -6,6 +6,7 @@
 import { useEffect } from 'react'
 import { Form, Input, Modal, Rate, Select, Alert, Typography, message } from 'antd'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import {
   getAchievements, getAchievementsAcrossYears, updateAchievement, deleteAchievement, getAchievementTypes,
 } from '../api/strategies'
@@ -14,6 +15,7 @@ import {
   getEntryByAchievement, logAchievement as logAchievementWithEvaluation, upsertEntryForAchievement,
   getCriteria,
 } from '../api/portfolio'
+import { getMyEvaluation } from '../api/annualEvaluations'
 import { useAuth } from '../auth/AuthContext'
 
 const { Text } = Typography
@@ -42,6 +44,7 @@ export function AchievementModal({
   open, onClose, onSave, loading, initialValues, assessmentPeriods, academicYears = [], title, initialPeriodName,
   academicYearId, achievementId, authorId, moduleLocked,
 }) {
+  const { t } = useTranslation()
   const [form] = Form.useForm()
   const { user } = useAuth()
 
@@ -90,6 +93,19 @@ export function AchievementModal({
     enabled: open && !!achievementId,
   })
 
+  // Proactive UI mirror of the server-side gate in AchievementService.recordAchievement /
+  // PortfolioEntryService -- once this cycle's evaluation has moved past DRAFT/RETURNED_TO_EMPLOYEE,
+  // new achievements can no longer be added or re-tagged for it. Scoped to isSelf: editing someone
+  // else's achievement (Owner privilege) has no convenient endpoint to check THEIR evaluation state
+  // from here, so that case still falls back to the server's error toast on save.
+  const { data: myEvaluation } = useQuery({
+    queryKey: ['my-evaluation-for-achievement', effectiveAcademicYearId],
+    queryFn: () => getMyEvaluation(effectiveAcademicYearId),
+    enabled: open && isSelf && !!effectiveAcademicYearId,
+  })
+  const evaluationLocked = isSelf && !!myEvaluation
+    && !['DRAFT', 'RETURNED_TO_EMPLOYEE'].includes(myEvaluation.state)
+
   // Criteria narrows to whichever category is currently selected in the form -- reload as it changes.
   const selectedCategoryId = Form.useWatch('categoryId', form)
   const { data: criteria = [] } = useQuery({
@@ -128,26 +144,26 @@ export function AchievementModal({
 
   return (
     <Modal title={title} open={open} onCancel={onClose} onOk={handleOk}
-      confirmLoading={loading} okButtonProps={{ disabled: noCategoriesConfigured }} destroyOnClose>
+      confirmLoading={loading} okButtonProps={{ disabled: noCategoriesConfigured || evaluationLocked }} destroyOnClose>
       <Form form={form} layout="vertical" initialValues={initialValues}>
-        <Form.Item name="title" label="Title" rules={[{ required: true }]}>
+        <Form.Item name="title" label={t('common.title')} rules={[{ required: true }]}>
           <Input />
         </Form.Item>
-        <Form.Item name="achievementTypeId" label="Type" rules={[{ required: true }]}>
-          <Select placeholder="Select type">
+        <Form.Item name="achievementTypeId" label={t('common.type')} rules={[{ required: true }]}>
+          <Select placeholder={t('achievementModal.selectTypePlaceholder')}>
             {/* A deactivated type can't be picked for a new/different selection, but stays
                 selectable here if it's the one this achievement already has -- so editing an old
                 achievement never silently loses its type just because an admin retired it. */}
             {achievementTypes
-              .filter((t) => t.active || t.id === selectedAchievementTypeId)
-              .map((t) => (
-                <Select.Option key={t.id} value={t.id}>{t.name}</Select.Option>
+              .filter((type) => type.active || type.id === selectedAchievementTypeId)
+              .map((type) => (
+                <Select.Option key={type.id} value={type.id}>{type.name}</Select.Option>
               ))}
           </Select>
         </Form.Item>
         {isOtherType && (
-          <Form.Item name="customTypeName" label="Custom Type" rules={[{ required: true, message: 'Describe the achievement type' }]}>
-            <Input placeholder="Describe the type of achievement" />
+          <Form.Item name="customTypeName" label={t('achievementModal.customTypeLabel')} rules={[{ required: true, message: t('achievementModal.describeTypeRequired') }]}>
+            <Input placeholder={t('achievementModal.describeTypePlaceholder')} />
           </Form.Item>
         )}
         {/* Assessment period is always fixed by context, never freely editable here -- every
@@ -155,10 +171,10 @@ export function AchievementModal({
             AchievementService.updateAchievement, which now ignores assessmentPeriodId entirely on
             update). Hidden field carries the ID through validateFields; a required rule guards
             against a caller forgetting to resolve one before opening this modal. */}
-        <Form.Item name="assessmentPeriodId" hidden rules={[{ required: true, message: 'Assessment period is required' }]}>
+        <Form.Item name="assessmentPeriodId" hidden rules={[{ required: true, message: t('achievementModal.periodRequired') }]}>
           <Input />
         </Form.Item>
-        <Form.Item label="Assessment Period">
+        <Form.Item label={t('achievementModal.assessmentPeriodLabel')}>
           <span style={{
             display: 'inline-block', padding: '4px 10px', borderRadius: 6,
             background: '#eff6ff', color: '#1d4ed8', fontWeight: 600, fontSize: 13,
@@ -166,31 +182,37 @@ export function AchievementModal({
             {initialPeriodName || '—'}
           </span>
         </Form.Item>
-        <Form.Item name="details" label="Details"
-          extra={moduleLocked ? 'Generated by the achievement-recording tool -- not editable' : undefined}>
+        <Form.Item name="details" label={t('achievementModal.detailsLabel')}
+          extra={moduleLocked ? t('achievementModal.generatedByToolNotEditable') : undefined}>
           <Input.TextArea rows={2} disabled={moduleLocked} />
         </Form.Item>
-        <Form.Item name="privateNotes" label="Private Notes" extra="Only visible to you">
+        <Form.Item name="privateNotes" label={t('achievementModal.privateNotesLabel')} extra={t('achievementModal.onlyVisibleToYou')}>
           <Input.TextArea rows={2} />
         </Form.Item>
 
+        {evaluationLocked && (
+          <Alert type="warning" showIcon style={{ marginBottom: 16 }}
+            message={t('achievementModal.evaluationLockedTitle')}
+            description={t('achievementModal.evaluationLockedDescription')} />
+        )}
+
         {noCategoriesConfigured ? (
           <Alert type="warning" showIcon style={{ marginBottom: 16 }}
-            message="Portfolio categories aren't configured yet"
-            description="Ask an admin to configure portfolio categories for your title before recording achievements here." />
+            message={t('achievementModal.noCategoriesTitle')}
+            description={t('achievementModal.noCategoriesDescription')} />
         ) : (
           <>
-            <Form.Item name="categoryId" label="Evaluation Category" rules={[{ required: true }]}
+            <Form.Item name="categoryId" label={t('achievementModal.evaluationCategoryLabel')} rules={[{ required: true }]}
               extra={moduleLocked
-                ? 'Fixed by the achievement-recording tool that generated this achievement'
-                : 'Which annual-portfolio category this achievement counts toward'}>
-              <Select placeholder="Select category" disabled={moduleLocked}
+                ? t('achievementModal.categoryFixedByTool')
+                : t('achievementModal.categoryHint')}>
+              <Select placeholder={t('achievementModal.selectCategoryPlaceholder')} disabled={moduleLocked}
                 options={categories.map((c) => ({ value: c.id, label: c.categoryName }))}
                 onChange={() => form.setFieldValue('criteriaId', undefined)} />
             </Form.Item>
-            <Form.Item name="criteriaId" label="Criteria" rules={[{ required: true }]}
-              extra="Which specific criteria within the category -- used later during the annual evaluation">
-              <Select placeholder={selectedCategoryId ? 'Select criteria' : 'Select a category first'}
+            <Form.Item name="criteriaId" label={t('achievementModal.criteriaLabel')} rules={[{ required: true }]}
+              extra={t('achievementModal.criteriaHint')}>
+              <Select placeholder={selectedCategoryId ? t('achievementModal.selectCriteriaPlaceholder') : t('achievementModal.selectCategoryFirstPlaceholder')}
                 disabled={!selectedCategoryId || moduleLocked}
                 options={criteria.map((c) => ({ value: c.id, label: c.criteriaName }))} />
             </Form.Item>
@@ -198,22 +220,22 @@ export function AchievementModal({
         )}
 
         {isSelf && (
-          <Form.Item name="goalId" label="Related Annual Goal (Optional)">
-            <Select placeholder="Link to a deployed goal" allowClear
+          <Form.Item name="goalId" label={t('achievementModal.relatedGoalLabel')}>
+            <Select placeholder={t('achievementModal.linkToGoalPlaceholder')} allowClear
               options={myGoals.map((g) => ({ value: g.id, label: g.goalTitle }))} />
           </Form.Item>
         )}
 
-        <Form.Item name="categoryRating" label="Self-Assessment Rating (Optional)">
-          <Rate tooltips={['Poor', 'Fair', 'Good', 'Very Good', 'Excellent']} />
+        <Form.Item name="categoryRating" label={t('achievementModal.selfAssessmentRatingLabel')}>
+          <Rate tooltips={[t('achievementModal.ratingPoor'), t('achievementModal.ratingFair'), t('achievementModal.ratingGood'), t('achievementModal.ratingVeryGood'), t('achievementModal.ratingExcellent')]} />
         </Form.Item>
-        <Form.Item name="evidenceUrl" label="Evidence/Link" rules={[{ required: true, message: 'Evidence/Link is required' }]}
-          extra="URL to evidence. Public link is prefered, but even a link to the evidence in your cloud storage open to public is fine">
-          <Input placeholder="URL to certificate, publication, or evidence" />
+        <Form.Item name="evidenceUrl" label={t('achievementModal.evidenceLinkLabel')} rules={[{ required: true, message: t('achievementModal.evidenceRequired') }]}
+          extra={t('achievementModal.evidenceHint')}>
+          <Input placeholder={t('achievementModal.evidenceUrlPlaceholder')} />
         </Form.Item>
         {!isSelf && (
           <Text type="secondary" style={{ fontSize: 12 }}>
-            Goal linking is only available to the achievement's author.
+            {t('achievementModal.goalLinkingAuthorOnly')}
           </Text>
         )}
       </Form>
@@ -230,6 +252,7 @@ export function AchievementModal({
 // invalidations, since Strategy Tree queries can never be caching data for them anyway.
 
 export function useAddAchievementMutation(measurements, initiativeId, strategyId, onSuccessExtra) {
+  const { t } = useTranslation()
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (values) => logAchievementWithEvaluation({
@@ -247,19 +270,20 @@ export function useAddAchievementMutation(measurements, initiativeId, strategyId
       evidenceUrl: values.evidenceUrl,
     }),
     onSuccess: () => {
-      message.success('Achievement recorded')
+      message.success(t('achievementModal.recordedSuccess'))
       ;(measurements ?? []).forEach((m) => qc.invalidateQueries({ queryKey: ['achievements', m.id] }))
       qc.invalidateQueries({ queryKey: ['achievements-across-years', initiativeId] })
       if (strategyId) qc.invalidateQueries({ queryKey: ['recent-achievements', strategyId] })
       onSuccessExtra?.()
     },
-    onError: (err) => message.error(err.response?.data?.message || 'Failed to record achievement'),
+    onError: (err) => message.error(err.response?.data?.message || t('achievementModal.recordFailed')),
   })
 }
 
 // Edit/delete are shared the same way -- used by AchievementsPanel's full list, the Initiative
 // card's own quick-edit/delete icons, and the Annual Evaluation page's achievement column.
 export function useEditAchievementMutation(measurements, initiativeId, strategyId, onSuccessExtra) {
+  const { t } = useTranslation()
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async ({ achievementId, values }) => {
@@ -280,28 +304,29 @@ export function useEditAchievementMutation(measurements, initiativeId, strategyI
       })
     },
     onSuccess: () => {
-      message.success('Achievement updated')
+      message.success(t('achievementModal.updatedSuccess'))
       ;(measurements ?? []).forEach((m) => qc.invalidateQueries({ queryKey: ['achievements', m.id] }))
       qc.invalidateQueries({ queryKey: ['achievements-across-years', initiativeId] })
       if (strategyId) qc.invalidateQueries({ queryKey: ['recent-achievements', strategyId] })
       onSuccessExtra?.()
     },
-    onError: (err) => message.error(err.response?.data?.message || 'Update failed'),
+    onError: (err) => message.error(err.response?.data?.message || t('common.updateFailed')),
   })
 }
 
 export function useDeleteAchievementMutation(measurements, initiativeId, strategyId, onSuccessExtra) {
+  const { t } = useTranslation()
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (id) => deleteAchievement(id),
     onSuccess: () => {
-      message.success('Achievement deleted')
+      message.success(t('achievementModal.deletedSuccess'))
       ;(measurements ?? []).forEach((m) => qc.invalidateQueries({ queryKey: ['achievements', m.id] }))
       qc.invalidateQueries({ queryKey: ['achievements-across-years', initiativeId] })
       if (strategyId) qc.invalidateQueries({ queryKey: ['recent-achievements', strategyId] })
       onSuccessExtra?.()
     },
-    onError: (err) => message.error(err.response?.data?.message || 'Delete failed'),
+    onError: (err) => message.error(err.response?.data?.message || t('common.deleteFailed')),
   })
 }
 
@@ -316,6 +341,7 @@ export function useDeleteAchievementMutation(measurements, initiativeId, strateg
 // Evaluation page, and the chair's Team Evaluations review.
 
 export function AchievementReportModal({ achievement, onClose }) {
+  const { t } = useTranslation()
   const { data: entry, isLoading } = useQuery({
     queryKey: ['portfolio-entry-for-achievement', achievement?.id],
     queryFn: () => getEntryByAchievement(achievement.id),
@@ -323,39 +349,39 @@ export function AchievementReportModal({ achievement, onClose }) {
   })
 
   return (
-    <Modal title="Achievement Report" open={!!achievement} onCancel={onClose} footer={null} width={560} destroyOnClose>
+    <Modal title={t('achievementModal.reportTitle')} open={!!achievement} onCancel={onClose} footer={null} width={560} destroyOnClose>
       {!achievement ? null : isLoading ? (
-        <div style={{ padding: 20, textAlign: 'center', color: '#9ca3af' }}>Loading…</div>
+        <div style={{ padding: 20, textAlign: 'center', color: '#9ca3af' }}>{t('tree.loadingEllipsis')}</div>
       ) : (
         <div className="ach-report">
-          <div className="ach-report-row"><span className="k">Title</span><span className="v">{achievement.title}</span></div>
-          <div className="ach-report-row"><span className="k">Type</span><span className="v">{achievement.customTypeName || achievement.achievementTypeName}</span></div>
-          <div className="ach-report-row"><span className="k">Assessment Period</span><span className="v">{achievement.assessmentPeriodName || '—'}</span></div>
-          <div className="ach-report-row"><span className="k">Recorded By</span><span className="v">{achievement.authorName}</span></div>
-          <div className="ach-report-row"><span className="k">Recorded At</span><span className="v">{new Date(achievement.recordedAt).toLocaleString()}</span></div>
-          <div className="ach-report-row"><span className="k">Details</span><span className="v" style={{ whiteSpace: 'pre-wrap' }}>{formatAiDetails(achievement.details) || '—'}</span></div>
+          <div className="ach-report-row"><span className="k">{t('common.title')}</span><span className="v">{achievement.title}</span></div>
+          <div className="ach-report-row"><span className="k">{t('common.type')}</span><span className="v">{achievement.customTypeName || achievement.achievementTypeName}</span></div>
+          <div className="ach-report-row"><span className="k">{t('achievementModal.assessmentPeriodLabel')}</span><span className="v">{achievement.assessmentPeriodName || '—'}</span></div>
+          <div className="ach-report-row"><span className="k">{t('achievementModal.recordedByLabel')}</span><span className="v">{achievement.authorName}</span></div>
+          <div className="ach-report-row"><span className="k">{t('achievementModal.recordedAtLabel')}</span><span className="v">{new Date(achievement.recordedAt).toLocaleString()}</span></div>
+          <div className="ach-report-row"><span className="k">{t('achievementModal.detailsLabel')}</span><span className="v" style={{ whiteSpace: 'pre-wrap' }}>{formatAiDetails(achievement.details) || '—'}</span></div>
           {/* Private Notes / Self-Assessment Rating / Evidence / Related Goal only ever arrive when
               the backend has decided this viewer is allowed to see them (see
               AchievementService.toResponse's isAuthor check and
               PortfolioEntryService.canViewSensitiveFields) -- for anyone else the row is hidden
               entirely, not shown blank, since a blank row reads as "empty" rather than "private". */}
           {achievement.privateNotes && (
-            <div className="ach-report-row"><span className="k">Private Notes</span><span className="v">{achievement.privateNotes}</span></div>
+            <div className="ach-report-row"><span className="k">{t('achievementModal.privateNotesLabel')}</span><span className="v">{achievement.privateNotes}</span></div>
           )}
-          <div className="ach-report-row"><span className="k">Evaluation Category</span><span className="v">{entry?.categoryName || '—'}</span></div>
-          <div className="ach-report-row"><span className="k">Criteria</span><span className="v">{entry?.criteriaName || '—'}</span></div>
+          <div className="ach-report-row"><span className="k">{t('achievementModal.evaluationCategoryLabel')}</span><span className="v">{entry?.categoryName || '—'}</span></div>
+          <div className="ach-report-row"><span className="k">{t('achievementModal.criteriaLabel')}</span><span className="v">{entry?.criteriaName || '—'}</span></div>
           {entry?.goalTitle && (
-            <div className="ach-report-row"><span className="k">Related Goal</span><span className="v">{entry.goalTitle}</span></div>
+            <div className="ach-report-row"><span className="k">{t('achievementModal.relatedGoalReportLabel')}</span><span className="v">{entry.goalTitle}</span></div>
           )}
           {entry?.categoryRating && (
             <div className="ach-report-row">
-              <span className="k">Self-Assessment Rating</span>
+              <span className="k">{t('achievementModal.selfAssessmentRatingLabel')}</span>
               <span className="v"><Rate disabled value={entry.categoryRating} style={{ fontSize: 14 }} /></span>
             </div>
           )}
           {entry?.evidenceUrl && (
             <div className="ach-report-row">
-              <span className="k">Evidence</span>
+              <span className="k">{t('achievementModal.evidenceReportLabel')}</span>
               <span className="v"><a href={entry.evidenceUrl} target="_blank" rel="noopener noreferrer">{entry.evidenceUrl}</a></span>
             </div>
           )}

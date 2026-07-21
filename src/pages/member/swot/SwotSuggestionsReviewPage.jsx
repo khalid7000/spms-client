@@ -5,17 +5,18 @@ import {
 import { ArrowLeftOutlined, DeleteOutlined, PlusOutlined } from '@ant-design/icons'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import {
   getSwotStatus, getSwotSuggestions, getMySwotReviewItems, submitSwotReviewItem,
   getSwotAlternatives, proposeSwotAlternative, deleteSwotAlternative, submitSwotReview,
   getSwotGoalAdditions, proposeSwotGoalAddition, deleteSwotGoalAddition,
 } from '../../../api/swot'
-import ReviewControl, { ALL_REVIEW_ACTIONS } from '../../../components/ReviewControl'
+import ReviewControl, { ALL_REVIEW_ACTION_KEYS } from '../../../components/ReviewControl'
 
 const { Paragraph, Text } = Typography
 
-const SWOT_ACTIONS = ALL_REVIEW_ACTIONS.map((a) =>
-  a.value === 'PROPOSE_ALTERNATIVE' ? { ...a, label: 'Prefer a different area' } : a)
+const SWOT_ACTION_KEYS = ALL_REVIEW_ACTION_KEYS.map((a) =>
+  a.value === 'PROPOSE_ALTERNATIVE' ? { ...a, labelKey: 'swot.preferDifferentArea' } : a)
 
 // submitFullReview's validation errors always end in "(missing: <name>)" and name either an area
 // or a goal by its exact title — matched back against `suggestions` here so the UI can point at
@@ -38,6 +39,7 @@ function findMissingTarget(errorMessage, suggestions) {
 }
 
 export default function SwotSuggestionsReviewPage() {
+  const { t } = useTranslation()
   const { strategyId } = useParams()
   const navigate = useNavigate()
   const qc = useQueryClient()
@@ -101,7 +103,7 @@ export default function SwotSuggestionsReviewPage() {
 
   const saveMut = useMutation({
     mutationFn: ({ targetType, targetId, payload }) => submitSwotReviewItem(strategyId, targetType, targetId, payload),
-    onError: (err) => message.error(err.response?.data?.message || 'Could not save review'),
+    onError: (err) => message.error(err.response?.data?.message || t('swot.saveReviewFailed')),
   })
 
   const handleSave = (targetType, targetId, payload) => {
@@ -114,12 +116,12 @@ export default function SwotSuggestionsReviewPage() {
   const proposeMut = useMutation({
     mutationFn: (values) => proposeSwotAlternative(strategyId, values),
     onSuccess: () => {
-      message.success('Alternative proposed')
+      message.success(t('swot.alternativeProposed'))
       setAltOpen(false)
       altForm.resetFields()
       qc.invalidateQueries({ queryKey: ['swot-alternatives', strategyId] })
     },
-    onError: (err) => message.error(err.response?.data?.message || 'Could not propose alternative'),
+    onError: (err) => message.error(err.response?.data?.message || t('swot.proposeAlternativeFailed')),
   })
 
   const deleteAltMut = useMutation({
@@ -130,12 +132,12 @@ export default function SwotSuggestionsReviewPage() {
   const proposeGoalMut = useMutation({
     mutationFn: ({ areaId, values }) => proposeSwotGoalAddition(strategyId, areaId, values),
     onSuccess: () => {
-      message.success('Goal proposed')
+      message.success(t('swot.goalProposed'))
       setGoalModalAreaId(null)
       goalForm.resetFields()
       qc.invalidateQueries({ queryKey: ['swot-goal-additions', strategyId] })
     },
-    onError: (err) => message.error(err.response?.data?.message || 'Could not propose goal'),
+    onError: (err) => message.error(err.response?.data?.message || t('swot.proposeGoalFailed')),
   })
 
   const deleteGoalAdditionMut = useMutation({
@@ -145,10 +147,10 @@ export default function SwotSuggestionsReviewPage() {
 
   const submitReviewMut = useMutation({
     mutationFn: () => submitSwotReview(strategyId),
-    onSuccess: () => { setMissingTarget(null); message.success('Review submitted'); navigate(`/strategies/${strategyId}/swot`) },
+    onSuccess: () => { setMissingTarget(null); message.success(t('swot.reviewSubmitted')); navigate(`/strategies/${strategyId}/swot`) },
     onError: (err) => {
       const msg = err.response?.data?.message
-      message.error(msg || 'Could not submit review')
+      message.error(msg || t('swot.submitReviewFailed'))
       // In addition to the popup, jump to and highlight the exact card still needing a decision.
       setMissingTarget(findMissingTarget(msg, suggestions))
     },
@@ -163,7 +165,7 @@ export default function SwotSuggestionsReviewPage() {
       <Button type="text" icon={<ArrowLeftOutlined />}
         onClick={() => navigate(`/strategies/${strategyId}/swot`)}
         style={{ marginBottom: 16, color: '#6b7280' }}>
-        Back to SWOT Overview
+        {t('swot.backToOverview')}
       </Button>
 
       {isOwner ? (
@@ -171,23 +173,21 @@ export default function SwotSuggestionsReviewPage() {
           type="info"
           showIcon
           style={{ marginBottom: 16 }}
-          message="Read-only preview"
-          description="You're the strategy owner — this is a preview of what your Editors are reviewing. You'll make the final call yourself on the Finalization page once every Editor has submitted their review."
+          message={t('swot.readOnlyPreviewTitle')}
+          description={t('swot.readOnlyPreviewDescription')}
         />
       ) : reviewSubmitted ? (
         <Alert
           type="success"
           showIcon
           style={{ marginBottom: 16 }}
-          message="Your review is submitted"
-          description="Your choices below are locked in and can no longer be changed. The strategy owner will finalize the areas and goals once every reviewer has submitted."
+          message={t('swot.reviewSubmittedTitle')}
+          description={t('swot.reviewSubmittedDescription')}
         />
       ) : (
         <>
           <Paragraph>
-            AI generated these focus areas and goals from your team's top-voted SWOT words. For each area
-            and goal, choose whether to reject it, approve it (with or without edits), or propose a different
-            area instead.
+            {t('swot.reviewIntro')}
           </Paragraph>
           {/* Every selection above is saved to the server as soon as you make it (submitSwotReviewItem
               fires immediately, not just on final submit) — this just makes that behavior visible so
@@ -196,8 +196,8 @@ export default function SwotSuggestionsReviewPage() {
             type="info"
             showIcon
             style={{ marginBottom: 16 }}
-            message="Your progress saves automatically"
-            description={'Each choice you make above is saved right away. Feel free to close this page and come back later — nothing is final until you click "Submit My Review" below.'}
+            message={t('swot.autoSaveTitle')}
+            description={t('swot.reviewAutoSaveDescription')}
           />
         </>
       )}
@@ -219,7 +219,7 @@ export default function SwotSuggestionsReviewPage() {
             <Paragraph type="secondary">{area.rationale}</Paragraph>
             {areaMissing && (
               <Text type="danger" style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4 }}>
-                ⚠ This area still needs a decision before you can submit
+                ⚠ {t('swot.areaMissingDecisionSubmit')}
               </Text>
             )}
             {!isOwner && (
@@ -231,15 +231,15 @@ export default function SwotSuggestionsReviewPage() {
                 draft={areaDraft}
                 onSave={handleSave}
                 disabled={reviewSubmitted}
-                actions={SWOT_ACTIONS}
-                alternativeLabel='Use "Propose a Different Area" below to submit your alternative.'
+                actionKeys={SWOT_ACTION_KEYS}
+                alternativeLabelKey="swot.useProposeDifferentAreaBelow"
               />
             )}
 
             {(isOwner || !areaRejected) && (area.goals?.length > 0 || !isOwner) && (
               <>
                 <Divider style={{ margin: '16px 0' }} />
-                <Text strong style={{ fontSize: 13 }}>Goals</Text>
+                <Text strong style={{ fontSize: 13 }}>{t('dashboard.goalsLabel')}</Text>
                 {area.goals?.map((goal) => {
                   const goalMissing = missingTarget?.type === 'GOAL' && missingTarget.id === goal.id
                   return (
@@ -256,7 +256,7 @@ export default function SwotSuggestionsReviewPage() {
                     <Paragraph type="secondary" style={{ marginBottom: 0 }}>{goal.description}</Paragraph>
                     {goalMissing && (
                       <Text type="danger" style={{ display: 'block', fontSize: 12, fontWeight: 600, marginTop: 4 }}>
-                        ⚠ This goal still needs a decision before you can submit
+                        ⚠ {t('swot.goalMissingDecisionSubmit')}
                       </Text>
                     )}
                     {!isOwner && (
@@ -268,8 +268,8 @@ export default function SwotSuggestionsReviewPage() {
                         draft={drafts[`GOAL:${goal.id}`]}
                         onSave={handleSave}
                         disabled={reviewSubmitted}
-                        actions={SWOT_ACTIONS}
-                        alternativeLabel='Use "Propose a Different Area" below to submit your alternative.'
+                        actionKeys={SWOT_ACTION_KEYS}
+                        alternativeLabelKey="swot.useProposeDifferentAreaBelow"
                       />
                     )}
                   </div>
@@ -284,7 +284,7 @@ export default function SwotSuggestionsReviewPage() {
                         display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8,
                       }}>
                         <div>
-                          <div style={{ fontWeight: 500 }}>{g.title} <Text type="secondary" style={{ fontWeight: 400, fontSize: 12 }}>(your proposed goal)</Text></div>
+                          <div style={{ fontWeight: 500 }}>{g.title} <Text type="secondary" style={{ fontWeight: 400, fontSize: 12 }}>{t('swot.yourProposedGoal')}</Text></div>
                           {g.description && <Paragraph type="secondary" style={{ marginBottom: 0 }}>{g.description}</Paragraph>}
                         </div>
                         {!reviewSubmitted && (
@@ -299,7 +299,7 @@ export default function SwotSuggestionsReviewPage() {
                         style={{ marginTop: 12 }}
                         onClick={() => setGoalModalAreaId(area.id)}
                       >
-                        Propose a Goal for this Area
+                        {t('swot.proposeGoalForArea')}
                       </Button>
                     )}
                   </>
@@ -313,14 +313,14 @@ export default function SwotSuggestionsReviewPage() {
       {!isOwner && (
         <>
           <Card
-            title="Propose a Different Area"
+            title={t('swot.proposeADifferentArea')}
             extra={!reviewSubmitted && (
-              <Button size="small" icon={<PlusOutlined />} onClick={() => setAltOpen(true)}>Add Alternative</Button>
+              <Button size="small" icon={<PlusOutlined />} onClick={() => setAltOpen(true)}>{t('swot.addAlternative')}</Button>
             )}
             style={{ marginBottom: 16 }}
           >
             {myAlternatives.length === 0 ? (
-              <Text type="secondary">You haven't proposed any alternative areas.</Text>
+              <Text type="secondary">{t('swot.noAlternativesProposed')}</Text>
             ) : (
               <List
                 size="small"
@@ -350,21 +350,21 @@ export default function SwotSuggestionsReviewPage() {
           {!reviewSubmitted && (
             <Space>
               <Popconfirm
-                title="Submit your review?"
-                description="You won't be able to change your review after this."
+                title={t('swot.submitReviewConfirmTitle')}
+                description={t('swot.submitReviewConfirmDescription')}
                 onConfirm={() => submitReviewMut.mutate()}
               >
                 <Button type="primary" loading={submitReviewMut.isPending} style={{ background: '#13223a' }}>
-                  Submit My Review
+                  {t('swot.submitMyReview')}
                 </Button>
               </Popconfirm>
               {/* Nothing left to actually save here — every choice above already persisted on selection.
                   This just gives users an explicit, reassuring way to step away mid-review. */}
               <Button onClick={() => {
-                message.success('Your progress is saved — come back anytime to finish')
+                message.success(t('swot.progressSavedExit'))
                 navigate(`/strategies/${strategyId}/swot`)
               }}>
-                Save & Exit
+                {t('swot.saveAndExit')}
               </Button>
             </Space>
           )}
@@ -372,7 +372,7 @@ export default function SwotSuggestionsReviewPage() {
       )}
 
       <Modal
-        title="Propose an Alternative Area"
+        title={t('swot.proposeAlternativeAreaTitle')}
         open={altOpen}
         onCancel={() => setAltOpen(false)}
         onOk={() => altForm.submit()}
@@ -381,25 +381,25 @@ export default function SwotSuggestionsReviewPage() {
       >
         <Form form={altForm} layout="vertical" onFinish={proposeMut.mutate}
           initialValues={{ goals: [{ title: '', description: '' }] }}>
-          <Form.Item name="name" label="Area name" rules={[{ required: true }]}><Input /></Form.Item>
-          <Form.Item name="rationale" label="Rationale"><Input.TextArea rows={2} /></Form.Item>
+          <Form.Item name="name" label={t('swot.areaNameLabel')} rules={[{ required: true }]}><Input /></Form.Item>
+          <Form.Item name="rationale" label={t('swot.rationaleLabel')}><Input.TextArea rows={2} /></Form.Item>
           <Form.List name="goals">
             {(fields, { add, remove }) => (
               <>
                 {fields.map((field) => (
                   <Space key={field.key} align="baseline" style={{ display: 'flex', marginBottom: 8 }}>
-                    <Form.Item name={[field.name, 'title']} rules={[{ required: true, message: 'Title required' }]}>
-                      <Input placeholder="Goal title" style={{ width: 240 }} />
+                    <Form.Item name={[field.name, 'title']} rules={[{ required: true, message: t('swot.titleRequired') }]}>
+                      <Input placeholder={t('swot.goalTitleLabel')} style={{ width: 240 }} />
                     </Form.Item>
                     <Form.Item name={[field.name, 'description']}>
-                      <Input placeholder="Description (optional)" style={{ width: 240 }} />
+                      <Input placeholder={t('swot.descriptionOptionalLabel')} style={{ width: 240 }} />
                     </Form.Item>
                     {fields.length > 1 && (
                       <Button type="text" danger icon={<DeleteOutlined />} onClick={() => remove(field.name)} />
                     )}
                   </Space>
                 ))}
-                <Button type="dashed" onClick={() => add()} icon={<PlusOutlined />}>Add Goal</Button>
+                <Button type="dashed" onClick={() => add()} icon={<PlusOutlined />}>{t('swot.addGoalButton')}</Button>
               </>
             )}
           </Form.List>
@@ -407,7 +407,7 @@ export default function SwotSuggestionsReviewPage() {
       </Modal>
 
       <Modal
-        title="Propose a Goal"
+        title={t('swot.proposeGoalTitle')}
         open={goalModalAreaId != null}
         onCancel={() => setGoalModalAreaId(null)}
         onOk={() => goalForm.submit()}
@@ -416,10 +416,10 @@ export default function SwotSuggestionsReviewPage() {
       >
         <Form form={goalForm} layout="vertical"
           onFinish={(values) => proposeGoalMut.mutate({ areaId: goalModalAreaId, values })}>
-          <Form.Item name="title" label="Goal title" rules={[{ required: true, message: 'Title required' }]}>
+          <Form.Item name="title" label={t('swot.goalTitleLabel')} rules={[{ required: true, message: t('swot.titleRequired') }]}>
             <Input />
           </Form.Item>
-          <Form.Item name="description" label="Description (optional)">
+          <Form.Item name="description" label={t('swot.descriptionOptionalLabel')}>
             <Input.TextArea rows={2} />
           </Form.Item>
         </Form>

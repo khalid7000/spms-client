@@ -15,10 +15,18 @@ api.interceptors.request.use((config) => {
   return config
 })
 
+// Matches /api/auth/login and /api/auth/{slug}/login -- a 401 from either is just "wrong
+// credentials", an expected outcome of a login attempt, not a sign of an existing session
+// going stale. Treating it the same as a real session-expiry 401 force-logs-out a user who
+// simply mistyped their password, wiping the URL's slug and stranding them on the plain
+// /login page with no way back to their org's login form.
+const LOGIN_REQUEST_PATTERN = /^\/api\/auth\/(?:[^/]+\/)?login$/
+
 api.interceptors.response.use(
   (res) => res,
   (err) => {
-    if (err.response?.status === 401) {
+    const isLoginAttempt = LOGIN_REQUEST_PATTERN.test(err.config?.url || '')
+    if (err.response?.status === 401 && !isLoginAttempt) {
       localStorage.removeItem('token')
       localStorage.removeItem('user')
       window.location.href = '/login'

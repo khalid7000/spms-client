@@ -6,6 +6,7 @@ import {
   CalendarOutlined,
 } from '@ant-design/icons'
 import { useQuery } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import { getUsers } from '../../api/admin'
 import { getAdminStrategies } from '../../api/admin'
 import { getDepartments, getPlanningCycles } from '../../api/admin'
@@ -13,6 +14,7 @@ import StateChip from '../../components/StateChip'
 import { useNavigate } from 'react-router-dom'
 
 export default function AdminDashboard() {
+  const { t } = useTranslation()
   const navigate = useNavigate()
   const { data: users = [] } = useQuery({ queryKey: ['admin-users'], queryFn: getUsers })
   const { data: strategies = [], isLoading } = useQuery({
@@ -36,14 +38,14 @@ export default function AdminDashboard() {
   return (
     <div>
       <div className="page-header">
-        <h1 className="page-title">Admin Dashboard</h1>
+        <h1 className="page-title">{t('adminDash.title')}</h1>
       </div>
 
       <Row gutter={[16, 16]} style={{ marginBottom: 32 }}>
         <Col xs={12} md={6}>
           <Card>
             <Statistic
-              title="Total Users"
+              title={t('adminDash.totalUsers')}
               value={users.length}
               prefix={<TeamOutlined style={{ color: '#13223a' }} />}
             />
@@ -52,7 +54,7 @@ export default function AdminDashboard() {
         <Col xs={12} md={6}>
           <Card>
             <Statistic
-              title="Strategies"
+              title={t('nav.strategies')}
               value={strategies.length}
               prefix={<OrderedListOutlined style={{ color: '#c9a24b' }} />}
             />
@@ -61,7 +63,7 @@ export default function AdminDashboard() {
         <Col xs={12} md={6}>
           <Card>
             <Statistic
-              title="Departments"
+              title={t('nav.departments')}
               value={departments.length}
               prefix={<ApartmentOutlined style={{ color: '#2563eb' }} />}
             />
@@ -70,7 +72,7 @@ export default function AdminDashboard() {
         <Col xs={12} md={6}>
           <Card>
             <Statistic
-              title="Planning Cycles"
+              title={t('nav.planningCycles')}
               value={cycles.length}
               prefix={<CalendarOutlined style={{ color: '#059669' }} />}
             />
@@ -78,7 +80,7 @@ export default function AdminDashboard() {
         </Col>
       </Row>
 
-      <Card title="All Strategies" bodyStyle={{ padding: 0 }}>
+      <Card title={t('adminDash.allStrategiesTitle')} bodyStyle={{ padding: 0 }}>
         {isLoading ? (
           <div style={{ padding: 48, textAlign: 'center' }}>
             <Spin />
@@ -87,7 +89,7 @@ export default function AdminDashboard() {
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ background: '#f8faff', borderBottom: '1px solid #e8eef6' }}>
-                {['Title', 'Type', 'State', 'Department', 'Planning Cycle'].map((h) => (
+                {[t('common.title'), t('common.type'), t('common.status'), t('common.department'), t('strategyCreation.colPlanningCycle')].map((h) => (
                   <th
                     key={h}
                     style={{

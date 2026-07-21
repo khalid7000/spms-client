@@ -53,6 +53,10 @@ export const getAvailableUniversityInitiatives = (deptObjectiveId) =>
 // Initiatives
 export const createInitiative = (objectiveId, payload) =>
   api.post(`/api/objectives/${objectiveId}/initiatives`, payload).then(unwrap)
+// AI-suggested KPI for a not-yet-saved initiative -- synchronous (backend enforces its own
+// ~30s bound), so callers should show a bounded spinner rather than assume this is instant.
+export const suggestMeasurement = (objectiveId, payload) =>
+  api.post(`/api/objectives/${objectiveId}/initiatives/suggest-measurement`, payload).then(unwrap)
 export const updateInitiative = (id, payload) =>
   api.put(`/api/initiatives/${id}`, payload).then(unwrap)
 export const deleteInitiative = (id) => api.delete(`/api/initiatives/${id}`).then(unwrap)
@@ -104,6 +108,8 @@ export const assignMember = (id, payload) =>
   api.put(`/api/strategies/${id}/members`, payload).then(unwrap)
 export const revokeMember = (id, userId) =>
   api.delete(`/api/strategies/${id}/members/${userId}`).then(unwrap)
+export const transferOwnership = (id, newOwnerUserId) =>
+  api.post(`/api/strategies/${id}/members/transfer-ownership`, { newOwnerUserId }).then(unwrap)
 
 // User search (authenticated, used for member assignment)
 export const searchUsers = (q) =>

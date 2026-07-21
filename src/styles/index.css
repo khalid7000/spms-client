@@ -1106,3 +1106,95 @@ body {
 .rail-picker-item:hover {
   background: #f8faff;
 }
+
+/* Add Achievement banner (dashboard quick-add flow entry point) */
+.add-achievement-banner {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 28px;
+}
+
+.add-achievement-btn.ant-btn {
+  height: 54px;
+  padding: 0 36px;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #1a3a6b 0%, #13223a 100%);
+  border: 1px solid #c9a24b;
+  box-shadow: 0 6px 18px rgba(26, 32, 53, 0.28);
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+
+.add-achievement-btn.ant-btn .anticon {
+  color: #c9a24b;
+  font-size: 18px;
+}
+
+.add-achievement-btn.ant-btn:hover,
+.add-achievement-btn.ant-btn:focus {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 24px rgba(26, 32, 53, 0.34);
+  background: linear-gradient(135deg, #1a3a6b 0%, #13223a 100%);
+  border-color: #dab765;
+}
+
+/* Add Achievement wizard (dashboard quick-add flow) */
+.wizard-strategy-pick {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 12px 14px;
+  cursor: pointer;
+  transition: box-shadow 0.15s, border-color 0.15s;
+}
+
+.wizard-strategy-pick:hover {
+  border-color: #c9d6ea;
+  box-shadow: 0 2px 10px rgba(26, 32, 53, 0.08);
+}
+
+.objective-box {
+  position: relative;
+  border: 1px solid #d0d8e8;
+  border-radius: 10px;
+  padding: 18px 16px 14px;
+  margin: 14px 0 20px;
+}
+
+.objective-box-label {
+  position: absolute;
+  top: -10px;
+  left: 12px;
+  background: #fff;
+  padding: 0 8px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #6b7280;
+}
+
+.initiative-pick-card {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 14px 16px;
+  min-width: 200px;
+  flex: 1 1 220px;
+  transition: box-shadow 0.15s, border-color 0.15s;
+}
+
+.initiative-pick-card:hover {
+  border-color: #1a3a6b;
+  box-shadow: 0 4px 14px rgba(26, 32, 53, 0.12);
+}
+
+.initiative-pick-card .t {
+  font-weight: 600;
+  font-size: 14px;
+  color: #1a2035;
+}
+
+.initiative-pick-card .s {
+  font-size: 11.5px;
+  color: #9ca3af;
+  margin-top: 4px;
+}

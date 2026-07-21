@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react'
 import { Select, Drawer, Tag, Row, Col, Card, Statistic, Empty } from 'antd'
+import { useTranslation } from 'react-i18next'
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
@@ -53,6 +54,7 @@ function Bar({ percent, color, height = 8 }) {
 // ─── GoalCard ────────────────────────────────────────────────────────────────
 
 function GoalCard({ goal, countMap, threshold, onClick }) {
+  const { t } = useTranslation()
   const allInis = useMemo(
     () => (goal.objectives ?? []).flatMap((o) => o.initiatives ?? []),
     [goal],
@@ -108,7 +110,7 @@ function GoalCard({ goal, countMap, threshold, onClick }) {
             {totalCount}
           </div>
           <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 2 }}>
-            {filledPct}% · {allInis.length} initiative{allInis.length !== 1 ? 's' : ''}
+            {t('summaryChart.progressSummary', { pct: filledPct, count: allInis.length })}
           </div>
         </div>
       </div>
@@ -163,7 +165,7 @@ function GoalCard({ goal, countMap, threshold, onClick }) {
       })}
 
       <div style={{ fontSize: 11, color: '#c4cad5', marginTop: 10, textAlign: 'right' }}>
-        Click for initiative detail →
+        {t('summaryChart.clickForDetail')}
       </div>
     </div>
   )
@@ -172,6 +174,7 @@ function GoalCard({ goal, countMap, threshold, onClick }) {
 // ─── GoalDetail (drawer body) ─────────────────────────────────────────────────
 
 function GoalDetail({ goal, countMap, breakdownMap, threshold }) {
+  const { t } = useTranslation()
   return (
     <div>
       {(goal.objectives ?? []).map((obj) => {
@@ -208,7 +211,7 @@ function GoalDetail({ goal, countMap, breakdownMap, threshold }) {
                 {obj.title}
               </span>
               <span style={{ fontSize: 12, color: HEX[oColor], fontWeight: 600, flexShrink: 0 }}>
-                {oCount} achievement{oCount !== 1 ? 's' : ''}
+                {t('summaryChart.achievementCount', { count: oCount })}
               </span>
             </div>
 
@@ -292,6 +295,7 @@ export default function StrategySummaryChart({
   threshold,
   initialPeriod,
 }) {
+  const { t } = useTranslation()
   const [selectedPeriod, setSelectedPeriod] = useState(
     initialPeriod && allPeriods.includes(initialPeriod) ? initialPeriod : (allPeriods[0] ?? null)
   )
@@ -302,7 +306,7 @@ export default function StrategySummaryChart({
   if (!selectedPeriod || allPeriods.length === 0) {
     return (
       <Empty
-        description="No achievement data available for any period"
+        description={t('summaryChart.noData')}
         image={Empty.PRESENTED_IMAGE_SIMPLE}
       />
     )
@@ -341,7 +345,7 @@ export default function StrategySummaryChart({
           marginBottom: 20,
         }}
       >
-        <span style={{ fontSize: 13, color: '#6b7280' }}>Period:</span>
+        <span style={{ fontSize: 13, color: '#6b7280' }}>{t('summaryChart.periodLabel')}</span>
         <Select
           value={selectedPeriod}
           onChange={setSelectedPeriod}
@@ -358,7 +362,7 @@ export default function StrategySummaryChart({
             style={{ textAlign: 'center', borderColor: '#e8eef6', borderRadius: 8 }}
           >
             <Statistic
-              title="Total Achievements"
+              title={t('summaryChart.totalAchievements')}
               value={totalCount}
               valueStyle={{ color: '#13223a', fontSize: 32 }}
             />
@@ -375,7 +379,7 @@ export default function StrategySummaryChart({
             }}
           >
             <Statistic
-              title="Goals On Track"
+              title={t('summaryChart.goalsOnTrack')}
               value={`${goalsOnTrack} / ${goals.length}`}
               valueStyle={{
                 fontSize: 32,
@@ -400,7 +404,7 @@ export default function StrategySummaryChart({
             }}
           >
             <Statistic
-              title="Objectives On Track"
+              title={t('summaryChart.objectivesOnTrack')}
               value={`${objOnTrack} / ${allObjectives.length}`}
               valueStyle={{
                 fontSize: 32,
@@ -425,7 +429,7 @@ export default function StrategySummaryChart({
             }}
           >
             <Statistic
-              title="Initiatives On Track"
+              title={t('summaryChart.initiativesOnTrack')}
               value={`${iniOnTrack} / ${allInis.length}`}
               valueStyle={{
                 fontSize: 32,
@@ -453,8 +457,8 @@ export default function StrategySummaryChart({
         }}
       >
         {[
-          { color: 'green', label: `≥ ${threshold} per initiative` },
-          { color: 'amber', label: `1 – ${threshold - 1}` },
+          { color: 'green', label: t('summaryChart.legendAtOrAbove', { threshold }) },
+          { color: 'amber', label: t('summaryChart.legendBetween', { max: threshold - 1 }) },
           { color: 'red',   label: '0' },
         ].map(({ color, label }) => (
           <span key={color} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
@@ -465,7 +469,7 @@ export default function StrategySummaryChart({
           </span>
         ))}
         <span style={{ marginLeft: 'auto' }}>
-          Bars show achievements vs target ({threshold} per initiative)
+          {t('summaryChart.barsCaption', { threshold })}
         </span>
       </div>
 

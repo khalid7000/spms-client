@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Drawer, Input, Button, Spin, Empty, message } from 'antd'
 import { SendOutlined } from '@ant-design/icons'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import { getComments, addComment, markRead } from '../api/comments'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
@@ -17,6 +18,7 @@ export default function CommentDrawer({
   entityLabel,
   canComment,
 }) {
+  const { t } = useTranslation()
   const [text, setText] = useState('')
   const qc = useQueryClient()
 
@@ -50,7 +52,7 @@ export default function CommentDrawer({
       setText('')
       qc.invalidateQueries({ queryKey: commentsKey })
     },
-    onError: () => message.error('Failed to post comment'),
+    onError: () => message.error(t('commentDrawer.postFailed')),
   })
 
   const handleSend = () => {
@@ -62,7 +64,7 @@ export default function CommentDrawer({
     <Drawer
       title={
         <span style={{ fontSize: 15 }}>
-          Comments{' '}
+          {t('commentDrawer.commentsLabel')}{' '}
           <span style={{ color: '#6b7280', fontWeight: 400, fontSize: 13 }}>
             — {entityLabel}
           </span>
@@ -80,7 +82,7 @@ export default function CommentDrawer({
             <Spin />
           </div>
         ) : comments.length === 0 ? (
-          <Empty description="No comments yet" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+          <Empty description={t('commentDrawer.noCommentsYet')} image={Empty.PRESENTED_IMAGE_SIMPLE} />
         ) : (
           comments.map((c) => (
             <div key={c.id} className="comment-item">
@@ -107,7 +109,7 @@ export default function CommentDrawer({
           <Input.TextArea
             value={text}
             onChange={(e) => setText(e.target.value)}
-            placeholder="Add a comment…"
+            placeholder={t('commentDrawer.addCommentPlaceholder')}
             autoSize={{ minRows: 2, maxRows: 4 }}
             onPressEnter={(e) => {
               if (!e.shiftKey) {

@@ -12,6 +12,7 @@ import {
   DashboardOutlined,
   CheckSquareOutlined,
   LogoutOutlined,
+  LockOutlined,
   UserOutlined,
   MenuFoldOutlined,
   MenuUnfoldOutlined,
@@ -36,6 +37,7 @@ import {
   DatabaseOutlined,
 } from '@ant-design/icons'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import { useAuth } from '../auth/AuthContext'
 import { useTerminology } from '../TerminologyContext'
 import { getMyPendingApprovals } from '../api/approvals'
@@ -46,12 +48,14 @@ import {
 import { getMyLeadershipProfile } from '../api/leadership'
 import { getDashboard } from '../api/dashboard'
 import Logo, { LogoMark } from '../components/Logo'
+import LanguageSwitcher from '../components/LanguageSwitcher'
 
 const NOT_DEPLOYED_STATES = ['CREATION', 'REVIEW', 'APPROVAL_PENDING']
 
 const { Sider, Header, Content } = Layout
 
 export default function MemberLayout() {
+  const { t } = useTranslation()
   const { academicYearLabel } = useTerminology()
   const [collapsed, setCollapsed] = useState(false)
   const { user, logout } = useAuth()
@@ -162,26 +166,26 @@ export default function MemberLayout() {
   const sections = [
     {
       key: 'strategy',
-      label: 'Strategy',
+      label: t('nav.strategy'),
       icon: <DashboardOutlined />,
       items: [
-        { key: '/dashboard', icon: <DashboardOutlined />, label: 'My Strategies' },
+        { key: '/dashboard', icon: <DashboardOutlined />, label: t('nav.myStrategies') },
         ...(pendingCount > 0
-          ? [{ key: '/approvals', icon: <CheckSquareOutlined />, label: 'Approvals', badge: pendingCount }]
+          ? [{ key: '/approvals', icon: <CheckSquareOutlined />, label: t('nav.approvals'), badge: pendingCount }]
           : []),
       ],
     },
     canSeeCreationConsole && {
       key: 'creation',
-      label: 'Strategy Creation',
+      label: t('nav.strategyCreation'),
       icon: <RocketOutlined />,
       items: [
-        { key: '/strategy-creation', icon: <RocketOutlined />, label: 'New Strategy / In Progress' },
+        { key: '/strategy-creation', icon: <RocketOutlined />, label: t('nav.newStrategyInProgress') },
         ...(swotPendingCount > 0
           ? [{
               key: `/strategies/${swotPending[0].strategyId}/swot`,
               icon: <RocketOutlined />,
-              label: 'SWOT Action Needed',
+              label: t('nav.swotActionNeeded'),
               badge: swotPendingCount,
             }]
           : []),
@@ -189,12 +193,12 @@ export default function MemberLayout() {
     },
     {
       key: 'portfolio',
-      label: 'Portfolio',
+      label: t('nav.portfolio'),
       icon: <TrophyOutlined />,
       items: [
-        { key: '/portfolio/achievements', icon: <TrophyOutlined />, label: 'My Portfolio' },
-        { key: '/portfolio/my-evaluation', icon: <SolutionOutlined />, label: 'My Annual Evaluation' },
-        { key: '/portfolio/goals', icon: <TrophyOutlined />, label: 'My Goals' },
+        { key: '/portfolio/achievements', icon: <TrophyOutlined />, label: t('nav.myPortfolio') },
+        { key: '/portfolio/my-evaluation', icon: <SolutionOutlined />, label: t('nav.myAnnualEvaluation') },
+        { key: '/portfolio/goals', icon: <TrophyOutlined />, label: t('nav.myGoals') },
       ],
     },
     // Separate section, own header -- everything here is about the people reporting up to this
@@ -204,48 +208,48 @@ export default function MemberLayout() {
     // -- otherwise it would show the exact same set of people as Team Evaluations, just read-only.
     roleNavReady && (hasDirectReports || hasMultiLevelHierarchy) && {
       key: 'team-portfolio',
-      label: 'Portfolio As a Head',
+      label: t('nav.portfolioAsHead'),
       icon: <TeamOutlined />,
       items: [
         ...(hasDirectReports
           ? [
-              { key: '/portfolio/team-goals', icon: <AimOutlined />, label: 'Team Goal Setting' },
-              { key: '/portfolio/team-evaluations', icon: <TeamOutlined />, label: 'Team Evaluations' },
+              { key: '/portfolio/team-goals', icon: <AimOutlined />, label: t('nav.teamGoalSetting') },
+              { key: '/portfolio/team-evaluations', icon: <TeamOutlined />, label: t('nav.teamEvaluations') },
             ]
           : []),
         ...(hasMultiLevelHierarchy
-          ? [{ key: '/portfolio/org-evaluations', icon: <ClusterOutlined />, label: 'Organization Evaluations' }]
+          ? [{ key: '/portfolio/org-evaluations', icon: <ClusterOutlined />, label: t('nav.organizationEvaluations') }]
           : []),
       ],
     },
     (isAdmin || isHR || isUserAdmin) && {
       key: 'admin',
-      label: 'Administration',
+      label: t('nav.administration'),
       icon: <SettingOutlined />,
       items: [
         ...(isAdmin
           ? [
-              { key: '/admin', icon: <DashboardOutlined />, label: 'Admin Dashboard' },
-              { key: '/admin/users', icon: <TeamOutlined />, label: 'Users' },
-              { key: '/admin/org-groups', icon: <ClusterOutlined />, label: 'Org Groups' },
-              { key: '/admin/departments', icon: <ApartmentOutlined />, label: 'Departments' },
-              { key: '/admin/planning-cycles', icon: <CalendarOutlined />, label: 'Planning Cycles' },
+              { key: '/admin', icon: <DashboardOutlined />, label: t('nav.adminDashboard') },
+              { key: '/admin/users', icon: <TeamOutlined />, label: t('nav.users') },
+              { key: '/admin/org-groups', icon: <ClusterOutlined />, label: t('nav.orgGroups') },
+              { key: '/admin/departments', icon: <ApartmentOutlined />, label: t('nav.departments') },
+              { key: '/admin/planning-cycles', icon: <CalendarOutlined />, label: t('nav.planningCycles') },
               { key: '/admin/academic-years', icon: <BookOutlined />, label: `${academicYearLabel}s` },
-              { key: '/admin/strategies', icon: <OrderedListOutlined />, label: 'Strategies' },
-              { key: '/admin/audit-logs', icon: <AuditOutlined />, label: 'Audit Logs' },
-              { key: '/admin/portfolio/categories', icon: <AppstoreOutlined />, label: 'Portfolio Categories' },
-              { key: '/admin/achievement-types', icon: <TrophyOutlined />, label: 'Achievement Types' },
-              { key: '/admin/data-repository', icon: <DatabaseOutlined />, label: 'Data Repository' },
-              { key: '/admin/organization-settings', icon: <GlobalOutlined />, label: 'Organization Settings' },
+              { key: '/admin/strategies', icon: <OrderedListOutlined />, label: t('nav.strategies') },
+              { key: '/admin/audit-logs', icon: <AuditOutlined />, label: t('nav.auditLogs') },
+              { key: '/admin/portfolio/categories', icon: <AppstoreOutlined />, label: t('nav.portfolioCategories') },
+              { key: '/admin/achievement-types', icon: <TrophyOutlined />, label: t('nav.achievementTypes') },
+              { key: '/admin/data-repository', icon: <DatabaseOutlined />, label: t('nav.dataRepository') },
+              { key: '/admin/organization-settings', icon: <GlobalOutlined />, label: t('nav.organizationSettings') },
             ]
           : []),
         // A pure User Admin (not also a full Admin) only ever sees this one link -- everything
         // else in this section is admin-only above, or admin/HR-only below.
         ...(isUserAdmin && !isAdmin
-          ? [{ key: '/admin/users', icon: <TeamOutlined />, label: 'Users' }]
+          ? [{ key: '/admin/users', icon: <TeamOutlined />, label: t('nav.users') }]
           : []),
         ...(isAdmin || isHR
-          ? [{ key: '/evaluation-reports', icon: <FileTextOutlined />, label: 'Evaluation Reports' }]
+          ? [{ key: '/evaluation-reports', icon: <FileTextOutlined />, label: t('nav.evaluationReports') }]
           : []),
       ],
     },
@@ -259,10 +263,18 @@ export default function MemberLayout() {
 
   const userMenu = {
     items: [
+      // Hidden entirely when LDAP owns the password -- there's nothing for this app to
+      // change (see AuthController.changePassword's server-side rejection for the same rule).
+      ...(!user?.ldapEnabled ? [{
+        key: 'change-password',
+        icon: <LockOutlined />,
+        label: t('nav.changePassword'),
+        onClick: () => navigate('/change-password'),
+      }] : []),
       {
         key: 'logout',
         icon: <LogoutOutlined />,
-        label: 'Sign out',
+        label: t('nav.signOut'),
         onClick: () => {
           logout()
           navigate('/login')
@@ -285,7 +297,7 @@ export default function MemberLayout() {
           {!collapsed && (
             <>
               <Logo size={28} />
-              <div className="sidebar-logo-sub">Strategic Planning</div>
+              <div className="sidebar-logo-sub">{t('nav.sidebarSubtitle')}</div>
             </>
           )}
           {collapsed && <LogoMark size={28} style={{ display: 'block', margin: '0 auto' }} />}
@@ -342,6 +354,7 @@ export default function MemberLayout() {
             style={{ fontSize: 16, color: '#6b7280' }}
           />
           <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+            <LanguageSwitcher />
             <Dropdown
               placement="bottomRight"
               trigger={['click']}
@@ -356,16 +369,16 @@ export default function MemberLayout() {
                   }}>
                     <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, cursor: 'pointer' }}>
                       <Switch size="small" checked={showUnreadOnly} onChange={setShowUnreadOnly} />
-                      Unread only
+                      {t('notifications.unreadOnly')}
                     </label>
                     <Button type="link" size="small" disabled={unreadCount === 0} onClick={handleMarkAllRead}>
-                      Mark all as read
+                      {t('notifications.markAllRead')}
                     </Button>
                   </div>
                   <div style={{ maxHeight: 360, overflowY: 'auto' }}>
                     {visibleNotifications.length === 0 ? (
                       <Empty
-                        description={showUnreadOnly ? 'No unread notifications' : 'No notifications'}
+                        description={showUnreadOnly ? t('notifications.noUnread') : t('notifications.none')}
                         image={Empty.PRESENTED_IMAGE_SIMPLE}
                         style={{ padding: '24px 0' }}
                       />
@@ -386,7 +399,7 @@ export default function MemberLayout() {
                           </div>
                           <Button
                             type="text" size="small"
-                            title={n.isRead ? 'Mark as unread' : 'Mark as read'}
+                            title={n.isRead ? t('notifications.markUnread') : t('notifications.markRead')}
                             icon={n.isRead
                               ? <UndoOutlined style={{ color: '#9ca3af' }} />
                               : <CheckCircleOutlined style={{ color: '#1677ff' }} />}

@@ -8,6 +8,7 @@ import { Card, Button, Modal, Form, Input, Select, Table, Tag, Empty, message, T
 import { PlusOutlined } from '@ant-design/icons'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import { getDashboard } from '../../api/dashboard'
 import { getMyLeadershipProfile } from '../../api/leadership'
 import { getPlanningCyclesPublic } from '../../api/admin'
@@ -21,6 +22,7 @@ const { Paragraph } = Typography
 const NOT_DEPLOYED_STATES = ['CREATION', 'REVIEW', 'APPROVAL_PENDING']
 
 export default function StrategyCreationConsolePage() {
+  const { t } = useTranslation()
   const { topLevelStrategyLabel } = useTerminology()
   const navigate = useNavigate()
   const [modalOpen, setModalOpen] = useState(false)
@@ -45,23 +47,23 @@ export default function StrategyCreationConsolePage() {
         : createDepartmentStrategy({ ...payload, departmentId: values.departmentId })
     },
     onSuccess: (strategy) => {
-      message.success('Strategy created')
+      message.success(t('strategyCreation.createSuccess'))
       setModalOpen(false)
       form.resetFields()
       navigate(`/strategies/${strategy.id}`)
     },
-    onError: (err) => message.error(err.response?.data?.message || 'Failed to create strategy'),
+    onError: (err) => message.error(err.response?.data?.message || t('strategyCreation.createError')),
   })
 
   const columns = [
     {
-      title: 'Title', dataIndex: 'strategyTitle', key: 'strategyTitle', ellipsis: true,
+      title: t('common.title'), dataIndex: 'strategyTitle', key: 'strategyTitle', ellipsis: true,
       sorter: (a, b) => compareStrings(a.strategyTitle, b.strategyTitle),
     },
-    { title: 'Type', dataIndex: 'strategyType', key: 'strategyType' },
-    { title: 'Your Role', dataIndex: 'role', key: 'role' },
-    { title: 'Status', dataIndex: 'state', key: 'state', render: (s) => <Tag>{s}</Tag> },
-    { title: 'Planning Cycle', dataIndex: 'planningCycleName', key: 'planningCycleName' },
+    { title: t('common.type'), dataIndex: 'strategyType', key: 'strategyType' },
+    { title: t('common.yourRole'), dataIndex: 'role', key: 'role' },
+    { title: t('common.status'), dataIndex: 'state', key: 'state', render: (s) => <Tag>{s}</Tag> },
+    { title: t('strategyCreation.colPlanningCycle'), dataIndex: 'planningCycleName', key: 'planningCycleName' },
   ]
 
   return (
@@ -69,23 +71,21 @@ export default function StrategyCreationConsolePage() {
       <Card>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
           <div>
-            <h1>Strategy Creation Console</h1>
+            <h1>{t('strategyCreation.title')}</h1>
             <Paragraph type="secondary">
-              Start a new strategy for a department or the university, run it through SWOT and drafting, and track
-              anything still in progress -- including strategies you've been invited to participate in. Once a
-              strategy is deployed, it moves to the Strategy Console for everyone assigned to it.
+              {t('strategyCreation.subtitle')}
             </Paragraph>
           </div>
           {(canCreateDepartment || canCreateUniversity) && (
             <Button type="primary" icon={<PlusOutlined />} onClick={() => setModalOpen(true)} style={{ background: '#13223a' }}>
-              New Strategy
+              {t('strategyCreation.newStrategy')}
             </Button>
           )}
         </div>
 
-        <h3>In Progress</h3>
+        <h3>{t('strategyCreation.inProgress')}</h3>
         {inProgress.length === 0 ? (
-          <Empty description="Nothing in progress right now" />
+          <Empty description={t('strategyCreation.nothingInProgress')} />
         ) : (
           <>
             <TableTotal count={inProgress.length} />
@@ -98,38 +98,38 @@ export default function StrategyCreationConsolePage() {
       </Card>
 
       <Modal
-        title="New Strategy" open={modalOpen} onCancel={() => setModalOpen(false)}
+        title={t('strategyCreation.newStrategy')} open={modalOpen} onCancel={() => setModalOpen(false)}
         onOk={() => form.validateFields().then((v) => createMut.mutate(v)).catch(() => {})}
         confirmLoading={createMut.isPending} destroyOnClose
       >
         <Form form={form} layout="vertical">
-          <Form.Item name="strategyType" label="Strategy Type" rules={[{ required: true }]}>
+          <Form.Item name="strategyType" label={t('strategyCreation.strategyTypeLabel')} rules={[{ required: true }]}>
             <Select
-              placeholder="Select type"
+              placeholder={t('strategyCreation.selectType')}
               options={[
-                ...(canCreateDepartment ? [{ value: 'DEPARTMENT', label: 'Department Strategy' }] : []),
+                ...(canCreateDepartment ? [{ value: 'DEPARTMENT', label: t('strategyCreation.departmentStrategy') }] : []),
                 ...(canCreateUniversity ? [{ value: 'UNIVERSITY', label: topLevelStrategyLabel }] : []),
               ]}
             />
           </Form.Item>
           {strategyType === 'DEPARTMENT' && (
-            <Form.Item name="departmentId" label="Department" rules={[{ required: true }]}>
+            <Form.Item name="departmentId" label={t('common.department')} rules={[{ required: true }]}>
               <Select
-                placeholder="Select department"
+                placeholder={t('strategyCreation.selectDepartment')}
                 options={headedDepartments.map((d) => ({ value: d.id, label: d.name }))}
               />
             </Form.Item>
           )}
-          <Form.Item name="planningCycleId" label="Planning Cycle" rules={[{ required: true }]}>
+          <Form.Item name="planningCycleId" label={t('strategyCreation.colPlanningCycle')} rules={[{ required: true }]}>
             <Select
-              placeholder="Select planning cycle"
+              placeholder={t('strategyCreation.selectPlanningCycle')}
               options={planningCycles.map((c) => ({ value: c.id, label: c.name }))}
             />
           </Form.Item>
-          <Form.Item name="title" label="Title" rules={[{ required: true }]}>
+          <Form.Item name="title" label={t('common.title')} rules={[{ required: true }]}>
             <Input />
           </Form.Item>
-          <Form.Item name="description" label="Description">
+          <Form.Item name="description" label={t('common.description')}>
             <Input.TextArea rows={3} />
           </Form.Item>
         </Form>

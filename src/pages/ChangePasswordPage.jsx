@@ -4,16 +4,49 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Form, Input, Button, Card, Alert, Typography } from 'antd'
 import { LockOutlined } from '@ant-design/icons'
+import { useTranslation } from 'react-i18next'
 import { changePassword } from '../api/auth'
 import { useAuth } from '../auth/AuthContext'
 
 const { Title, Text } = Typography
 
 export default function ChangePasswordPage() {
+  const { t } = useTranslation()
   const navigate = useNavigate()
   const { user, updateUser } = useAuth()
   const [error, setError] = useState(null)
   const [loading, setLoading] = useState(false)
+
+  // Defense-in-depth: MemberLayout already hides the menu link that gets here, and the
+  // backend rejects the actual submit, but a user can still land on this URL directly (or
+  // be forced here by ProtectedRoute if a pre-existing row still has mustChangePassword=true
+  // under an LDAP-enabled deployment). Explain why instead of showing a form that's
+  // guaranteed to fail.
+  if (user?.ldapEnabled) {
+    return (
+      <div style={{
+        minHeight: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: 'var(--sidebar-bg)',
+      }}>
+        <Card style={{ width: 420, borderRadius: 8 }}>
+          <div style={{ textAlign: 'center' }}>
+            <LockOutlined style={{ fontSize: 36, color: 'var(--gold)' }} />
+            <Title level={3} style={{ marginTop: 12, marginBottom: 4 }}>
+              {t('changePassword.title')}
+            </Title>
+            <Text type="secondary">{t('changePassword.ldapManagedMessage')}</Text>
+            <Button block style={{ marginTop: 20 }}
+              onClick={() => navigate(user?.systemRoles?.includes('ADMIN') ? '/admin' : '/dashboard', { replace: true })}>
+              {t('changePassword.backButton')}
+            </Button>
+          </div>
+        </Card>
+      </div>
+    )
+  }
 
   async function onFinish({ currentPassword, newPassword }) {
     setError(null)
@@ -23,7 +56,7 @@ export default function ChangePasswordPage() {
       updateUser(data)
       navigate(user?.systemRoles?.includes('ADMIN') ? '/admin' : '/dashboard', { replace: true })
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to change password')
+      setError(err.response?.data?.message || t('changePassword.genericError'))
     } finally {
       setLoading(false)
     }
@@ -41,10 +74,10 @@ export default function ChangePasswordPage() {
         <div style={{ textAlign: 'center', marginBottom: 24 }}>
           <LockOutlined style={{ fontSize: 36, color: 'var(--gold)' }} />
           <Title level={3} style={{ marginTop: 12, marginBottom: 4 }}>
-            Change Your Password
+            {t('changePassword.title')}
           </Title>
           <Text type="secondary">
-            You must set a new password before continuing.
+            {user?.mustChangePassword ? t('changePassword.subtitle') : t('changePassword.voluntarySubtitle')}
           </Text>
         </div>
 
@@ -54,41 +87,41 @@ export default function ChangePasswordPage() {
 
         <Form layout="vertical" onFinish={onFinish} requiredMark={false}>
           <Form.Item
-            label="Current password"
+            label={t('changePassword.currentPasswordLabel')}
             name="currentPassword"
-            rules={[{ required: true, message: 'Enter your current password' }]}
+            rules={[{ required: true, message: t('changePassword.currentPasswordRequired') }]}
           >
-            <Input.Password placeholder="Current password" />
+            <Input.Password placeholder={t('changePassword.currentPasswordLabel')} />
           </Form.Item>
 
           <Form.Item
-            label="New password"
+            label={t('changePassword.newPasswordLabel')}
             name="newPassword"
             rules={[
-              { required: true, message: 'Enter a new password' },
-              { min: 8, message: 'At least 8 characters' },
+              { required: true, message: t('changePassword.newPasswordRequired') },
+              { min: 8, message: t('changePassword.newPasswordMinLength') },
             ]}
           >
-            <Input.Password placeholder="New password" />
+            <Input.Password placeholder={t('changePassword.newPasswordLabel')} />
           </Form.Item>
 
           <Form.Item
-            label="Confirm new password"
+            label={t('changePassword.confirmLabel')}
             name="confirmPassword"
             dependencies={['newPassword']}
             rules={[
-              { required: true, message: 'Confirm your new password' },
+              { required: true, message: t('changePassword.confirmRequired') },
               ({ getFieldValue }) => ({
                 validator(_, value) {
                   if (!value || getFieldValue('newPassword') === value) {
                     return Promise.resolve()
                   }
-                  return Promise.reject(new Error('Passwords do not match'))
+                  return Promise.reject(new Error(t('changePassword.passwordMismatch')))
                 },
               }),
             ]}
           >
-            <Input.Password placeholder="Confirm new password" />
+            <Input.Password placeholder={t('changePassword.confirmLabel')} />
           </Form.Item>
 
           <Form.Item style={{ marginBottom: 0 }}>
@@ -99,7 +132,7 @@ export default function ChangePasswordPage() {
               loading={loading}
               style={{ background: 'var(--gold)', borderColor: 'var(--gold)' }}
             >
-              Set New Password
+              {t('changePassword.submit')}
             </Button>
           </Form.Item>
         </Form>

@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react'
 import { Table, Button, Input, Tag, Select, Popconfirm, message } from 'antd'
 import { SearchOutlined, DeleteOutlined } from '@ant-design/icons'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import { getAdminStrategies, getPlanningCycles, deleteAdminStrategy } from '../../api/admin'
 import { useNavigate } from 'react-router-dom'
 import StateChip from '../../components/StateChip'
@@ -12,6 +13,7 @@ const TABLE_PREFS_KEY = 'spms.adminStrategiesTable.prefs'
 const STATES = ['CREATION', 'REVIEW', 'DEPLOYED', 'FROZEN']
 
 export default function StrategiesAdminPage() {
+  const { t } = useTranslation()
   const [search, setSearch] = useState('')
   const [stateFilter, setStateFilter] = useState(null)
   const [cycleFilter, setCycleFilter] = useState(null)
@@ -22,11 +24,11 @@ export default function StrategiesAdminPage() {
   const deleteMutation = useMutation({
     mutationFn: deleteAdminStrategy,
     onSuccess: () => {
-      message.success('Strategy deleted')
+      message.success(t('strategiesAdmin.strategyDeleted'))
       qc.invalidateQueries({ queryKey: ['admin-strategies'] })
       qc.invalidateQueries({ queryKey: ['admin-cycles'] })
     },
-    onError: (err) => message.error(err.response?.data?.message || 'Failed to delete strategy'),
+    onError: (err) => message.error(err.response?.data?.message || t('strategiesAdmin.deleteFailed')),
   })
 
   const { data: strategies = [], isLoading } = useQuery({
@@ -52,7 +54,7 @@ export default function StrategiesAdminPage() {
 
   const columns = [
     {
-      title: 'Title',
+      title: t('common.title'),
       dataIndex: 'title',
       key: 'title',
       render: (v, r) => (
@@ -67,7 +69,7 @@ export default function StrategiesAdminPage() {
       sortOrder: sortOrderFor('title'),
     },
     {
-      title: 'Type',
+      title: t('common.type'),
       dataIndex: 'strategyType',
       key: 'strategyType',
       render: (v) => (
@@ -77,7 +79,7 @@ export default function StrategiesAdminPage() {
       sortOrder: sortOrderFor('strategyType'),
     },
     {
-      title: 'State',
+      title: t('strategiesAdmin.stateColLabel'),
       dataIndex: 'state',
       key: 'state',
       render: (v) => <StateChip state={v} />,
@@ -85,7 +87,7 @@ export default function StrategiesAdminPage() {
       sortOrder: sortOrderFor('state'),
     },
     {
-      title: 'Department',
+      title: t('common.department'),
       dataIndex: 'departmentName',
       key: 'departmentName',
       render: (v) => v || '—',
@@ -93,14 +95,14 @@ export default function StrategiesAdminPage() {
       sortOrder: sortOrderFor('departmentName'),
     },
     {
-      title: 'Planning Cycle',
+      title: t('strategyCreation.colPlanningCycle'),
       dataIndex: 'planningCycleName',
       key: 'planningCycleName',
       sorter: (a, b) => compareStrings(a.planningCycleName, b.planningCycleName),
       sortOrder: sortOrderFor('planningCycleName'),
     },
     {
-      title: 'Threshold',
+      title: t('strategiesAdmin.thresholdColLabel'),
       dataIndex: 'achievementThreshold',
       key: 'achievementThreshold',
       align: 'center',
@@ -111,18 +113,18 @@ export default function StrategiesAdminPage() {
       sortOrder: sortOrderFor('achievementThreshold'),
     },
     {
-      title: 'Actions',
+      title: t('common.actions'),
       render: (_, r) => (
         <div style={{ display: 'flex', gap: 6 }}>
           <Button size="small" onClick={() => navigate(`/admin/strategies/${r.id}`)}>
-            Manage
+            {t('strategiesAdmin.manageButton')}
           </Button>
           {!r.hasGoals && (
             <Popconfirm
-              title="Delete this strategy?"
-              description="This will permanently delete the strategy and all its members."
+              title={t('strategiesAdmin.deleteConfirmTitle')}
+              description={t('strategiesAdmin.deleteConfirmDescription')}
               onConfirm={() => deleteMutation.mutate(r.id)}
-              okText="Delete"
+              okText={t('strategiesAdmin.deleteOkText')}
               okButtonProps={{ danger: true }}
             >
               <Button
@@ -141,19 +143,19 @@ export default function StrategiesAdminPage() {
   return (
     <div>
       <div className="page-header">
-        <h1 className="page-title">Strategies</h1>
+        <h1 className="page-title">{t('nav.strategies')}</h1>
       </div>
 
       <div style={{ display: 'flex', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
         <Input
-          placeholder="Search strategies…"
+          placeholder={t('strategiesAdmin.searchPlaceholder')}
           prefix={<SearchOutlined />}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           style={{ maxWidth: 280 }}
         />
         <Select
-          placeholder="Filter by state"
+          placeholder={t('strategiesAdmin.filterByStatePlaceholder')}
           allowClear
           value={stateFilter}
           onChange={setStateFilter}
@@ -161,7 +163,7 @@ export default function StrategiesAdminPage() {
           options={STATES.map((s) => ({ value: s, label: s }))}
         />
         <Select
-          placeholder="Filter by planning cycle"
+          placeholder={t('strategiesAdmin.filterByCyclePlaceholder')}
           allowClear
           value={cycleFilter}
           onChange={setCycleFilter}
@@ -182,7 +184,7 @@ export default function StrategiesAdminPage() {
           pageSize: prefs.pageSize,
           showSizeChanger: true,
           pageSizeOptions: ['20', '50', '100'],
-          showTotal: (total) => `Total: ${total}`,
+          showTotal: (total) => t('achievementLog.totalCount', { count: total }),
         }}
         onChange={handleTableChange}
         size="middle"

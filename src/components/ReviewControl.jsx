@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react'
 import { Radio, Input, Typography } from 'antd'
+import { useTranslation } from 'react-i18next'
 
 const { Text } = Typography
 
-export const ALL_REVIEW_ACTIONS = [
-  { value: 'REJECT', label: 'Reject' },
-  { value: 'APPROVE_AS_IS', label: 'Approve as-is' },
-  { value: 'APPROVE_WITH_EDITS', label: 'Approve with edits' },
-  { value: 'PROPOSE_ALTERNATIVE', label: 'Prefer a different one' },
+export const ALL_REVIEW_ACTION_KEYS = [
+  { value: 'REJECT', labelKey: 'review.actionReject' },
+  { value: 'APPROVE_AS_IS', labelKey: 'review.actionApproveAsIs' },
+  { value: 'APPROVE_WITH_EDITS', labelKey: 'review.actionApproveWithEdits' },
+  { value: 'PROPOSE_ALTERNATIVE', labelKey: 'review.actionProposeAlternative' },
 ]
 
 /**
@@ -16,13 +17,15 @@ export const ALL_REVIEW_ACTIONS = [
  * the SWOT suggestion review workflow (see SwotSuggestionsReviewPage) and lifted out here so other
  * review-style workflows (e.g. Employee Goal suggestions) can reuse the exact same interface.
  *
- * Pass `actions` to restrict which choices are offered (e.g. omit REJECT for a stage where the
- * reviewer isn't allowed to reject).
+ * Pass `actionKeys` to restrict which choices are offered (e.g. omit REJECT for a stage where the
+ * reviewer isn't allowed to reject) or to override a label's translation key for this call site.
  */
 export default function ReviewControl({
   targetType, targetId, defaultTitle, defaultDescription, draft, onSave, disabled = false,
-  actions = ALL_REVIEW_ACTIONS, alternativeLabel = 'Use "Propose a Different One" below to submit your alternative.',
+  actionKeys = ALL_REVIEW_ACTION_KEYS, alternativeLabelKey = 'review.defaultAlternativeLabel',
 }) {
+  const { t } = useTranslation()
+  const actions = actionKeys.map((a) => ({ value: a.value, label: t(a.labelKey) }))
   const current = draft || {}
   const [title, setTitle] = useState(current.editedTitle ?? defaultTitle)
   const [description, setDescription] = useState(current.editedDescription ?? defaultDescription)
@@ -50,7 +53,7 @@ export default function ReviewControl({
             disabled={disabled}
             onChange={(e) => setTitle(e.target.value)}
             onBlur={() => onSave(targetType, targetId, { actionType: current.actionType, editedTitle: title, editedDescription: description })}
-            placeholder="Edited title"
+            placeholder={t('review.editedTitlePlaceholder')}
             style={{ marginBottom: 6 }}
           />
           <Input.TextArea
@@ -59,13 +62,13 @@ export default function ReviewControl({
             onChange={(e) => setDescription(e.target.value)}
             onBlur={() => onSave(targetType, targetId, { actionType: current.actionType, editedTitle: title, editedDescription: description })}
             rows={2}
-            placeholder="Edited description"
+            placeholder={t('review.editedDescriptionPlaceholder')}
           />
         </div>
       )}
       {current.actionType === 'PROPOSE_ALTERNATIVE' && (
         <Text type="secondary" style={{ display: 'block', marginTop: 6, fontSize: 12 }}>
-          {alternativeLabel}
+          {t(alternativeLabelKey)}
         </Text>
       )}
     </div>

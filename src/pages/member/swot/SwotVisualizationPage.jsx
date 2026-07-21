@@ -2,6 +2,7 @@ import { Card, Row, Col, Spin, Empty, Button } from 'antd'
 import { ArrowLeftOutlined } from '@ant-design/icons'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import {
   ResponsiveContainer, ScatterChart, Scatter, XAxis, YAxis, ZAxis, Tooltip, CartesianGrid,
 } from 'recharts'
@@ -19,13 +20,14 @@ const QUADRANT_HEX = {
 }
 
 function CustomTooltip({ active, payload }) {
+  const { t } = useTranslation()
   if (!active || !payload?.length) return null
   const d = payload[0].payload
   return (
     <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 6, padding: 10, maxWidth: 280 }}>
       <div style={{ fontWeight: 600, marginBottom: 4 }}>{d.word}</div>
       <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 6 }}>
-        {d.submitterCount} participant{d.submitterCount === 1 ? '' : 's'} suggested this
+        {t('swot.submitterCount', { count: d.submitterCount })}
       </div>
       {d.justifications.map((j, i) => (
         <div key={i} style={{ fontSize: 12, marginBottom: 4 }}>
@@ -37,8 +39,9 @@ function CustomTooltip({ active, payload }) {
 }
 
 function QuadrantChart({ quadrant, words }) {
+  const { t } = useTranslation()
   if (!words.length) {
-    return <Empty description="No words yet" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+    return <Empty description={t('swot.noWordsYet')} image={Empty.PRESENTED_IMAGE_SIMPLE} />
   }
   const data = words.map((w, i) => ({ ...w, x: i + 1 }))
   const maxCount = Math.max(...data.map((d) => d.submitterCount), 1)
@@ -50,7 +53,7 @@ function QuadrantChart({ quadrant, words }) {
         <YAxis
           type="number" dataKey="submitterCount" allowDecimals={false}
           domain={[0, Math.max(maxCount + 1, 3)]}
-          label={{ value: 'Submitters', angle: -90, position: 'insideLeft', fontSize: 11 }}
+          label={{ value: t('swot.submittersAxisLabel'), angle: -90, position: 'insideLeft', fontSize: 11 }}
         />
         <ZAxis type="number" dataKey="submitterCount" range={[120, 600]} />
         <Tooltip content={<CustomTooltip />} cursor={{ strokeDasharray: '3 3' }} />
@@ -61,6 +64,7 @@ function QuadrantChart({ quadrant, words }) {
 }
 
 export default function SwotVisualizationPage() {
+  const { t } = useTranslation()
   const { strategyId } = useParams()
   const navigate = useNavigate()
 
@@ -80,7 +84,7 @@ export default function SwotVisualizationPage() {
       <Button type="text" icon={<ArrowLeftOutlined />}
         onClick={() => navigate(`/strategies/${strategyId}/swot`)}
         style={{ marginBottom: 16, color: '#6b7280' }}>
-        Back to SWOT Overview
+        {t('swot.backToOverview')}
       </Button>
       <Row gutter={[16, 16]}>
         {QUADRANTS.map((q) => (

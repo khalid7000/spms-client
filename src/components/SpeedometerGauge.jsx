@@ -1,4 +1,5 @@
 import { Typography } from 'antd'
+import { useTranslation } from 'react-i18next'
 
 const { Text } = Typography
 
@@ -25,13 +26,14 @@ const NEEDLE_R = 60
  * "x / y" on-track count, so the proportion reads at a glance instead of requiring mental math.
  */
 export default function SpeedometerGauge({ value, max, label, size = 108 }) {
+  const { t } = useTranslation()
   const height = Math.round(size * 0.6)
 
   if (!max) {
     return (
       <div style={{ width: size, textAlign: 'center' }}>
         <div style={{ height, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <Text type="secondary" style={{ fontSize: 11 }}>No data</Text>
+          <Text type="secondary" style={{ fontSize: 11 }}>{t('common.noData')}</Text>
         </div>
         {label && <Text type="secondary" style={{ fontSize: 11, display: 'block' }}>{label}</Text>}
       </div>

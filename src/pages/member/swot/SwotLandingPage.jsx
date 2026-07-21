@@ -3,18 +3,19 @@ import { Card, Button, Spin, Space, Typography, Popconfirm, message, Alert } fro
 import { ArrowLeftOutlined, RocketOutlined } from '@ant-design/icons'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import { getSwotStatus, startSwot, generateSwotSuggestions } from '../../../api/swot'
 import SwotProgressBar from '../../../components/swot/SwotProgressBar'
 
 const { Title, Paragraph } = Typography
 
-const PHASE_LABELS = {
-  COLLECTING: 'Collecting SWOT words',
-  VOTING: 'Ranked-choice voting',
-  GENERATING_SUGGESTIONS: 'Generating AI suggestions',
-  REVIEWING: 'Reviewing suggested areas & goals',
-  FINALIZING: 'Owner finalization',
-  COMPLETED: 'Complete',
+const PHASE_LABEL_KEYS = {
+  COLLECTING: 'swot.phaseCollecting',
+  VOTING: 'swot.phaseVoting',
+  GENERATING_SUGGESTIONS: 'swot.phaseGenerating',
+  REVIEWING: 'swot.phaseReviewing',
+  FINALIZING: 'swot.phaseFinalizing',
+  COMPLETED: 'swot.phaseCompleted',
 }
 
 // mm:ss (or ss) since `sinceIso` — used to show "submitted at X, Y elapsed" while generation is
@@ -24,10 +25,11 @@ function formatElapsed(sinceIso) {
   const diffSec = Math.max(0, Math.floor((Date.now() - new Date(sinceIso).getTime()) / 1000))
   const m = Math.floor(diffSec / 60)
   const s = diffSec % 60
-  return m > 0 ? `${m}m ${s}s` : `${s}s`
+  return { m, s }
 }
 
 export default function SwotLandingPage() {
+  const { t } = useTranslation()
   const { strategyId } = useParams()
   const navigate = useNavigate()
   const qc = useQueryClient()
@@ -43,8 +45,8 @@ export default function SwotLandingPage() {
 
   const startMut = useMutation({
     mutationFn: () => startSwot(strategyId),
-    onSuccess: () => { message.success('SWOT analysis started'); refresh() },
-    onError: (err) => message.error(err.response?.data?.message || 'Failed to start'),
+    onSuccess: () => { message.success(t('swot.startedSuccess')); refresh() },
+    onError: (err) => message.error(err.response?.data?.message || t('swot.startFailed')),
   })
 
   // Generation runs in the background (a model call can take a minute or more) — this request
@@ -52,8 +54,8 @@ export default function SwotLandingPage() {
   // REVIEWING transition on its own once generation actually finishes.
   const retryMut = useMutation({
     mutationFn: () => generateSwotSuggestions(strategyId),
-    onSuccess: () => { message.success('Generation started — this can take a minute or two'); refresh() },
-    onError: (err) => message.error(err.response?.data?.message || 'Could not start generation — try again'),
+    onSuccess: () => { message.success(t('swot.generationStarted')); refresh() },
+    onError: (err) => message.error(err.response?.data?.message || t('swot.generationStartFailed')),
   })
 
   // Editors have nothing left to do once SWOT is COMPLETED, so they get bounced back to the
@@ -88,36 +90,34 @@ export default function SwotLandingPage() {
         onClick={() => navigate(`/strategies/${strategyId}`)}
         style={{ marginBottom: 16, color: '#6b7280' }}
       >
-        Back to Strategy
+        {t('swot.backToStrategy')}
       </Button>
 
       <Card>
         <Space direction="vertical" size="middle" style={{ width: '100%' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <RocketOutlined style={{ fontSize: 22, color: '#13223a' }} />
-            <Title level={3} style={{ margin: 0 }}>SWOT Collaboration</Title>
+            <Title level={3} style={{ margin: 0 }}>{t('swot.collaborationTitle')}</Title>
           </div>
           <Paragraph type="secondary" style={{ marginBottom: 0 }}>
-            Work with your fellow owners and editors to run a SWOT analysis, vote on the
-            strongest ideas, and let AI propose focus areas and goals you can review and
-            finalize into a draft strategy.
+            {t('swot.collaborationIntro')}
           </Paragraph>
 
           {!status?.sessionStarted && (
             <Card size="small" style={{ background: '#f8faff' }}>
               {status?.owner ? (
                 <Popconfirm
-                  title="Start the SWOT analysis?"
-                  description="Every current Owner and Editor on this strategy will be invited to participate."
+                  title={t('swot.startConfirmTitle')}
+                  description={t('swot.startConfirmDescription')}
                   onConfirm={() => startMut.mutate()}
                 >
                   <Button type="primary" loading={startMut.isPending} style={{ background: '#13223a' }}>
-                    Start SWOT Analysis
+                    {t('swot.startButton')}
                   </Button>
                 </Popconfirm>
               ) : (
                 <span style={{ color: '#6b7280' }}>
-                  Waiting for the strategy owner to start the SWOT analysis.
+                  {t('swot.waitingForOwnerToStart')}
                 </span>
               )}
             </Card>
@@ -126,21 +126,21 @@ export default function SwotLandingPage() {
           {status?.sessionStarted && (
             <Card size="small" style={{ background: '#f8faff' }}>
               <div style={{ marginBottom: 12, fontWeight: 600, color: '#13223a' }}>
-                Current phase: {PHASE_LABELS[status.phase] ?? status.phase}
+                {t('swot.currentPhase', { phase: PHASE_LABEL_KEYS[status.phase] ? t(PHASE_LABEL_KEYS[status.phase]) : status.phase })}
               </div>
 
               {status.phase === 'COLLECTING' && (
                 <>
-                  <SwotProgressBar label="Word collection" done={status.submittedCount} total={status.totalParticipants} />
+                  <SwotProgressBar label={t('swot.wordCollectionLabel')} done={status.submittedCount} total={status.totalParticipants} />
                   {!status.mySwotSubmitted ? (
                     <Button type="primary" style={{ background: '#13223a' }}
                       onClick={() => navigate(`/strategies/${strategyId}/swot/collect`)}>
-                      Enter My SWOT Words
+                      {t('swot.enterWordsButton')}
                     </Button>
                   ) : (
                     <Space>
-                      <span style={{ color: '#6b7280' }}>You've submitted — waiting for others.</span>
-                      <Button onClick={() => navigate(`/strategies/${strategyId}/swot/board`)}>View Board</Button>
+                      <span style={{ color: '#6b7280' }}>{t('swot.submittedWaitingOthers')}</span>
+                      <Button onClick={() => navigate(`/strategies/${strategyId}/swot/board`)}>{t('swot.viewBoardButton')}</Button>
                     </Space>
                   )}
                 </>
@@ -148,14 +148,14 @@ export default function SwotLandingPage() {
 
               {status.phase === 'VOTING' && (
                 <>
-                  <SwotProgressBar label="Voting" done={status.votedCount} total={status.totalParticipants} />
+                  <SwotProgressBar label={t('swot.votingLabel')} done={status.votedCount} total={status.totalParticipants} />
                   {!status.myVoteSubmitted ? (
                     <Button type="primary" style={{ background: '#13223a' }}
                       onClick={() => navigate(`/strategies/${strategyId}/swot/vote`)}>
-                      Cast My Vote
+                      {t('swot.castVoteButton')}
                     </Button>
                   ) : (
-                    <span style={{ color: '#6b7280' }}>You've voted — waiting for others.</span>
+                    <span style={{ color: '#6b7280' }}>{t('swot.votedWaitingOthers')}</span>
                   )}
                 </>
               )}
@@ -166,24 +166,26 @@ export default function SwotLandingPage() {
                     <Alert
                       type="error"
                       showIcon
-                      message="AI generation failed"
+                      message={t('swot.generationFailedTitle')}
                       description={status.generationFailureReason}
                     />
                   ) : (
                     <span style={{ color: '#6b7280' }}>
-                      Voting is closed — AI is generating suggested focus areas from the top-ranked words in
-                      the background. This page checks automatically and will move on once it's ready.
-                      {status.generationRequestedAt && (
-                        <>
-                          {' '}Submitted at {new Date(status.generationRequestedAt).toLocaleTimeString()}
-                          {' — '}{formatElapsed(status.generationRequestedAt)} elapsed.
-                        </>
-                      )}
+                      {t('swot.generatingHint')}
+                      {status.generationRequestedAt && (() => {
+                        const elapsed = formatElapsed(status.generationRequestedAt)
+                        return (
+                          <>
+                            {' '}{t('swot.submittedAt', { time: new Date(status.generationRequestedAt).toLocaleTimeString() })}
+                            {' — '}{elapsed.m > 0 ? t('swot.elapsedMinSec', elapsed) : t('swot.elapsedSec', elapsed)}
+                          </>
+                        )
+                      })()}
                     </span>
                   )}
                   {status.owner && (
                     <Button loading={retryMut.isPending} onClick={() => retryMut.mutate()}>
-                      {status.generationFailureReason ? 'Retry Generation' : 'Cancel & Retry Generation'}
+                      {status.generationFailureReason ? t('swot.retryGeneration') : t('swot.cancelRetryGeneration')}
                     </Button>
                   )}
                 </Space>
@@ -193,19 +195,19 @@ export default function SwotLandingPage() {
                 <>
                   {/* Only Editors count here and drive the phase transition — the Owner does a
                       separate finalization pass afterward instead of a peer review of their own. */}
-                  <SwotProgressBar label="Editor review" done={status.reviewedCount} total={status.nonOwnerParticipants} />
+                  <SwotProgressBar label={t('swot.editorReviewLabel')} done={status.reviewedCount} total={status.nonOwnerParticipants} />
                   {status.owner && (
                     <div style={{ color: '#6b7280', fontSize: 12, marginBottom: 8 }}>
-                      Waiting on your Editors — you'll finalize the draft yourself once they're done.
+                      {t('swot.waitingOnEditors')}
                     </div>
                   )}
                   {!status.myReviewSubmitted ? (
                     <Button type="primary" style={{ background: '#13223a' }}
                       onClick={() => navigate(`/strategies/${strategyId}/swot/review`)}>
-                      Review AI Suggestions
+                      {t('swot.reviewSuggestionsButton')}
                     </Button>
                   ) : (
-                    <span style={{ color: '#6b7280' }}>Your review is in — waiting for the rest of the team.</span>
+                    <span style={{ color: '#6b7280' }}>{t('swot.reviewSubmittedWaiting')}</span>
                   )}
                 </>
               )}
@@ -214,20 +216,20 @@ export default function SwotLandingPage() {
                 status.owner ? (
                   <Button type="primary" style={{ background: '#13223a' }}
                     onClick={() => navigate(`/strategies/${strategyId}/swot/finalize`)}>
-                    Finalize Draft Strategy
+                    {t('swot.finalizeDraftButton')}
                   </Button>
                 ) : (
-                  <span style={{ color: '#6b7280' }}>Waiting for the strategy owner to finalize the draft.</span>
+                  <span style={{ color: '#6b7280' }}>{t('swot.waitingForOwnerToFinalize')}</span>
                 )
               )}
 
               {status.phase === 'COMPLETED' && (
                 status.owner ? (
                   <span style={{ color: '#6b7280' }}>
-                    Done! Use the links below any time to revisit the vote results or the word board.
+                    {t('swot.doneOwnerHint')}
                   </span>
                 ) : (
-                  <span style={{ color: '#6b7280' }}>Done! Redirecting to your strategy…</span>
+                  <span style={{ color: '#6b7280' }}>{t('swot.doneRedirecting')}</span>
                 )
               )}
             </Card>
@@ -235,12 +237,12 @@ export default function SwotLandingPage() {
 
           {status?.sessionStarted && status.phase !== 'COLLECTING' && (
             <Button type="link" style={{ padding: 0 }} onClick={() => navigate(`/strategies/${strategyId}/swot/board`)}>
-              View SWOT board
+              {t('swot.viewBoardLink')}
             </Button>
           )}
           {status?.sessionStarted && ['REVIEWING', 'FINALIZING', 'COMPLETED'].includes(status.phase) && (
             <Button type="link" style={{ padding: 0 }} onClick={() => navigate(`/strategies/${strategyId}/swot/results`)}>
-              View vote results
+              {t('swot.viewResultsLink')}
             </Button>
           )}
         </Space>

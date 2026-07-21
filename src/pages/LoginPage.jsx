@@ -3,14 +3,18 @@
 import { useState } from 'react'
 import { Form, Input, Button, Card, message, Alert } from 'antd'
 import { MailOutlined, LockOutlined } from '@ant-design/icons'
-import { useNavigate, useLocation } from 'react-router-dom'
+import { useNavigate, useLocation, useParams } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { useAuth } from '../auth/AuthContext'
 import Logo from '../components/Logo'
+import LanguageSwitcher from '../components/LanguageSwitcher'
 
 export default function LoginPage() {
+  const { t } = useTranslation()
   const { login } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
+  const { slug } = useParams()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
 
@@ -20,7 +24,7 @@ export default function LoginPage() {
     setLoading(true)
     setError(null)
     try {
-      const user = await login(email, password)
+      const user = await login(email, password, slug)
       if (from) {
         navigate(from, { replace: true })
       } else if (user.systemRoles?.includes('ADMIN')) {
@@ -29,7 +33,7 @@ export default function LoginPage() {
         navigate('/dashboard', { replace: true })
       }
     } catch (err) {
-      setError(err.response?.data?.message || 'Invalid email or password')
+      setError(err.response?.data?.message || t('login.invalidCredentials'))
     } finally {
       setLoading(false)
     }
@@ -43,8 +47,10 @@ export default function LoginPage() {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
+        position: 'relative',
       }}
     >
+      <LanguageSwitcher style={{ position: 'absolute', top: 20, insetInlineEnd: 20 }} />
       <Card
         style={{
           width: 380,
@@ -57,7 +63,7 @@ export default function LoginPage() {
         <div style={{ textAlign: 'center', marginBottom: 32 }}>
           <Logo size={44} textSize={28} textColor="#13223a" style={{ justifyContent: 'center' }} />
           <div style={{ color: '#6b7280', fontSize: 14, marginTop: 8 }}>
-            Strategic Planning Management
+            {t('login.subtitle')}
           </div>
         </div>
 
@@ -68,19 +74,19 @@ export default function LoginPage() {
         <Form layout="vertical" onFinish={handleSubmit} size="large">
           <Form.Item
             name="email"
-            rules={[{ required: true, type: 'email', message: 'Enter your email' }]}
+            rules={[{ required: true, type: 'email', message: t('login.emailRequired') }]}
           >
-            <Input prefix={<MailOutlined style={{ color: '#9ca3af' }} />} placeholder="Email" />
+            <Input prefix={<MailOutlined style={{ color: '#9ca3af' }} />} placeholder={t('login.emailPlaceholder')} />
           </Form.Item>
 
           <Form.Item
             name="password"
-            rules={[{ required: true, message: 'Enter your password' }]}
+            rules={[{ required: true, message: t('login.passwordRequired') }]}
             style={{ marginBottom: 24 }}
           >
             <Input.Password
               prefix={<LockOutlined style={{ color: '#9ca3af' }} />}
-              placeholder="Password"
+              placeholder={t('login.passwordPlaceholder')}
             />
           </Form.Item>
 
@@ -97,7 +103,7 @@ export default function LoginPage() {
               fontSize: 15,
             }}
           >
-            Sign In
+            {t('login.signIn')}
           </Button>
         </Form>
       </Card>

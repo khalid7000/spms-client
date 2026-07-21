@@ -5,6 +5,7 @@ import { useState } from 'react'
 import { Card, Select, Table, Tag, Button, message, Empty, Typography } from 'antd'
 import { DownloadOutlined } from '@ant-design/icons'
 import { useQuery } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import { getAcademicYears } from '../../api/academicYears'
 import { getConcludedEvaluations, downloadEvaluationPdf } from '../../api/annualEvaluations'
 import { useTablePrefs, compareStrings } from '../../hooks/useTablePrefs'
@@ -15,6 +16,7 @@ const { Paragraph } = Typography
 const TABLE_PREFS_KEY = 'spms.evaluationReportsTable.prefs'
 
 export default function EvaluationReportsPage() {
+  const { t } = useTranslation()
   const { academicYearLabel, defaultHeadTitleLabel } = useTerminology()
   const [academicYearId, setAcademicYearId] = useState(null)
   const { prefs, sortOrderFor, handleTableChange } = useTablePrefs(TABLE_PREFS_KEY)
@@ -37,26 +39,26 @@ export default function EvaluationReportsPage() {
       a.click()
       window.URL.revokeObjectURL(url)
     } catch (err) {
-      message.error(err.response?.data?.message || 'Failed to download report')
+      message.error(err.response?.data?.message || t('evalReports.downloadFailed'))
     }
   }
 
   const columns = [
     {
-      title: 'Employee', dataIndex: 'employeeName', key: 'employeeName',
+      title: t('goalSetting.employeeLabel'), dataIndex: 'employeeName', key: 'employeeName',
       sorter: (a, b) => compareStrings(a.employeeName, b.employeeName), sortOrder: sortOrderFor('employeeName'),
     },
     { title: defaultHeadTitleLabel, dataIndex: 'headName', key: 'headName' },
-    { title: 'Overall Rank', dataIndex: 'headOverallRank', key: 'headOverallRank' },
+    { title: t('orgEval.overallRankColLabel'), dataIndex: 'headOverallRank', key: 'headOverallRank' },
     {
-      title: 'Concluded', dataIndex: 'headSignedAt', key: 'headSignedAt',
+      title: t('evalReports.concludedColLabel'), dataIndex: 'headSignedAt', key: 'headSignedAt',
       render: (v) => v ? new Date(v).toLocaleDateString() : '—',
     },
-    { title: 'Status', dataIndex: 'state', key: 'state', render: () => <Tag color="success">CONCLUDED</Tag> },
+    { title: t('common.status'), dataIndex: 'state', key: 'state', render: () => <Tag color="success">{t('evalReports.concludedTag')}</Tag> },
     {
-      title: 'Report', key: 'report',
+      title: t('evalReports.reportColLabel'), key: 'report',
       render: (_, row) => (
-        <Button size="small" icon={<DownloadOutlined />} onClick={() => handleDownload(row)}>Download PDF</Button>
+        <Button size="small" icon={<DownloadOutlined />} onClick={() => handleDownload(row)}>{t('evalReports.downloadPdfButton')}</Button>
       ),
     },
   ]
@@ -64,27 +66,27 @@ export default function EvaluationReportsPage() {
   return (
     <div>
       <div className="page-header">
-        <h1 className="page-title">Annual Evaluation Reports</h1>
+        <h1 className="page-title">{t('evalReports.pageTitle')}</h1>
       </div>
       <Card>
         <Paragraph type="secondary">
-          Only concluded evaluations (signed by the head, and signed or refused by the employee) appear here.
+          {t('evalReports.intro')}
         </Paragraph>
         <Select
           style={{ width: 220, marginBottom: 16 }} placeholder={academicYearLabel} value={academicYearId}
           onChange={setAcademicYearId} options={academicYears.map((y) => ({ value: y.id, label: y.name }))}
         />
         {!academicYearId ? (
-          <Empty description={`Select a ${academicYearLabel}`} />
+          <Empty description={t('goalReview.selectYearEmpty', { yearLabel: academicYearLabel })} />
         ) : (
           <Table
             dataSource={evaluations} columns={columns} rowKey="id" loading={isLoading}
             pagination={{
               current: prefs.current, pageSize: prefs.pageSize, showSizeChanger: true,
-              showTotal: (total) => `Total: ${total}`,
+              showTotal: (total) => t('achievementLog.totalCount', { count: total }),
             }}
             onChange={handleTableChange}
-            locale={{ emptyText: 'No concluded evaluations for this year yet' }}
+            locale={{ emptyText: t('evalReports.noConcludedEvaluations') }}
           />
         )}
       </Card>

@@ -7,6 +7,7 @@ import {
 } from 'antd'
 import { InfoCircleOutlined, PlusOutlined, DeleteOutlined, BulbOutlined, UploadOutlined } from '@ant-design/icons'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import ReviewControl from '../../components/ReviewControl'
 import {
   getNextCycleGoals, updateNextCycleGoalNotes, generateNextCycleGoalSuggestions, addNextCycleGoal,
@@ -73,6 +74,7 @@ export const OVERALL_COLOR = { accent: '#13223a', tint: '#eef1f6' }
 // has already shaped what's visible (private notes/goal link) based on who's viewing, so this
 // renders identically whether it's the employee's own page or the chair's Team Evaluations review.
 export function AchievementList({ entries, emptyText, color }) {
+  const { t } = useTranslation()
   const [viewingAchievement, setViewingAchievement] = useState(null)
   if (entries.length === 0) {
     return <Text type="secondary" style={{ fontSize: 13, fontStyle: 'italic' }}>{emptyText}</Text>
@@ -82,7 +84,7 @@ export function AchievementList({ entries, emptyText, color }) {
       {entries.map((e) => (
         <Tooltip
           key={e.entryId}
-          title={<div style={{ whiteSpace: 'pre-wrap' }}>{formatAiDetails(e.achievementDetails) || 'No additional details'}</div>}
+          title={<div style={{ whiteSpace: 'pre-wrap' }}>{formatAiDetails(e.achievementDetails) || t('tree.noAdditionalDetails')}</div>}
           placement="left"
         >
           <div style={{ background: color.tint, borderLeft: `3px solid ${color.accent}`, borderRadius: 4, padding: '6px 10px', fontSize: 13, cursor: 'pointer' }}
@@ -120,6 +122,7 @@ export function rankLabelText(rankLabels, rank) {
 // `highlightMissing` -- set true after a failed submit attempt to redden whichever of these two
 // fields is still blank, in addition to the "Required" tag `HeadCommentsBlock` already shows.
 export function CommentsInput({ initialStrengths, initialImprovements, onSave, onChange, highlightMissing }) {
+  const { t } = useTranslation()
   const [strengths, setStrengths] = useState(initialStrengths || '')
   const [improvements, setImprovements] = useState(initialImprovements || '')
   useEffect(() => { setStrengths(initialStrengths || '') }, [initialStrengths])
@@ -134,15 +137,15 @@ export function CommentsInput({ initialStrengths, initialImprovements, onSave, o
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
       <div>
-        <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 2 }}>Strengths</Text>
-        <Input.TextArea rows={2} value={strengths} placeholder="Required: strengths"
+        <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 2 }}>{t('evalDisplay.strengths')}</Text>
+        <Input.TextArea rows={2} value={strengths} placeholder={t('evalDisplay.requiredStrengths')}
           status={highlightMissing && !strengths?.trim() ? 'error' : undefined}
           onChange={(e) => { setStrengths(e.target.value); onChange?.(e.target.value, improvements) }}
           onBlur={() => save(strengths, improvements)} />
       </div>
       <div>
-        <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 2 }}>Potential Improvements</Text>
-        <Input.TextArea rows={2} value={improvements} placeholder="Required: potential improvements"
+        <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 2 }}>{t('evalDisplay.potentialImprovements')}</Text>
+        <Input.TextArea rows={2} value={improvements} placeholder={t('evalDisplay.requiredPotentialImprovements')}
           status={highlightMissing && !improvements?.trim() ? 'error' : undefined}
           onChange={(e) => { setImprovements(e.target.value); onChange?.(strengths, e.target.value) }}
           onBlur={() => save(strengths, improvements)} />
@@ -160,6 +163,7 @@ export function CommentsInput({ initialStrengths, initialImprovements, onSave, o
 // `onSave` wasn't given; `required` fields always render (even blank, read-only) and show a red
 // "Required" tag while editable and empty.
 export function EmployeeReflectionBlock({ comments, onSave, show = true, sectionName, heading, required = false, color }) {
+  const { t } = useTranslation()
   const [value, setValue] = useState(comments || '')
   useEffect(() => { setValue(comments || '') }, [comments])
 
@@ -178,16 +182,18 @@ export function EmployeeReflectionBlock({ comments, onSave, show = true, section
       ...(color ? { background: color.tint, borderLeft: `3px solid ${color.accent}`, borderRadius: 4, padding: 10 } : {}),
     }}>
       <Text strong style={{ display: 'block', marginBottom: 4 }}>
-        {heading || `${required ? '' : 'Optional '}Employee Comments & Reflection${sectionName ? ` on ${sectionName}` : ''}`}
-        {missing && <Tag color="red" style={{ marginLeft: 6 }}>Required</Tag>}
+        {heading || (sectionName
+          ? (required ? t('evalDisplay.employeeReflectionOnSection', { section: sectionName }) : t('evalDisplay.optionalEmployeeReflectionOnSection', { section: sectionName }))
+          : (required ? t('evalDisplay.employeeReflection') : t('evalDisplay.optionalEmployeeReflection')))}
+        {missing && <Tag color="red" style={{ marginLeft: 6 }}>{t('annualEval.requiredNotMet')}</Tag>}
       </Text>
       {onSave ? (
         <Input.TextArea rows={2} value={value} status={missing ? 'error' : undefined}
-          placeholder={required ? 'Required: your own comments and reflection' : 'Optional: your own comments and reflection on this section'}
+          placeholder={required ? t('evalDisplay.requiredCommentsPlaceholder') : t('evalDisplay.optionalCommentsPlaceholder')}
           onChange={(e) => setValue(e.target.value)}
           onBlur={() => { if (value !== (comments || '')) onSave(value) }} />
       ) : (
-        <Paragraph style={{ whiteSpace: 'pre-wrap' }}>{comments || <Text type="secondary">No comments</Text>}</Paragraph>
+        <Paragraph style={{ whiteSpace: 'pre-wrap' }}>{comments || <Text type="secondary">{t('evalDisplay.noComments')}</Text>}</Paragraph>
       )}
     </div>
   )
@@ -199,6 +205,7 @@ export function EmployeeReflectionBlock({ comments, onSave, show = true, section
 // while still in DRAFT, before the head has even started rating). `highlightMissing` reddens the
 // fields themselves (not just the "Required" tag) after a failed submit attempt.
 export function HeadCommentsBlock({ strengths, improvements, onSave, onChange, show = true, highlightMissing }) {
+  const { t } = useTranslation()
   if (!show) {
     return null
   }
@@ -206,22 +213,22 @@ export function HeadCommentsBlock({ strengths, improvements, onSave, onChange, s
   return (
     <div>
       <Text strong style={{ display: 'block', marginBottom: 4 }}>
-        Head Comments {missing && <Tag color="red" style={{ marginLeft: 6 }}>Required</Tag>}
+        {t('evalDisplay.headComments')} {missing && <Tag color="red" style={{ marginLeft: 6 }}>{t('annualEval.requiredNotMet')}</Tag>}
       </Text>
       {onSave ? (
         <CommentsInput initialStrengths={strengths} initialImprovements={improvements} onSave={onSave} onChange={onChange} highlightMissing={highlightMissing} />
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           <div>
-            <Text strong style={{ fontSize: 12 }}>Strengths: </Text>
+            <Text strong style={{ fontSize: 12 }}>{t('evalDisplay.strengths')}: </Text>
             <Paragraph style={{ whiteSpace: 'pre-wrap', display: 'inline' }}>
-              {strengths || <Text type="secondary">No comments</Text>}
+              {strengths || <Text type="secondary">{t('evalDisplay.noComments')}</Text>}
             </Paragraph>
           </div>
           <div>
-            <Text strong style={{ fontSize: 12 }}>Potential Improvements: </Text>
+            <Text strong style={{ fontSize: 12 }}>{t('evalDisplay.potentialImprovements')}: </Text>
             <Paragraph style={{ whiteSpace: 'pre-wrap', display: 'inline' }}>
-              {improvements || <Text type="secondary">No comments</Text>}
+              {improvements || <Text type="secondary">{t('evalDisplay.noComments')}</Text>}
             </Paragraph>
           </div>
         </div>
@@ -242,27 +249,28 @@ export function GoalsSection({
   evaluation, rankLabels, canEdit, onRankChange, onSelfRankChange, onHeadRankChange, onNothingToReportChange, onCommentsChange, onCommentsLiveChange, showComments = true,
   onOpenAssistant, highlightMissing, onEmployeeCommentsChange,
 }) {
+  const { t } = useTranslation()
   if (!evaluation.goalResults?.length) {
     return null
   }
   return (
-    <Card type="inner" title="Annual Goals"
+    <Card type="inner" title={t('evalDisplay.annualGoals')}
       style={{ marginBottom: 16, borderTop: `4px solid ${GOAL_COLOR.accent}` }}
       styles={{ header: { background: GOAL_COLOR.tint } }}
       extra={
         <Space>
-          <span>Rank:</span>
+          <span>{t('evalDisplay.rankLabel')}</span>
           {onHeadRankChange ? (
-            <Select style={{ width: 220 }} value={evaluation.goalsHeadRank} placeholder="Rank"
+            <Select style={{ width: 220 }} value={evaluation.goalsHeadRank} placeholder={t('evalDisplay.rankPlaceholder')}
               status={highlightMissing && !evaluation.goalsHeadRank ? 'error' : undefined}
               options={[1, 2, 3, 4, 5].map((r) => ({ value: r, label: rankLabelText(rankLabels, r) }))}
               onChange={onHeadRankChange} />
           ) : (
-            <Tag color="green">{evaluation.goalsHeadRank ? rankLabelText(rankLabels, evaluation.goalsHeadRank) : 'Not yet rated'}</Tag>
+            <Tag color="green">{evaluation.goalsHeadRank ? rankLabelText(rankLabels, evaluation.goalsHeadRank) : t('annualEval.notYetRated')}</Tag>
           )}
-          <span>Your self-rank:</span>
+          <span>{t('annualEval.yourSelfRankLabel')}</span>
           {onSelfRankChange ? (
-            <Select style={{ width: 220 }} value={evaluation.goalsEmployeeSelfRank} placeholder="Select rank"
+            <Select style={{ width: 220 }} value={evaluation.goalsEmployeeSelfRank} placeholder={t('annualEval.selectRankPlaceholder')}
               options={[1, 2, 3, 4, 5].map((r) => ({ value: r, label: rankLabelText(rankLabels, r) }))}
               onChange={onSelfRankChange} />
           ) : (
@@ -276,7 +284,7 @@ export function GoalsSection({
         return (
           <div key={g.goalId} style={{ marginBottom: 16, paddingBottom: 16, borderBottom: '1px solid #e8eef6' }}>
             <div style={{ marginBottom: 8 }}>
-              <Text strong>Goal: </Text>
+              <Text strong>{t('evalDisplay.goalLabel')} </Text>
               <RubricPopover criteria={{
                 criteriaName: g.goalTitle,
                 rubricUnsatisfactory: g.rubricUnsatisfactory,
@@ -289,17 +297,17 @@ export function GoalsSection({
                   onChange={(e) => onNothingToReportChange(g.goalId, e.target.checked)}
                   style={{ marginLeft: 12 }}
                 >
-                  Nothing to report
+                  {t('annualEval.nothingToReport')}
                 </Checkbox>
               ) : (
-                g.employeeNothingToReport && <Tag color="gold" style={{ marginLeft: 8 }}>Employee: nothing to report</Tag>
+                g.employeeNothingToReport && <Tag color="gold" style={{ marginLeft: 8 }}>{t('evalDisplay.employeeNothingToReport')}</Tag>
               )}
             </div>
             <div style={{ marginBottom: 8 }}>
-              <Text strong style={{ display: 'block', marginBottom: 4 }}>Goal Achievements:</Text>
+              <Text strong style={{ display: 'block', marginBottom: 4 }}>{t('evalDisplay.goalAchievementsLabel')}</Text>
               <AchievementList
                 entries={goalEntries}
-                emptyText={g.employeeNothingToReport ? 'Employee reported nothing for this goal' : 'No achievements tagged to this goal'}
+                emptyText={g.employeeNothingToReport ? t('evalDisplay.employeeReportedNothingGoal') : t('evalDisplay.noAchievementsTaggedGoal')}
                 color={GOAL_COLOR}
               />
             </div>
@@ -310,13 +318,13 @@ export function GoalsSection({
                     <Button size="small"
                       disabled={!g.rubricUnsatisfactory && !g.rubricMeetsExpectations && !g.rubricExceedsExpectations}
                       title={!g.rubricUnsatisfactory && !g.rubricMeetsExpectations && !g.rubricExceedsExpectations
-                        ? 'No rubric defined for this goal yet' : undefined}
+                        ? t('evalDisplay.noRubricDefinedGoal') : undefined}
                       onClick={() => onOpenAssistant(g, goalEntries)}>
-                      Rating Assistant
+                      {t('evalDisplay.ratingAssistant')}
                     </Button>
                   )}
-                  <span>Rank:</span>
-                  <Select style={{ width: 220 }} value={g.headGoalRank} placeholder="Rank"
+                  <span>{t('evalDisplay.rankLabel')}</span>
+                  <Select style={{ width: 220 }} value={g.headGoalRank} placeholder={t('evalDisplay.rankPlaceholder')}
                     status={highlightMissing && !g.headGoalRank ? 'error' : undefined}
                     options={[1, 2, 3, 4, 5].map((r) => ({ value: r, label: rankLabelText(rankLabels, r) }))}
                     onChange={(v) => onRankChange(g.goalId, v)} />
@@ -330,7 +338,7 @@ export function GoalsSection({
       })}
       <EmployeeReflectionBlock
         comments={evaluation.goalsEmployeeComments}
-        sectionName="Annual Goals"
+        sectionName={t('evalDisplay.annualGoals')}
         required
         onSave={onEmployeeCommentsChange}
       />
@@ -354,10 +362,11 @@ export function GoalsSection({
 // `highlightMissing` reddens whichever category/goals/overall cells are still unset, after a
 // failed submit attempt.
 export function EvaluationScoreSummary({ evaluation, rankLabels, onOverallRankChange, highlightMissing }) {
+  const { t } = useTranslation()
   const missingOverallRank = !evaluation?.headOverallRank
   const hasGoals = (evaluation?.goalResults?.length ?? 0) > 0
   return (
-    <Card size="small" title="Score Summary" style={{ marginBottom: 16 }}>
+    <Card size="small" title={t('evalDisplay.scoreSummary')} style={{ marginBottom: 16 }}>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginBottom: 16 }}>
         {orderedCategoryResults(evaluation.categoryResults).map((cat, idx) => {
           const color = categoryColor(idx)
@@ -369,7 +378,7 @@ export function EvaluationScoreSummary({ evaluation, rankLabels, onOverallRankCh
             }}>
               <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 4 }}>{cat.categoryName}</div>
               <div style={{ fontSize: 16, fontWeight: 700, color: cat.headCategoryRank ? color.accent : '#9ca3af' }}>
-                {cat.headCategoryRank ? rankLabelText(rankLabels, cat.headCategoryRank) : 'Not yet rated'}
+                {cat.headCategoryRank ? rankLabelText(rankLabels, cat.headCategoryRank) : t('annualEval.notYetRated')}
               </div>
             </div>
           )
@@ -381,9 +390,9 @@ export function EvaluationScoreSummary({ evaluation, rankLabels, onOverallRankCh
               flex: '1 1 140px', minWidth: 140, textAlign: 'center', borderRadius: 8, padding: '10px 14px',
               border: `1px solid ${isMissing ? '#ff4d4f' : GOAL_COLOR.accent}`, background: isMissing ? '#fff1f0' : GOAL_COLOR.tint,
             }}>
-              <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 4 }}>Annual Goals</div>
+              <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 4 }}>{t('evalDisplay.annualGoals')}</div>
               <div style={{ fontSize: 16, fontWeight: 700, color: evaluation.goalsHeadRank ? GOAL_COLOR.accent : '#9ca3af' }}>
-                {evaluation.goalsHeadRank ? rankLabelText(rankLabels, evaluation.goalsHeadRank) : 'Not yet rated'}
+                {evaluation.goalsHeadRank ? rankLabelText(rankLabels, evaluation.goalsHeadRank) : t('annualEval.notYetRated')}
               </div>
             </div>
           )
@@ -395,17 +404,17 @@ export function EvaluationScoreSummary({ evaluation, rankLabels, onOverallRankCh
           border: `1px solid ${highlightMissing && missingOverallRank ? '#ff4d4f' : OVERALL_COLOR.accent}`,
           background: highlightMissing && missingOverallRank ? '#fff1f0' : OVERALL_COLOR.tint,
         }}>
-          <div style={{ fontSize: 13, color: '#6b7280', marginBottom: 6 }}>Overall Score</div>
+          <div style={{ fontSize: 13, color: '#6b7280', marginBottom: 6 }}>{t('evalDisplay.overallScore')}</div>
           {onOverallRankChange ? (
             <Select
-              style={{ width: 280 }} placeholder="Select overall rank" value={evaluation.headOverallRank}
+              style={{ width: 280 }} placeholder={t('evalDisplay.selectOverallRankPlaceholder')} value={evaluation.headOverallRank}
               status={highlightMissing && missingOverallRank ? 'error' : undefined}
               options={[1, 2, 3, 4, 5].map((r) => ({ value: r, label: rankLabelText(rankLabels, r) }))}
               onChange={onOverallRankChange}
             />
           ) : (
             <div style={{ fontSize: 22, fontWeight: 700, color: evaluation.headOverallRank ? OVERALL_COLOR.accent : '#9ca3af' }}>
-              {evaluation.headOverallRank ? rankLabelText(rankLabels, evaluation.headOverallRank) : 'Not yet rated'}
+              {evaluation.headOverallRank ? rankLabelText(rankLabels, evaluation.headOverallRank) : t('annualEval.notYetRated')}
             </div>
           )}
         </div>
@@ -417,6 +426,7 @@ export function EvaluationScoreSummary({ evaluation, rankLabels, onOverallRankCh
 // Admin-set 3-level rubric for a criteria (Unsatisfactory / Meets / Exceeds Expectations),
 // shown as reference while the head gives the 1-5 rank.
 export function RubricPopover({ criteria }) {
+  const { t } = useTranslation()
   const hasRubric = criteria.rubricUnsatisfactory || criteria.rubricMeetsExpectations || criteria.rubricExceedsExpectations
   if (!hasRubric) {
     return <span>{criteria.criteriaName}</span>
@@ -428,9 +438,9 @@ export function RubricPopover({ criteria }) {
       overlayStyle={{ maxWidth: 480 }}
       content={
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <div><strong>Unsatisfactory:</strong> {criteria.rubricUnsatisfactory || '—'}</div>
-          <div><strong>Meets Expectations:</strong> {criteria.rubricMeetsExpectations || '—'}</div>
-          <div><strong>Exceeds Expectations:</strong> {criteria.rubricExceedsExpectations || '—'}</div>
+          <div><strong>{t('evalDisplay.rubricUnsatisfactory')}:</strong> {criteria.rubricUnsatisfactory || '—'}</div>
+          <div><strong>{t('evalDisplay.rubricMeets')}:</strong> {criteria.rubricMeetsExpectations || '—'}</div>
+          <div><strong>{t('evalDisplay.rubricExceeds')}:</strong> {criteria.rubricExceedsExpectations || '—'}</div>
         </div>
       }
     >
@@ -443,10 +453,10 @@ export function RubricPopover({ criteria }) {
 
 const ASSISTANT_NEUTRAL_COLOR = { accent: '#595959', tint: '#fafafa' }
 
-const RUBRIC_COLUMNS = [
-  { key: 'left', label: 'Below Expectations (1 pt/word)', weight: 1, tint: '#fff1f0', selected: '#ffa39e' },
-  { key: 'center', label: 'Meets Expectations (3 pts/word)', weight: 3, tint: '#feffe6', selected: '#fff566' },
-  { key: 'right', label: 'Exceeds Expectations (5 pts/word)', weight: 5, tint: '#f6ffed', selected: '#95de64' },
+const RUBRIC_COLUMN_META = [
+  { key: 'left', labelKey: 'evalDisplay.rubricColBelow', weight: 1, tint: '#fff1f0', selected: '#ffa39e' },
+  { key: 'center', labelKey: 'evalDisplay.rubricColMeets', weight: 3, tint: '#feffe6', selected: '#fff566' },
+  { key: 'right', labelKey: 'evalDisplay.rubricColExceeds', weight: 5, tint: '#f6ffed', selected: '#95de64' },
 ]
 
 function tokenize(text) {
@@ -463,6 +473,7 @@ function tokenize(text) {
  * a different device, not just the current browser session.
  */
 export function RatingAssistantModal({ open, onClose, evaluationId, targetType, targetId, title, rubric, entries, onApplyToRank }) {
+  const { t } = useTranslation()
   const qc = useQueryClient()
   const [selected, setSelected] = useState(new Set())
   const [history, setHistory] = useState([])
@@ -554,7 +565,7 @@ export function RatingAssistantModal({ open, onClose, evaluationId, targetType, 
     if (selected.size === 0) return null
     let sum = 0
     for (const key of selected) {
-      const col = RUBRIC_COLUMNS.find((c) => key.startsWith(c.key + '-'))
+      const col = RUBRIC_COLUMN_META.find((c) => key.startsWith(c.key + '-'))
       sum += col.weight
     }
     return sum / selected.size
@@ -564,48 +575,47 @@ export function RatingAssistantModal({ open, onClose, evaluationId, targetType, 
 
   return (
     <Modal
-      title={`Rating Assistant -- ${title || ''}`} open={open} onCancel={onClose} width={900} destroyOnClose
+      title={t('evalDisplay.ratingAssistantTitle', { title: title || '' })} open={open} onCancel={onClose} width={900} destroyOnClose
       style={{ top: 12 }}
       styles={{ body: { maxHeight: 'max(160px, calc(100vh - 380px))', overflowY: 'auto', paddingRight: 8 } }}
       footer={
         <div style={{ textAlign: 'left' }}>
           <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'center', gap: 8, marginBottom: 8 }}>
-            <Text type="secondary" style={{ fontSize: 12 }}>Suggested Score:</Text>
+            <Text type="secondary" style={{ fontSize: 12 }}>{t('evalDisplay.suggestedScore')}</Text>
             <Text strong style={{ fontSize: 28, color: '#cf1322', lineHeight: 1 }}>
               {average !== null ? average.toFixed(1) : '—'}
             </Text>
           </div>
           <Alert type="warning" showIcon style={{ marginBottom: 12 }}
-            message="This score is generated to help the evaluator assess the evaluation level of this criterion/goal, and may not necessarily reflect the score the employee would or should get." />
+            message={t('evalDisplay.suggestedScoreDisclaimer')} />
           <Space style={{ display: 'flex', justifyContent: 'flex-end' }}>
-            <Button onClick={clearLast} disabled={history.length === 0}>Clear Last Selection</Button>
-            <Button onClick={clearAll} disabled={selected.size === 0}>Clear All</Button>
+            <Button onClick={clearLast} disabled={history.length === 0}>{t('evalDisplay.clearLastSelection')}</Button>
+            <Button onClick={clearAll} disabled={selected.size === 0}>{t('evalDisplay.clearAll')}</Button>
             {onApplyToRank && (
               <Button type="primary" disabled={roundedScore === null} onClick={() => onApplyToRank(roundedScore)}>
-                Apply {roundedScore ?? ''} to Rank
+                {t('evalDisplay.applyToRank', { score: roundedScore ?? '' })}
               </Button>
             )}
-            <Button onClick={onClose}>Close</Button>
+            <Button onClick={onClose}>{t('evalDisplay.closeButton')}</Button>
           </Space>
         </div>
       }
     >
-      <Text strong style={{ display: 'block', marginBottom: 4 }}>Achievement Summary</Text>
-      <AchievementList entries={entries || []} emptyText="No achievements tagged" color={ASSISTANT_NEUTRAL_COLOR} />
+      <Text strong style={{ display: 'block', marginBottom: 4 }}>{t('evalDisplay.achievementSummary')}</Text>
+      <AchievementList entries={entries || []} emptyText={t('evalDisplay.noAchievementsTagged')} color={ASSISTANT_NEUTRAL_COLOR} />
 
       <Text type="secondary" style={{ display: 'block', margin: '12px 0' }}>
-        Click the words in the rubric columns below that best describe the achievement level shown above. Skip
-        words that don't carry meaning (prepositions, articles, etc.) -- they shouldn't affect the score.
+        {t('evalDisplay.clickRubricWordsHint')}
       </Text>
 
       <Row gutter={12}>
-        {RUBRIC_COLUMNS.map((col) => (
+        {RUBRIC_COLUMN_META.map((col) => (
           <Col span={8} key={col.key}>
             <div style={{ background: col.tint, borderRadius: 6, padding: 10, minHeight: 100 }}>
-              <Text strong style={{ display: 'block', marginBottom: 8, fontSize: 12 }}>{col.label}</Text>
+              <Text strong style={{ display: 'block', marginBottom: 8, fontSize: 12 }}>{t(col.labelKey)}</Text>
               <div>
                 {columnTokens[col.key].length === 0 ? (
-                  <Text type="secondary" style={{ fontSize: 12, fontStyle: 'italic' }}>No rubric text</Text>
+                  <Text type="secondary" style={{ fontSize: 12, fontStyle: 'italic' }}>{t('evalDisplay.noRubricText')}</Text>
                 ) : columnTokens[col.key].map((word, idx) => {
                   const key = `${col.key}-${idx}`
                   const isSelected = selected.has(key)
@@ -635,6 +645,7 @@ export function RatingAssistantModal({ open, onClose, evaluationId, targetType, 
 // PermissionService.assertCanUseCriteriaInfoTool), so this button existing is not itself the
 // security boundary -- just keeps the employee from seeing it in the first place.
 export function CriteriaInfoToolButton({ evaluationId, criteriaId, repositorySourceType, displayName }) {
+  const { t } = useTranslation()
   const [open, setOpen] = useState(false)
   const [selectedTerms, setSelectedTerms] = useState([])
   const [details, setDetails] = useState(null)
@@ -648,7 +659,7 @@ export function CriteriaInfoToolButton({ evaluationId, criteriaId, repositorySou
   const detailsMut = useMutation({
     mutationFn: () => getInfoToolDetails(evaluationId, criteriaId, repositorySourceType, selectedTerms),
     onSuccess: (text) => setDetails(text),
-    onError: (err) => message.error(err.response?.data?.message || 'Failed to load details'),
+    onError: (err) => message.error(err.response?.data?.message || t('evalDisplay.loadDetailsFailed')),
   })
 
   return (
@@ -658,12 +669,12 @@ export function CriteriaInfoToolButton({ evaluationId, criteriaId, repositorySou
       </Button>
       <Modal title={displayName} open={open} onCancel={() => setOpen(false)} footer={null} width={640} destroyOnClose>
         {optionsLoading ? (
-          <Text type="secondary">Loading available terms…</Text>
+          <Text type="secondary">{t('evalDisplay.loadingAvailableTerms')}</Text>
         ) : options.length === 0 ? (
-          <Text type="secondary">No data available for this employee.</Text>
+          <Text type="secondary">{t('evalDisplay.noDataForEmployee')}</Text>
         ) : (
           <>
-            <Text strong style={{ display: 'block', marginBottom: 8 }}>Select term(s):</Text>
+            <Text strong style={{ display: 'block', marginBottom: 8 }}>{t('evalDisplay.selectTermsLabel')}</Text>
             <Checkbox.Group
               options={options.map((o) => ({ value: o.key, label: o.label }))}
               value={selectedTerms}
@@ -672,7 +683,7 @@ export function CriteriaInfoToolButton({ evaluationId, criteriaId, repositorySou
             />
             <Button type="primary" disabled={selectedTerms.length === 0} loading={detailsMut.isPending}
               onClick={() => detailsMut.mutate()} style={{ marginBottom: 12, background: '#13223a' }}>
-              View
+              {t('evalDisplay.viewButton')}
             </Button>
           </>
         )}
@@ -693,6 +704,7 @@ export function CriteriaInfoToolButton({ evaluationId, criteriaId, repositorySou
 export const NEXT_CYCLE_COLOR = { accent: '#c9a24b', tint: '#fffbe6' }
 
 function NextCycleGoalRubricEditor({ goal, onSave }) {
+  const { t } = useTranslation()
   const [u, setU] = useState(goal.rubricUnsatisfactory || '')
   const [m, setM] = useState(goal.rubricMeetsExpectations || '')
   const [x, setX] = useState(goal.rubricExceedsExpectations || '')
@@ -706,12 +718,12 @@ function NextCycleGoalRubricEditor({ goal, onSave }) {
 
   return (
     <div style={{ marginTop: 8 }}>
-      <Text strong style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>3-Level Rubric</Text>
-      <Input.TextArea rows={2} value={u} placeholder="Unsatisfactory"
+      <Text strong style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>{t('evalDisplay.threeLevelRubric')}</Text>
+      <Input.TextArea rows={2} value={u} placeholder={t('evalDisplay.rubricUnsatisfactory')}
         onChange={(e) => setU(e.target.value)} onBlur={save} style={{ marginBottom: 4 }} />
-      <Input.TextArea rows={2} value={m} placeholder="Meets Expectations"
+      <Input.TextArea rows={2} value={m} placeholder={t('evalDisplay.rubricMeets')}
         onChange={(e) => setM(e.target.value)} onBlur={save} style={{ marginBottom: 4 }} />
-      <Input.TextArea rows={2} value={x} placeholder="Exceeds Expectations"
+      <Input.TextArea rows={2} value={x} placeholder={t('evalDisplay.rubricExceeds')}
         onChange={(e) => setX(e.target.value)} onBlur={save} />
     </div>
   )
@@ -741,6 +753,7 @@ function buildDefaultNextCycleNotes(evaluation) {
 // before they may sign or refuse the evaluation as a whole). Manages its own data/mutations so
 // every call site just needs to pass evaluationId + the two edit-window booleans.
 export function NextCycleGoalsSection({ evaluationId, evaluation, canHeadEdit, canEmployeeReview, onAfterMutate }) {
+  const { t } = useTranslation()
   const qc = useQueryClient()
   const [addOpen, setAddOpen] = useState(false)
   const [addForm] = Form.useForm()
@@ -825,25 +838,25 @@ export function NextCycleGoalsSection({ evaluationId, evaluation, canHeadEdit, c
   }
 
   return (
-    <Card type="inner" title="Next Cycle Goals"
+    <Card type="inner" title={t('evalDisplay.nextCycleGoals')}
       style={{ marginBottom: 16, borderTop: `4px solid ${NEXT_CYCLE_COLOR.accent}` }}
       styles={{ header: { background: NEXT_CYCLE_COLOR.tint } }}
     >
       {canHeadEdit && (
-        <Card size="small" title="Strengths & Areas for Improvement" style={{ marginBottom: 16 }}>
+        <Card size="small" title={t('evalDisplay.strengthsAndAreasForImprovement')} style={{ marginBottom: 16 }}>
           <Form form={notesForm} layout="vertical"
             initialValues={{ strengths: evaluation?.nextCycleNotesStrengths, weaknesses: evaluation?.nextCycleNotesWeaknesses }}>
-            <Form.Item label="Strengths" name="strengths">
-              <Input.TextArea autoSize={{ minRows: 4, maxRows: 16 }} placeholder="Note strengths to build upon"
+            <Form.Item label={t('evalDisplay.strengths')} name="strengths">
+              <Input.TextArea autoSize={{ minRows: 4, maxRows: 16 }} placeholder={t('evalDisplay.noteStrengthsPlaceholder')}
                 onBlur={() => notesMut.mutate(notesForm.getFieldsValue())} />
             </Form.Item>
-            <Form.Item label="Areas for Improvement" name="weaknesses">
-              <Input.TextArea autoSize={{ minRows: 4, maxRows: 16 }} placeholder="Note areas where the employee can grow (AI will suggest goals from this)"
+            <Form.Item label={t('evalDisplay.areasForImprovement')} name="weaknesses">
+              <Input.TextArea autoSize={{ minRows: 4, maxRows: 16 }} placeholder={t('evalDisplay.noteAreasPlaceholder')}
                 onBlur={() => notesMut.mutate(notesForm.getFieldsValue())} />
             </Form.Item>
             {!generating && !evaluation?.nextCycleGenerationFailureReason && (
               <Button icon={<BulbOutlined />} loading={generateMut.isPending} onClick={() => generateMut.mutate()}>
-                Generate AI Suggestions
+                {t('evalDisplay.generateAiSuggestions')}
               </Button>
             )}
           </Form>
@@ -851,14 +864,14 @@ export function NextCycleGoalsSection({ evaluationId, evaluation, canHeadEdit, c
             <div style={{ marginTop: 12 }}>
               {evaluation?.nextCycleGenerationFailureReason ? (
                 <Alert type="error" showIcon style={{ marginBottom: 8 }}
-                  message="AI generation failed" description={evaluation.nextCycleGenerationFailureReason} />
+                  message={t('evalDisplay.aiGenerationFailed')} description={evaluation.nextCycleGenerationFailureReason} />
               ) : (
                 <div style={{ color: '#6b7280', marginBottom: 8 }}>
-                  AI is generating suggested goals in the background. This page checks automatically and will show them once ready.
+                  {t('evalDisplay.generatingGoalsBackgroundHint')}
                 </div>
               )}
               <Button loading={generateMut.isPending} onClick={() => generateMut.mutate()}>
-                {evaluation?.nextCycleGenerationFailureReason ? 'Retry Generation' : 'Cancel & Retry Generation'}
+                {evaluation?.nextCycleGenerationFailureReason ? t('swot.retryGeneration') : t('swot.cancelRetryGeneration')}
               </Button>
             </div>
           )}
@@ -866,7 +879,7 @@ export function NextCycleGoalsSection({ evaluationId, evaluation, canHeadEdit, c
       )}
 
       {isLoading ? null : goals.length === 0 ? (
-        <Empty description="No next cycle goals yet" />
+        <Empty description={t('evalDisplay.noNextCycleGoalsYet')} />
       ) : (
         goals.map((g) => (
           <Card key={g.id} size="small" style={{ marginBottom: 12 }}
@@ -876,13 +889,13 @@ export function NextCycleGoalsSection({ evaluationId, evaluation, canHeadEdit, c
             )}
           >
             <Paragraph type="secondary" style={{ marginBottom: 4 }}>{g.suggestedDescription}</Paragraph>
-            {g.rationale && <Paragraph type="secondary" style={{ fontSize: 12, marginBottom: 0 }}>Rationale: {g.rationale}</Paragraph>}
+            {g.rationale && <Paragraph type="secondary" style={{ fontSize: 12, marginBottom: 0 }}>{t('evalDisplay.rationaleLabel', { rationale: g.rationale })}</Paragraph>}
             {canHeadEdit ? (
               <NextCycleGoalRubricEditor goal={g} onSave={(payload) => rubricMut.mutate({ goalId: g.id, payload })} />
             ) : (g.rubricUnsatisfactory || g.rubricMeetsExpectations || g.rubricExceedsExpectations) && (
               <div style={{ marginTop: 8 }}>
                 <RubricPopover criteria={{
-                  criteriaName: 'View 3-level rubric',
+                  criteriaName: t('evalDisplay.viewThreeLevelRubric'),
                   rubricUnsatisfactory: g.rubricUnsatisfactory,
                   rubricMeetsExpectations: g.rubricMeetsExpectations,
                   rubricExceedsExpectations: g.rubricExceedsExpectations,
@@ -891,7 +904,7 @@ export function NextCycleGoalsSection({ evaluationId, evaluation, canHeadEdit, c
             )}
             <Row gutter={16} style={{ marginTop: 10 }}>
               <Col span={12}>
-                <Text strong style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>Head Review</Text>
+                <Text strong style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>{t('evalDisplay.headReview')}</Text>
                 {canHeadEdit ? (
                   <ReviewControl targetType="NEXT_CYCLE_GOAL_LEADER" targetId={g.id}
                     defaultTitle={g.suggestedTitle} defaultDescription={g.suggestedDescription}
@@ -899,11 +912,11 @@ export function NextCycleGoalsSection({ evaluationId, evaluation, canHeadEdit, c
                     onSave={(_t, _id, payload) => leaderReviewMut.mutate({ goalId: g.id, payload })}
                   />
                 ) : (
-                  <Tag color={g.leaderActionType ? 'blue' : 'default'}>{g.leaderActionType || 'Not yet reviewed'}</Tag>
+                  <Tag color={g.leaderActionType ? 'blue' : 'default'}>{g.leaderActionType || t('evalDisplay.notYetReviewed')}</Tag>
                 )}
               </Col>
               <Col span={12}>
-                <Text strong style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>Employee Review</Text>
+                <Text strong style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>{t('evalDisplay.employeeReview')}</Text>
                 {canEmployeeReview ? (
                   <ReviewControl targetType="NEXT_CYCLE_GOAL_EMPLOYEE" targetId={g.id}
                     defaultTitle={g.leaderEditedTitle || g.suggestedTitle} defaultDescription={g.leaderEditedDescription || g.suggestedDescription}
@@ -911,7 +924,7 @@ export function NextCycleGoalsSection({ evaluationId, evaluation, canHeadEdit, c
                     onSave={(_t, _id, payload) => employeeReviewMut.mutate({ goalId: g.id, payload })}
                   />
                 ) : (
-                  <Tag color={g.employeeActionType ? 'blue' : 'default'}>{g.employeeActionType || 'Not yet reviewed'}</Tag>
+                  <Tag color={g.employeeActionType ? 'blue' : 'default'}>{g.employeeActionType || t('evalDisplay.notYetReviewed')}</Tag>
                 )}
               </Col>
             </Row>
@@ -921,26 +934,26 @@ export function NextCycleGoalsSection({ evaluationId, evaluation, canHeadEdit, c
 
       {canHeadEdit && (
         <>
-          <Button type="dashed" icon={<PlusOutlined />} onClick={() => setAddOpen(true)}>Add a New Goal</Button>
-          <Modal title="Add a Next Cycle Goal" open={addOpen} onCancel={() => setAddOpen(false)} destroyOnClose
+          <Button type="dashed" icon={<PlusOutlined />} onClick={() => setAddOpen(true)}>{t('evalDisplay.addNewGoal')}</Button>
+          <Modal title={t('evalDisplay.addNextCycleGoalTitle')} open={addOpen} onCancel={() => setAddOpen(false)} destroyOnClose
             onOk={() => addForm.submit()} confirmLoading={addMut.isPending}>
             <Form form={addForm} layout="vertical" onFinish={(values) => addMut.mutate(values)}>
-              <Form.Item label="Category" name="categoryId" rules={[{ required: true }]}>
-                <Select options={categories.map((c) => ({ value: c.id, label: c.categoryName }))} placeholder="Select category" />
+              <Form.Item label={t('evalDisplay.categoryLabel')} name="categoryId" rules={[{ required: true }]}>
+                <Select options={categories.map((c) => ({ value: c.id, label: c.categoryName }))} placeholder={t('achievementModal.selectCategoryPlaceholder')} />
               </Form.Item>
-              <Form.Item label="Goal Title" name="title" rules={[{ required: true }]}>
-                <Input placeholder="e.g., Develop advanced statistical analysis skills" />
+              <Form.Item label={t('evalDisplay.goalTitleFieldLabel')} name="title" rules={[{ required: true }]}>
+                <Input placeholder={t('evalDisplay.goalTitleExamplePlaceholder')} />
               </Form.Item>
-              <Form.Item label="Description" name="description">
+              <Form.Item label={t('common.description')} name="description">
                 <Input.TextArea rows={3} />
               </Form.Item>
-              <Form.Item label="Rubric — Unsatisfactory (1)" name="rubricUnsatisfactory">
+              <Form.Item label={t('evalDisplay.rubricUnsatisfactoryFieldLabel')} name="rubricUnsatisfactory">
                 <Input.TextArea rows={2} />
               </Form.Item>
-              <Form.Item label="Rubric — Meets Expectations (3)" name="rubricMeetsExpectations">
+              <Form.Item label={t('evalDisplay.rubricMeetsFieldLabel')} name="rubricMeetsExpectations">
                 <Input.TextArea rows={2} />
               </Form.Item>
-              <Form.Item label="Rubric — Exceeds Expectations (5)" name="rubricExceedsExpectations">
+              <Form.Item label={t('evalDisplay.rubricExceedsFieldLabel')} name="rubricExceedsExpectations">
                 <Input.TextArea rows={2} />
               </Form.Item>
             </Form>
@@ -990,6 +1003,7 @@ export function formatDuration(startIso, endIso) {
 export function TeachingEvaluationsModal({
   evaluationId, evaluation, criteriaId, buttonLabel, onAfterSave, limitReached, maxAchievementsPerYear,
 }) {
+  const { t } = useTranslation()
   const { defaultHeadTitleLabel, academicYearLabel } = useTerminology()
   const [open, setOpen] = useState(false)
   const [fileList, setFileList] = useState([])
@@ -1029,29 +1043,29 @@ export function TeachingEvaluationsModal({
   })
   const uploadMut = useMutation({
     mutationFn: (files) => uploadTeachingEvaluationFiles(evaluationId, session.id, files),
-    onSuccess: () => { invalidateSession(); setFileList([]); message.success('Files processed') },
-    onError: (err) => message.error(err.response?.data?.message || 'Could not process files'),
+    onSuccess: () => { invalidateSession(); setFileList([]); message.success(t('evalDisplay.filesProcessed')) },
+    onError: (err) => message.error(err.response?.data?.message || t('evalDisplay.couldNotProcessFiles')),
   })
   const generateMut = useMutation({
     mutationFn: () => generateTeachingEvaluationDraft(evaluationId, session.id),
-    onSuccess: () => { message.success('Generating draft -- this can take a minute or two'); invalidateSession() },
-    onError: (err) => message.error(err.response?.data?.message || 'Could not start generation'),
+    onSuccess: () => { message.success(t('evalDisplay.generatingDraftHint')); invalidateSession() },
+    onError: (err) => message.error(err.response?.data?.message || t('evalDisplay.couldNotStartGeneration')),
   })
   const finalizeMut = useMutation({
     mutationFn: (values) => finalizeTeachingEvaluationAchievement(evaluationId, session.id, values),
     onSuccess: () => {
-      message.success('Achievement recorded')
+      message.success(t('achievementModal.recordedSuccess'))
       setOpen(false)
       form.resetFields()
       setFileList([])
       onAfterSave?.()
     },
-    onError: (err) => message.error(err.response?.data?.message || 'Could not save achievement'),
+    onError: (err) => message.error(err.response?.data?.message || t('evalDisplay.couldNotSaveAchievement')),
   })
   const startOverMut = useMutation({
     mutationFn: () => deleteTeachingEvaluationSession(evaluationId, session.id),
     onSuccess: () => { setOpen(false); form.resetFields(); setFileList([]) },
-    onError: (err) => message.error(err.response?.data?.message || 'Could not reset'),
+    onError: (err) => message.error(err.response?.data?.message || t('evalDisplay.couldNotReset')),
   })
 
   const generating = !!session?.generationRequestedAt && !session?.generationFailureReason
@@ -1092,7 +1106,7 @@ export function TeachingEvaluationsModal({
       <Button
         icon={<BulbOutlined />} disabled={limitReached} onClick={() => setOpen(true)}
         title={limitReached
-          ? `You've already recorded the maximum of ${maxAchievementsPerYear} achievement${maxAchievementsPerYear === 1 ? '' : 's'} for this criterion this ${academicYearLabel.toLowerCase()}`
+          ? t('evalDisplay.maxAchievementsReached', { max: maxAchievementsPerYear, yearLabel: academicYearLabel.toLowerCase() })
           : undefined}
       >
         {buttonLabel}
@@ -1104,26 +1118,26 @@ export function TeachingEvaluationsModal({
         destroyOnClose
         width={720}
         footer={[
-          <Popconfirm key="reset" title="Start over?" description="This clears any uploaded files and draft for this criterion."
+          <Popconfirm key="reset" title={t('evalDisplay.startOverConfirmTitle')} description={t('evalDisplay.startOverConfirmDescription')}
             onConfirm={() => startOverMut.mutate()}>
-            <Button danger loading={startOverMut.isPending}>Start Over</Button>
+            <Button danger loading={startOverMut.isPending}>{t('evalDisplay.startOverButton')}</Button>
           </Popconfirm>,
-          <Button key="cancel" onClick={() => setOpen(false)}>Cancel</Button>,
+          <Button key="cancel" onClick={() => setOpen(false)}>{t('common.cancel')}</Button>,
           <Button key="save" type="primary" disabled={!hasReadyDraft} loading={finalizeMut.isPending} onClick={() => form.submit()}
-            title={!hasReadyDraft ? 'Generate the AI draft (Step 2) before you can save' : undefined}>
-            Save Achievement
+            title={!hasReadyDraft ? t('evalDisplay.generateDraftBeforeSave') : undefined}>
+            {t('evalDisplay.saveAchievementButton')}
           </Button>,
         ]}
       >
         {session && (
           <>
             <Alert type="info" showIcon style={{ marginBottom: 16 }}
-              message="You can close this window any time and come back later"
-              description="Your uploaded files and generated draft are saved on the server -- you don't need to wait here while the AI works. Reopen this same criterion later and pick up where you left off; the Save Achievement button unlocks once your draft is ready." />
+              message={t('evalDisplay.closeWindowAnytimeTitle')}
+              description={t('evalDisplay.closeWindowAnytimeDescription')} />
 
-            <Card size="small" title="1. Upload Your Course Evaluations" style={{ marginBottom: 16 }}>
+            <Card size="small" title={t('evalDisplay.step1UploadTitle')} style={{ marginBottom: 16 }}>
               <Input
-                placeholder="Local folder path (a reference note for you only -- never read by the system)"
+                placeholder={t('evalDisplay.localFolderPlaceholder')}
                 defaultValue={session.localFolderNote}
                 onBlur={(e) => noteMut.mutate(e.target.value)}
                 style={{ marginBottom: 8 }}
@@ -1133,62 +1147,59 @@ export function TeachingEvaluationsModal({
                 fileList={fileList}
                 onChange={({ fileList: fl }) => setFileList(fl)}
               >
-                <Button icon={<UploadOutlined />}>Select Files (.pdf, .docx, .txt)</Button>
+                <Button icon={<UploadOutlined />}>{t('evalDisplay.selectFilesButton')}</Button>
               </Upload>
               <Button
                 style={{ marginTop: 8 }} disabled={fileList.length === 0} loading={uploadMut.isPending}
                 onClick={() => uploadMut.mutate(fileList.map((f) => f.originFileObj).filter(Boolean))}
               >
-                Upload &amp; Extract Text
+                {t('evalDisplay.uploadExtractTextButton')}
               </Button>
               {session.uploadedFileNames && (
                 <Paragraph type="secondary" style={{ marginTop: 8, marginBottom: 0, fontSize: 12 }}>
-                  Processed so far: {session.uploadedFileNames}
+                  {t('evalDisplay.processedSoFar', { names: session.uploadedFileNames })}
                 </Paragraph>
               )}
             </Card>
 
-            <Card size="small" title="2. Generate AI Draft (required before saving)" style={{ marginBottom: 16 }}>
+            <Card size="small" title={t('evalDisplay.step2GenerateTitle')} style={{ marginBottom: 16 }}>
               {!generating && !session.generationFailureReason && (
                 <Button icon={<BulbOutlined />} disabled={!session.uploadedFileNames} loading={generateMut.isPending}
                   onClick={() => generateMut.mutate()}>
-                  {hasReadyDraft ? 'Regenerate AI Draft' : 'Generate AI Draft'}
+                  {hasReadyDraft ? t('evalDisplay.regenerateAiDraft') : t('evalDisplay.generateAiDraft')}
                 </Button>
               )}
               {(generating || session.generationFailureReason) && (
                 <div>
                   {session.generationFailureReason ? (
                     <Alert type="error" showIcon style={{ marginBottom: 8 }}
-                      message="AI generation failed" description={session.generationFailureReason} />
+                      message={t('evalDisplay.aiGenerationFailed')} description={session.generationFailureReason} />
                   ) : (
                     <div style={{ color: '#6b7280', marginBottom: 8 }}>
-                      AI is drafting from your uploaded files -- it's safe to close this window and come back later.
-                      This checks automatically and will show the draft once ready.
+                      {t('evalDisplay.draftingFromFilesHint')}
                       {session.generationRequestedAt && (
                         <>
-                          {' '}Submitted at {new Date(session.generationRequestedAt).toLocaleTimeString()}
-                          {' — '}{formatElapsed(session.generationRequestedAt)} elapsed.
+                          {' '}{t('swot.submittedAt', { time: new Date(session.generationRequestedAt).toLocaleTimeString() })}
+                          {' — '}{t('evalDisplay.elapsedSuffix', { elapsed: formatElapsed(session.generationRequestedAt) })}
                         </>
                       )}
                     </div>
                   )}
                   <Button loading={generateMut.isPending} onClick={() => generateMut.mutate()}>
-                    {session.generationFailureReason ? 'Retry Generation' : 'Cancel & Retry Generation'}
+                    {session.generationFailureReason ? t('swot.retryGeneration') : t('swot.cancelRetryGeneration')}
                   </Button>
                 </div>
               )}
             </Card>
 
-            <Card size="small" title="3. Review &amp; Save">
+            <Card size="small" title={t('evalDisplay.step3ReviewSaveTitle')}>
               {hasReadyDraft ? (
                 <div style={{ marginBottom: 16 }}>
-                  <Text strong style={{ display: 'block', marginBottom: 4 }}>Generated AI Review</Text>
+                  <Text strong style={{ display: 'block', marginBottom: 4 }}>{t('evalDisplay.generatedAiReview')}</Text>
                   <Text type="secondary" style={{ display: 'block', fontSize: 12, marginBottom: 6 }}>
-                    This becomes part of the permanent record and can't be edited -- if something's wrong, upload
-                    corrected files and regenerate above.
+                    {t('evalDisplay.permanentRecordHint')}
                     {session.generationRequestedAt && session.generatedAt && (
-                      <> Generated in {formatDuration(session.generationRequestedAt, session.generatedAt)}
-                        {' '}(ready at {new Date(session.generatedAt).toLocaleTimeString()}).</>
+                      <> {t('evalDisplay.generatedInDuration', { duration: formatDuration(session.generationRequestedAt, session.generatedAt), time: new Date(session.generatedAt).toLocaleTimeString() })}</>
                     )}
                   </Text>
                   <div style={{
@@ -1200,30 +1211,30 @@ export function TeachingEvaluationsModal({
                 </div>
               ) : (
                 <Alert type="warning" showIcon style={{ marginBottom: 16 }}
-                  message="Generate the AI draft above (Step 2) before you can review and save this achievement." />
+                  message={t('evalDisplay.generateDraftBeforeReview')} />
               )}
               <Form form={form} layout="vertical" onFinish={(values) => finalizeMut.mutate(values)}>
-                <Form.Item name="title" label="Title" rules={[{ required: true }]}>
+                <Form.Item name="title" label={t('common.title')} rules={[{ required: true }]}>
                   <Input disabled />
                 </Form.Item>
-                <Form.Item name="achievementTypeId" label="Type" rules={[{ required: true }]}>
-                  <Select disabled options={achievementTypes.map((t) => ({ value: t.id, label: t.name }))} />
+                <Form.Item name="achievementTypeId" label={t('common.type')} rules={[{ required: true }]}>
+                  <Select disabled options={achievementTypes.map((at) => ({ value: at.id, label: at.name }))} />
                 </Form.Item>
-                <Form.Item name="reflection" label="Your Reflection" rules={[{ required: true, message: 'Add your reflection before saving' }]}
-                  extra="Your own comments on these student evaluations and on the AI-generated review above.">
+                <Form.Item name="reflection" label={t('evalDisplay.yourReflectionLabel')} rules={[{ required: true, message: t('evalDisplay.addReflectionRequired') }]}
+                  extra={t('evalDisplay.reflectionHint')}>
                   <Input.TextArea rows={4} />
                 </Form.Item>
-                <Form.Item name="privateNotes" label="Private Notes" extra="Only visible to you">
+                <Form.Item name="privateNotes" label={t('achievementModal.privateNotesLabel')} extra={t('achievementModal.onlyVisibleToYou')}>
                   <Input.TextArea rows={2} />
                 </Form.Item>
-                <Form.Item name="goalId" label="Related Annual Goal (Optional)">
-                  <Select allowClear placeholder="None" options={myGoals.map((g) => ({ value: g.id, label: g.goalTitle }))} />
+                <Form.Item name="goalId" label={t('achievementModal.relatedGoalLabel')}>
+                  <Select allowClear placeholder={t('tree.selectNone')} options={myGoals.map((g) => ({ value: g.id, label: g.goalTitle }))} />
                 </Form.Item>
-                <Form.Item name="categoryRating" label="Self-Assessment Rating (Optional)">
+                <Form.Item name="categoryRating" label={t('achievementModal.selfAssessmentRatingLabel')}>
                   <Rate />
                 </Form.Item>
-                <Form.Item name="evidenceUrl" label="Evidence/Link" rules={[{ required: true, message: 'Evidence/Link is required' }]}
-                  extra={`Upload ALL your course evaluation files for this ${academicYearLabel.toLowerCase()} to your own cloud storage (Google Drive, OneDrive, etc.), make sure it is open to your ${(evaluation?.headTitle ?? defaultHeadTitleLabel).toLowerCase()}, and paste that link here.`}>
+                <Form.Item name="evidenceUrl" label={t('achievementModal.evidenceLinkLabel')} rules={[{ required: true, message: t('achievementModal.evidenceRequired') }]}
+                  extra={t('evalDisplay.uploadAllFilesHint', { yearLabel: academicYearLabel.toLowerCase(), headTitle: (evaluation?.headTitle ?? defaultHeadTitleLabel).toLowerCase() })}>
                   <Input placeholder="https://..." />
                 </Form.Item>
               </Form>

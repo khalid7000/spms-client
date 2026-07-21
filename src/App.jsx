@@ -41,6 +41,8 @@ import TeamEvaluationsPage from './pages/member/TeamEvaluationsPage'
 import OrgEvaluationsPage from './pages/member/OrgEvaluationsPage'
 import StrategyCreationConsolePage from './pages/member/StrategyCreationConsolePage'
 
+import PlatformApp from './platform/PlatformApp'
+
 function RootRedirect() {
   const { user } = useAuth()
   if (!user) return <Navigate to="/login" replace />
@@ -50,7 +52,16 @@ function RootRedirect() {
 export default function App() {
   return (
     <Routes>
+      {/* Fully separate identity space from everything below -- its own auth context, own
+          token storage, own layout. Registered above the catch-all so it never falls through
+          to the tenant app's "*" -> "/" redirect. */}
+      <Route path="/console/*" element={<PlatformApp />} />
+
       <Route path="/login" element={<LoginPage />} />
+      {/* Tenant-specific login -- see TenantResolutionFilter's javadoc for why the plain
+          /login above only ever resolves the default org's schema. Any org other than the
+          deployment's designated default one needs its users to land here instead. */}
+      <Route path="/:slug/login" element={<LoginPage />} />
 
       {/* Must be inside ProtectedRoute so unauthenticated users can't reach it,
           but ProtectedRoute skips the mustChangePassword check for this path */}
