@@ -12,7 +12,9 @@ import './styles/index.css'
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
-    <BrowserRouter>
+    {/* Vite's own `base` config wants a trailing slash; React Router's `basename` convention
+        does not -- both are driven by the same VITE_BASE_PATH value, so normalize it here. */}
+    <BrowserRouter basename={(import.meta.env.VITE_BASE_PATH || '/').replace(/\/$/, '') || '/'}>
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
           <LanguageProvider>

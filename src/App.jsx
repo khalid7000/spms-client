@@ -1,6 +1,10 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
+import { Spin } from 'antd'
+import { useQuery } from '@tanstack/react-query'
 import { useAuth } from './auth/AuthContext'
 import { ProtectedRoute } from './auth/ProtectedRoute'
+import { getDashboard } from './api/dashboard'
+import { getMyVsmDashboard } from './api/vsmTasks'
 
 import LoginPage from './pages/LoginPage'
 import ChangePasswordPage from './pages/ChangePasswordPage'
@@ -40,12 +44,48 @@ import AnnualEvaluationPage from './pages/member/AnnualEvaluationPage'
 import TeamEvaluationsPage from './pages/member/TeamEvaluationsPage'
 import OrgEvaluationsPage from './pages/member/OrgEvaluationsPage'
 import StrategyCreationConsolePage from './pages/member/StrategyCreationConsolePage'
+import VsmMapListPage from './pages/member/vsm/VsmMapListPage'
+import VsmCanvasPage from './pages/member/vsm/VsmCanvasPage'
+import VsmMapBoardPage from './pages/member/vsm/VsmMapBoardPage'
+import VsmDepartmentBoardPage from './pages/member/vsm/VsmDepartmentBoardPage'
+import VsmAuthorGrantApprovalsPage from './pages/member/vsm/VsmAuthorGrantApprovalsPage'
+import VsmAnalyticsPage from './pages/member/vsm/VsmAnalyticsPage'
+import VsmTaskDetailPage from './pages/member/vsm/VsmTaskDetailPage'
+import VsmAuthorGrantsAdminPage from './pages/admin/VsmAuthorGrantsAdminPage'
+import ApprovalDelegationConsolePage from './pages/member/ApprovalDelegationConsolePage'
 
 import PlatformApp from './platform/PlatformApp'
 
 function RootRedirect() {
   const { user } = useAuth()
+  const isAdmin = user?.systemRoles?.includes('ADMIN')
+  // Everyone lands on the central "My Tasks" dashboard by default -- except a pure Admin with zero
+  // strategy involvement and zero VSM activity (nothing to pull, nothing already in flight), who
+  // has nothing useful to see there and goes straight to the Admin Dashboard instead. Only admins
+  // pay the cost of this extra check; everyone else redirects immediately.
+  const { data: strategies, isLoading: loadingStrategies } = useQuery({
+    queryKey: ['dashboard'], queryFn: getDashboard, enabled: !!user && isAdmin,
+  })
+  const { data: vsmDash, isLoading: loadingVsm } = useQuery({
+    queryKey: ['my-vsm-dashboard'], queryFn: getMyVsmDashboard, enabled: !!user && isAdmin,
+  })
+
   if (!user) return <Navigate to="/login" replace />
+  if (!isAdmin) return <Navigate to="/dashboard" replace />
+
+  if (loadingStrategies || loadingVsm) {
+    return (
+      <div style={{ textAlign: 'center', paddingTop: 120 }}>
+        <Spin size="large" />
+      </div>
+    )
+  }
+
+  const hasStrategies = (strategies?.length ?? 0) > 0
+  const hasVsmActivity = (vsmDash?.availableToPullCount ?? 0) > 0 || (vsmDash?.myTasks?.length ?? 0) > 0
+  if (!hasStrategies && !hasVsmActivity) {
+    return <Navigate to="/admin" replace />
+  }
   return <Navigate to="/dashboard" replace />
 }
 
@@ -90,6 +130,14 @@ export default function App() {
         <Route path="dashboard" element={<MemberDashboard />} />
         <Route path="approvals" element={<ApprovalsPage />} />
         <Route path="strategy-creation" element={<StrategyCreationConsolePage />} />
+        <Route path="vsm" element={<VsmMapListPage />} />
+        <Route path="vsm/analytics" element={<VsmAnalyticsPage />} />
+        <Route path="vsm/tasks/:taskId" element={<VsmTaskDetailPage />} />
+        <Route path="vsm/:mapId" element={<VsmCanvasPage />} />
+        <Route path="vsm/:mapId/board" element={<VsmMapBoardPage />} />
+        <Route path="vsm/departments/:departmentId/board" element={<VsmDepartmentBoardPage />} />
+        <Route path="vsm-author-grant-approvals" element={<VsmAuthorGrantApprovalsPage />} />
+        <Route path="approval-delegations" element={<ApprovalDelegationConsolePage />} />
         <Route path="strategies/:strategyId" element={<StrategyDetailPage />} />
         <Route path="strategies/:strategyId/report" element={<ReportPage />} />
         <Route path="strategies/:strategyId/swot" element={<SwotLandingPage />} />
@@ -121,6 +169,7 @@ export default function App() {
         <Route path="admin/strategies/:id" element={<ProtectedRoute adminOnly><StrategyDetailAdminPage /></ProtectedRoute>} />
         <Route path="admin/audit-logs" element={<ProtectedRoute adminOnly><AuditLogPage /></ProtectedRoute>} />
         <Route path="admin/portfolio/categories" element={<ProtectedRoute adminOnly><CategoryManagementPage /></ProtectedRoute>} />
+        <Route path="admin/vsm-author-grants" element={<ProtectedRoute adminOnly><VsmAuthorGrantsAdminPage /></ProtectedRoute>} />
 
         {/* Reachable by ADMIN or HR -- unlike the rest of the admin console, which is ADMIN-only */}
         <Route path="evaluation-reports" element={<ProtectedRoute requiredRoles={['ADMIN', 'HR']}><EvaluationReportsPage /></ProtectedRoute>} />

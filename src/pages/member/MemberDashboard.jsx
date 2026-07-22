@@ -1,16 +1,117 @@
 import { useState } from 'react'
-import { Card, Row, Col, Spin, Empty, Typography, Tooltip, Button } from 'antd'
-import { TeamOutlined, BellOutlined, TrophyOutlined } from '@ant-design/icons'
+import { Card, Row, Col, Spin, Empty, Typography, Tooltip, Button, Tag } from 'antd'
+import { TeamOutlined, BellOutlined, TrophyOutlined, ThunderboltOutlined, RightOutlined } from '@ant-design/icons'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { getDashboard } from '../../api/dashboard'
+import { getMyVsmDashboard } from '../../api/vsmTasks'
 import StateChip from '../../components/StateChip'
 import RoleChip from '../../components/RoleChip'
 import SpeedometerGauge from '../../components/SpeedometerGauge'
 import AddAchievementWizard from '../../components/AddAchievementWizard'
+import InfoTip from '../../components/InfoTip'
 
 const { Text } = Typography
+
+const TASK_STATE_LED = { PULLED: 'amber', IN_PROGRESS: 'amber', DONE: 'green' }
+const TASK_TYPE_COLORS = { MINOR: 'default', IMPROVEMENT: 'gold' }
+
+function MissionControlRow() {
+  const { t } = useTranslation()
+  const navigate = useNavigate()
+  const { data: vsm } = useQuery({ queryKey: ['my-vsm-dashboard'], queryFn: getMyVsmDashboard })
+
+  const availableCount = vsm?.availableToPullCount ?? 0
+  const availablePreview = vsm?.availableToPullPreview ?? []
+  const myTasks = vsm?.myTasks ?? []
+  const activeTasks = myTasks.filter((tsk) => tsk.state !== 'DONE')
+  const doneTasks = myTasks.filter((tsk) => tsk.state === 'DONE')
+
+  if (!vsm) return null
+  // Nothing VSM-related touches this employee at all -- don't show two empty mission-control
+  // panels to someone who has never been near the module.
+  if (vsm.departmentId == null && myTasks.length === 0) return null
+
+  return (
+    <Row gutter={[16, 16]} style={{ marginBottom: 32 }}>
+      <Col xs={24} lg={10}>
+        <div className="control-room-panel">
+          <div className="control-room-header">
+            <h3 className="control-room-title">
+              <span className={`control-room-led ${availableCount > 0 ? 'green' : 'gray'}`} />
+              {t('missionControl.availableTitle')}
+              <InfoTip title={t('missionControl.availableInfo')} style={{ color: 'var(--gold-light)' }} />
+            </h3>
+          </div>
+          <div className="control-room-stat">{availableCount}</div>
+          <div className="control-room-sub">
+            {vsm.departmentName
+              ? t('missionControl.availableSubtitle', { department: vsm.departmentName })
+              : t('missionControl.noDepartment')}
+          </div>
+
+          {availablePreview.length > 0 && (
+            <div style={{ marginTop: 16, position: 'relative' }}>
+              {availablePreview.map((tsk) => (
+                <div key={tsk.id} className="control-room-row" onClick={() => navigate(`/vsm/departments/${vsm.departmentId}/board`)}>
+                  <span className="control-room-row-title">{tsk.title}</span>
+                  <Tag color={TASK_TYPE_COLORS[tsk.taskType]} style={{ margin: 0 }}>{tsk.taskType}</Tag>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {vsm.departmentId && (
+            <Button
+              className="control-room-cta"
+              block
+              style={{ marginTop: 12 }}
+              icon={<RightOutlined />}
+              onClick={() => navigate(`/vsm/departments/${vsm.departmentId}/board`)}
+            >
+              {t('missionControl.openBoard')}
+            </Button>
+          )}
+        </div>
+      </Col>
+
+      <Col xs={24} lg={14}>
+        <div className="control-room-panel">
+          <div className="control-room-header">
+            <h3 className="control-room-title">
+              <ThunderboltOutlined style={{ color: 'var(--gold-light)' }} />
+              {t('missionControl.myTasksTitle')}
+              <InfoTip title={t('missionControl.myTasksInfo')} />
+            </h3>
+            <Text style={{ color: 'var(--sidebar-text)', fontSize: 12, position: 'relative' }}>
+              {t('missionControl.myTasksCount', { count: activeTasks.length })}
+            </Text>
+          </div>
+
+          {myTasks.length === 0 ? (
+            <div className="control-room-empty">{t('missionControl.noTasks')}</div>
+          ) : (
+            <div style={{ position: 'relative' }}>
+              {[...activeTasks, ...doneTasks.slice(0, 3)].map((tsk) => (
+                <div key={tsk.id} className="control-room-row" onClick={() => navigate(`/vsm/tasks/${tsk.id}`)}>
+                  <span className={`control-room-led ${TASK_STATE_LED[tsk.state] || 'gray'}`} style={{ marginRight: 10 }} />
+                  <span className="control-room-row-title" style={{ flex: 1 }}>{tsk.title}</span>
+                  {tsk.noteCount > 0 && (
+                    <Tooltip title={t('vsm.notesCountTooltip', { count: tsk.noteCount })}>
+                      <Tag color="gold" style={{ margin: 0 }}>{tsk.noteCount}</Tag>
+                    </Tooltip>
+                  )}
+                  <span className="control-room-row-meta">{tsk.state}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </Col>
+    </Row>
+  )
+}
 
 const ROLE_ORDER = ['OWNER', 'EDITOR', 'COMMENTER', 'VIEWER']
 
@@ -36,16 +137,6 @@ export default function MemberDashboard() {
     )
   }
 
-  if (items.length === 0) {
-    return (
-      <Empty
-        description={t('dashboard.noStrategies')}
-        style={{ paddingTop: 80 }}
-        image={Empty.PRESENTED_IMAGE_SIMPLE}
-      />
-    )
-  }
-
   const byRole = ROLE_ORDER.reduce((acc, role) => {
     const group = items.filter((i) => i.role === role)
     if (group.length) acc[role] = group
@@ -58,21 +149,36 @@ export default function MemberDashboard() {
         <h1 className="page-title">{t('dashboard.title')}</h1>
       </div>
 
-      <div className="add-achievement-banner">
-        <Button
-          type="primary" icon={<TrophyOutlined />}
-          onClick={() => setWizardOpen(true)}
-          className="add-achievement-btn"
-        >
-          {t('dashboard.addAchievement')}
-        </Button>
-      </div>
+      <MissionControlRow />
 
-      <AddAchievementWizard
-        open={wizardOpen}
-        onClose={() => setWizardOpen(false)}
-        strategies={items}
-      />
+      {items.length === 0 ? (
+        <Empty
+          description={t('dashboard.noStrategies')}
+          style={{ paddingTop: 40 }}
+          image={Empty.PRESENTED_IMAGE_SIMPLE}
+        />
+      ) : (
+        <>
+          <h2 style={{ fontSize: 18, fontWeight: 700, color: '#1a2035', marginBottom: 12 }}>
+            {t('dashboard.myStrategiesSectionTitle')}
+          </h2>
+          <div className="add-achievement-banner">
+            <Button
+              type="primary" icon={<TrophyOutlined />}
+              onClick={() => setWizardOpen(true)}
+              className="add-achievement-btn"
+            >
+              {t('dashboard.addAchievement')}
+            </Button>
+          </div>
+
+          <AddAchievementWizard
+            open={wizardOpen}
+            onClose={() => setWizardOpen(false)}
+            strategies={items}
+          />
+        </>
+      )}
 
       {Object.entries(byRole).map(([role, strategies]) => (
         <div key={role} style={{ marginBottom: 32 }}>

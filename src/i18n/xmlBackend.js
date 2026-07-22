@@ -35,7 +35,9 @@ function parseLanguageXml(xmlText) {
 }
 
 export async function fetchLanguageXml(code) {
-  const res = await fetch(`/locales/${code}.xml`)
+  // import.meta.env.BASE_URL is Vite's resolved `base` (e.g. '/strtalign/' under the RIT Dubai
+  // path-prefixed deployment) -- a root-relative '/locales/...' fetch 404s under any non-root base.
+  const res = await fetch(`${import.meta.env.BASE_URL}locales/${code}.xml`)
   if (!res.ok) throw new Error(`No translation file for language "${code}" (${res.status})`)
   const text = await res.text()
   return parseLanguageXml(text)

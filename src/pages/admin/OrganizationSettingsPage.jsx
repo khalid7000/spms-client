@@ -12,6 +12,14 @@ import { loadLanguageManifest } from '../../i18n/languageManifest'
 import TableTotal from '../../components/TableTotal'
 
 const LANGUAGES_KEY = 'ENABLED_LANGUAGES'
+const VSM_NOTATION_PACKS_KEY = 'VSM_ENABLED_NOTATION_PACKS'
+// GENERIC is always on server-side (VsmMapService#getEnabledNotationPacks adds it unconditionally)
+// regardless of what's stored -- shown here as a locked checkbox so the UI doesn't imply it can be
+// turned off.
+const VSM_NOTATION_PACK_OPTIONS = [
+  { value: 'GENERIC', label: 'Generic (always on)' },
+  { value: 'MANUFACTURING', label: 'Manufacturing' },
+]
 
 export default function OrganizationSettingsPage() {
   const { t } = useTranslation()
@@ -32,10 +40,12 @@ export default function OrganizationSettingsPage() {
     queryFn: getOrganizationSettings,
   })
 
+  const isMultiCheckbox = (key) => key === LANGUAGES_KEY || key === VSM_NOTATION_PACKS_KEY
+
   const openEdit = (s) => {
     setEditing(s)
     form.setFieldsValue({
-      value: s.key === LANGUAGES_KEY ? s.value.split(',').filter(Boolean) : s.value,
+      value: isMultiCheckbox(s.key) ? s.value.split(',').filter(Boolean) : s.value,
     })
   }
 
@@ -48,6 +58,7 @@ export default function OrganizationSettingsPage() {
       setEditing(null)
       qc.invalidateQueries({ queryKey: ['admin-organization-settings'] })
       qc.invalidateQueries({ queryKey: ['organization-settings-public'] })
+      qc.invalidateQueries({ queryKey: ['vsm-node-types'] })
     },
     onError: (err) => message.error(err.response?.data?.message || t('common.updateFailed')),
   })
@@ -96,6 +107,16 @@ export default function OrganizationSettingsPage() {
             <Form.Item name="value" label={t('orgSettings.enabledLanguagesLabel')}
               rules={[{ required: true, message: t('orgSettings.selectAtLeastOneLanguage') }]}>
               <Checkbox.Group options={languageOptions} />
+            </Form.Item>
+          ) : editing?.key === VSM_NOTATION_PACKS_KEY ? (
+            <Form.Item name="value" label={t('orgSettings.vsmNotationPacksLabel')}>
+              <Checkbox.Group>
+                {VSM_NOTATION_PACK_OPTIONS.map((opt) => (
+                  <div key={opt.value} style={{ marginBottom: 4 }}>
+                    <Checkbox value={opt.value} disabled={opt.value === 'GENERIC'}>{opt.label}</Checkbox>
+                  </div>
+                ))}
+              </Checkbox.Group>
             </Form.Item>
           ) : (
             <Form.Item name="value" label={t('orgSettings.valueLabel')} rules={[{ required: true }]}>

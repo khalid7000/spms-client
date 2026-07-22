@@ -8,7 +8,8 @@
 import { fetchLanguageXml } from './xmlBackend'
 
 export async function loadLanguageManifest() {
-  const res = await fetch('/locales/available.json')
+  // Same base-path concern as fetchLanguageXml above -- must not hardcode a root-relative path.
+  const res = await fetch(`${import.meta.env.BASE_URL}locales/available.json`)
   const codes = await res.json()
   const entries = await Promise.all(
     codes.map(async (code) => {

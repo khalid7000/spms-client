@@ -35,6 +35,9 @@ import {
   UndoOutlined,
   GlobalOutlined,
   DatabaseOutlined,
+  NodeIndexOutlined,
+  UserSwitchOutlined,
+  FundProjectionScreenOutlined,
 } from '@ant-design/icons'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
@@ -42,6 +45,9 @@ import { useAuth } from '../auth/AuthContext'
 import { useTerminology } from '../TerminologyContext'
 import { getMyPendingApprovals } from '../api/approvals'
 import { getMySwotPendingActions } from '../api/swot'
+import { getPendingVsmAuthorGrantsForMe, getMyVsmAuthorGrants } from '../api/vsmAuthorGrants'
+import { listMyVsmMaps } from '../api/vsmMaps'
+import { getApprovalDelegationsPendingForMe, getApprovalDelegationsDelegatedToMe } from '../api/approvalDelegations'
 import {
   getMyNotifications, getUnreadCount, markNotificationRead, markNotificationUnread, markAllNotificationsRead,
 } from '../api/notifications'
@@ -136,6 +142,20 @@ export default function MemberLayout() {
   const swotPending = swotQuery.data ?? []
   const swotPendingCount = swotPending.length
 
+  // Anyone can end up as a top-of-hierarchy approver for a VSM author grant, not just heads/admins
+  // -- e.g. a Provost with no department of their own -- so this is checked independently of
+  // canSeeVsm below rather than folded into the same leadership-derived gate.
+  const { data: pendingVsmGrants = [] } = useQuery({
+    queryKey: ['vsm-author-grant-approvals-nav'],
+    queryFn: getPendingVsmAuthorGrantsForMe,
+    refetchInterval: 60_000,
+  })
+  const pendingVsmGrantsCount = pendingVsmGrants.length
+  const { data: myVsmGrants = [] } = useQuery({
+    queryKey: ['my-vsm-author-grants-nav'], queryFn: getMyVsmAuthorGrants,
+  })
+  const hasActiveVsmGrant = myVsmGrants.some((g) => g.status === 'ACTIVE')
+
   const leadershipQuery = useQuery({ queryKey: ['my-leadership'], queryFn: getMyLeadershipProfile })
   const dashboardQuery = useQuery({ queryKey: ['dashboard'], queryFn: getDashboard })
   const leadership = leadershipQuery.data
@@ -158,6 +178,36 @@ export default function MemberLayout() {
 
   const isAdmin = user?.systemRoles?.includes('ADMIN')
   const isHR = user?.systemRoles?.includes('HR')
+  // Anyone in the same department as an existing map -- not just its head/author -- can view that
+  // map and pull tasks off its board (see PermissionService#assertCanViewVsmMap/
+  // #assertCanViewDepartmentBoard's same-department checks). Without this, a regular team member
+  // has no nav entry point at all to reach a board their head published a task to, even though the
+  // backend would happily let them view it and pull -- the exact "backend allows it, UI never
+  // shows the option" gap already hit once before with VSM author grants (Phase 4b).
+  const { data: myVsmMapsNav = [] } = useQuery({ queryKey: ['my-vsm-maps-nav'], queryFn: listMyVsmMaps })
+  // VSM: dept/org-group heads plus Admin (who can see every map), anyone with an ACTIVE "VSM
+  // author" delegation grant (Phase 4b, may hold no leadership position at all), anyone with a
+  // pending grant approval to decide (e.g. a Provost with no department of their own), or anyone
+  // who can already see at least one map (covers plain department membership).
+  const canSeeVsm = (roleNavReady && (canCreateDepartment || canCreateUniversity || isAdmin))
+    || hasActiveVsmGrant || pendingVsmGrantsCount > 0 || myVsmMapsNav.length > 0
+
+  // Approval Delegation Console: heads can delegate authority they hold; but anyone can also end
+  // up on the other two sides of this flow -- a manager asked to approve someone else's delegation
+  // to an "anyone else" delegate, or a delegate who received authority -- regardless of whether
+  // they themselves head anything.
+  const { data: pendingDelegationApprovals = [] } = useQuery({
+    queryKey: ['approval-delegation-pending-for-me-nav'],
+    queryFn: getApprovalDelegationsPendingForMe,
+    refetchInterval: 60_000,
+  })
+  const pendingDelegationApprovalsCount = pendingDelegationApprovals.length
+  const { data: delegatedToMeNav = [] } = useQuery({
+    queryKey: ['approval-delegation-delegated-to-me-nav'], queryFn: getApprovalDelegationsDelegatedToMe,
+  })
+  const hasActiveDelegationToMe = delegatedToMeNav.some((d) => d.status === 'ACTIVE')
+  const canSeeApprovalDelegation = (roleNavReady && (canCreateDepartment || canCreateUniversity))
+    || pendingDelegationApprovalsCount > 0 || hasActiveDelegationToMe
   // Limited admin: user management only (Users page + CSV import) -- no other console feature,
   // granted only by a true ADMIN. See AdminService.createUser/updateUser for the server-side
   // guard that keeps this role from ever granting ADMIN/HR/USER_ADMIN to anyone.
@@ -189,6 +239,36 @@ export default function MemberLayout() {
               badge: swotPendingCount,
             }]
           : []),
+      ],
+    },
+    canSeeVsm && {
+      key: 'vsm',
+      label: t('nav.valueStreamMapping'),
+      icon: <NodeIndexOutlined />,
+      items: [
+        { key: '/vsm', icon: <NodeIndexOutlined />, label: t('nav.valueStreamMaps') },
+        { key: '/vsm/analytics', icon: <FundProjectionScreenOutlined />, label: t('nav.vsmAnalytics') },
+        ...(pendingVsmGrantsCount > 0
+          ? [{
+              key: '/vsm-author-grant-approvals',
+              icon: <CheckSquareOutlined />,
+              label: t('nav.vsmAuthorGrantApprovals'),
+              badge: pendingVsmGrantsCount,
+            }]
+          : []),
+      ],
+    },
+    canSeeApprovalDelegation && {
+      key: 'approval-delegation',
+      label: t('nav.approvalDelegation'),
+      icon: <UserSwitchOutlined />,
+      items: [
+        {
+          key: '/approval-delegations',
+          icon: <UserSwitchOutlined />,
+          label: t('nav.approvalDelegationConsole'),
+          ...(pendingDelegationApprovalsCount > 0 ? { badge: pendingDelegationApprovalsCount } : {}),
+        },
       ],
     },
     {
@@ -241,6 +321,7 @@ export default function MemberLayout() {
               { key: '/admin/achievement-types', icon: <TrophyOutlined />, label: t('nav.achievementTypes') },
               { key: '/admin/data-repository', icon: <DatabaseOutlined />, label: t('nav.dataRepository') },
               { key: '/admin/organization-settings', icon: <GlobalOutlined />, label: t('nav.organizationSettings') },
+              { key: '/admin/vsm-author-grants', icon: <NodeIndexOutlined />, label: t('nav.vsmAuthorGrants') },
             ]
           : []),
         // A pure User Admin (not also a full Admin) only ever sees this one link -- everything
